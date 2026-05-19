@@ -10,7 +10,7 @@ import {
   fmtIls,
 } from './view/Selectors.js';
 import { xirr } from './math/Xirr.js';
-import { fetchQuotes, getWorkerUrl, setWorkerUrl } from './io/QuoteFetcher.js';
+import { fetchQuotes, getWorkerUrl, setWorkerUrl, testWorker } from './io/QuoteFetcher.js';
 
 const $  = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
@@ -855,6 +855,21 @@ export class UI {
       workerInput.addEventListener('input', save);
       workerInput.addEventListener('change', save);
       workerInput.addEventListener('blur', save);
+
+      if (!$('#btn-test-worker')) {
+        workerInput.insertAdjacentHTML('afterend',
+          `<button id="btn-test-worker" type="button" class="mt-2 bg-primary/20 text-primary px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-primary/30 transition-colors">בדוק Worker</button>
+           <div id="worker-test-result" class="mt-2 text-xs font-mono break-all text-on-surface-variant"></div>`);
+        $('#btn-test-worker').addEventListener('click', async () => {
+          const btn = $('#btn-test-worker');
+          const out = $('#worker-test-result');
+          btn.disabled = true; out.textContent = 'בודק...';
+          const r = await testWorker('AAPL');
+          out.textContent = r.msg;
+          out.className = 'mt-2 text-xs font-mono break-all ' + (r.ok ? 'text-secondary' : 'text-red-400');
+          btn.disabled = false;
+        });
+      }
     }
   }
 

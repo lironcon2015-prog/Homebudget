@@ -36,13 +36,37 @@ async function proxyFetch(targetUrl) {
   for (const { url, json } of attempts) {
     try {
       const res = await fetchWithTimeout(url);
-      if (!res.ok) continue;
+      if (!res.ok) { console.warn('[proxyFetch] HTTP', res.status, url); continue; }
       const raw = await res.text();
       const text = json ? (JSON.parse(raw).contents ?? raw) : raw;
       if (text && text.length > 50) return text;
-    } catch (_) {}
+      console.warn('[proxyFetch] short body', text?.length, url);
+    } catch (e) { console.warn('[proxyFetch] err', e.name, e.message, url); }
   }
   return null;
+}
+
+// Single-shot diagnostic for the settings "Test Worker" button. Runs one
+// fetch through the configured worker and returns a human-readable result.
+export async function testWorker(testTicker = 'AAPL') {
+  const workerUrl = getWorkerUrl();
+  if (!workerUrl) return { ok: false, msg: 'אין URL של Worker מוגדר' };
+  const target = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(testTicker)}`;
+  const url = workerUrl + '/?url=' + encodeURIComponent(target);
+  const t0 = Date.now();
+  try {
+    const res = await fetchWithTimeout(url, 10000);
+    const ms = Date.now() - t0;
+    const raw = await res.text();
+    if (!res.ok) return { ok: false, msg: `HTTP ${res.status} (${ms}ms): ${raw.slice(0, 120)}` };
+    let price = null;
+    try { price = JSON.parse(raw)?.chart?.result?.[0]?.meta?.regularMarketPrice; } catch {}
+    if (typeof price === 'number') return { ok: true, msg: `✓ ${testTicker}=${price} (${ms}ms)` };
+    return { ok: false, msg: `תגובה לא תקינה (${ms}ms): ${raw.slice(0, 120)}` };
+  } catch (e) {
+    const ms = Date.now() - t0;
+    return { ok: false, msg: `${e.name} (${ms}ms): ${e.message}` };
+  }
 }
 
 export async function getQuote(ticker) {
