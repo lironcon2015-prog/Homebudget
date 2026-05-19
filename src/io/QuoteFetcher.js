@@ -113,11 +113,13 @@ export async function getQuote(ticker) {
 
   if (isNumericIsraeli) {
     // We can't tell ETF vs mutual fund from the number alone, so try both
-    // Funder paths plus the TASE Maya page as a fallback.
+    // ETF and mutual-fund paths across Funder, Bizportal, and TASE Maya.
     const padded = rawId.padStart(8, '0');
     const urls = [
       'https://www.funder.co.il/etf/' + rawId,
       'https://www.funder.co.il/fund/' + rawId,
+      'https://www.bizportal.co.il/tradedfund/quote/generalview/' + rawId,
+      'https://www.bizportal.co.il/mutualfund/quote/generalview/' + rawId,
       'https://market.tase.co.il/he/market_data/security/' + padded + '/major_data',
     ];
     for (const u of urls) {
