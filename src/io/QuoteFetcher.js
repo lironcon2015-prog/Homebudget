@@ -28,10 +28,10 @@ async function proxyFetch(targetUrl) {
     attempts.push({ url: workerUrl + '/?url=' + encodeURIComponent(targetUrl), json: false });
   }
   attempts.push(
-    { url: 'https://corsproxy.io/?url=' + encodeURIComponent(targetUrl), json: false },
     { url: 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(targetUrl), json: false },
     { url: 'https://api.allorigins.win/raw?url=' + encodeURIComponent(targetUrl), json: false },
     { url: 'https://api.allorigins.win/get?url=' + encodeURIComponent(targetUrl), json: true },
+    { url: 'https://corsproxy.io/?url=' + encodeURIComponent(targetUrl), json: false },
   );
   for (const { url, json } of attempts) {
     try {
