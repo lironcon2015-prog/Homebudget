@@ -841,10 +841,21 @@ export class UI {
       this.sm.setFxRate(parseFloat(e.target.value));
     });
 
-    $('#settings-worker-url')?.addEventListener('change', (e) => {
-      setWorkerUrl(e.target.value);
-      toast(e.target.value.trim() ? 'נשמר Worker URL' : 'נמחק Worker URL');
-    });
+    const workerInput = $('#settings-worker-url');
+    if (workerInput) {
+      let lastToasted = getWorkerUrl();
+      const save = (e) => {
+        const trimmed = (e.target.value || '').trim().replace(/\/+$/, '');
+        setWorkerUrl(trimmed);
+        if (trimmed !== lastToasted) {
+          toast(trimmed ? 'נשמר Worker URL' : 'נמחק Worker URL');
+          lastToasted = trimmed;
+        }
+      };
+      workerInput.addEventListener('input', save);
+      workerInput.addEventListener('change', save);
+      workerInput.addEventListener('blur', save);
+    }
   }
 
   _bindIO() {
