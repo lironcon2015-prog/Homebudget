@@ -9,8 +9,11 @@ export function getWorkerUrl() {
 
 export function setWorkerUrl(url) {
   try {
-    const trimmed = (url || '').trim().replace(/\/+$/, '');
-    if (trimmed) localStorage.setItem(WORKER_URL_KEY, trimmed);
+    let cleaned = (url || '').trim();
+    // Strip wrapping angle brackets / quotes / whitespace that users
+    // commonly paste in (e.g. copying "<https://...>" from markdown).
+    cleaned = cleaned.replace(/^[<"'\s]+/, '').replace(/[>"'\s]+$/, '').replace(/\/+$/, '');
+    if (cleaned) localStorage.setItem(WORKER_URL_KEY, cleaned);
     else localStorage.removeItem(WORKER_URL_KEY);
   } catch {}
 }
