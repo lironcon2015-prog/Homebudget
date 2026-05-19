@@ -51,13 +51,21 @@ async function proxyFetch(targetUrl) {
 
 // Single-shot diagnostic for the settings "Test Worker" button. Runs one
 // fetch through the configured worker and returns a human-readable result.
+// Routes numeric Israeli IDs to Funder, everything else to Yahoo.
 export async function testWorker(testTicker = 'AAPL') {
   const workerUrl = getWorkerUrl();
   if (!workerUrl) return { ok: false, msg: 'אין URL של Worker מוגדר' };
-  const target = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(testTicker)}`;
-  const url = workerUrl + '/?url=' + encodeURIComponent(target);
+  const isNumericIsraeli = /^\d{6,7}$/.test(testTicker);
   const t0 = Date.now();
   try {
+    if (isNumericIsraeli) {
+      const price = await getQuote(testTicker);
+      const ms = Date.now() - t0;
+      if (price != null) return { ok: true, msg: `✓ ${testTicker}=${price} (${ms}ms via Funder)` };
+      return { ok: false, msg: `Funder לא החזיר מחיר עבור ${testTicker} (${ms}ms)` };
+    }
+    const target = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(testTicker)}`;
+    const url = workerUrl + '/?url=' + encodeURIComponent(target);
     const res = await fetchWithTimeout(url, 10000);
     const ms = Date.now() - t0;
     const raw = await res.text();
@@ -72,23 +80,53 @@ export async function testWorker(testTicker = 'AAPL') {
   }
 }
 
+function extractIsraeliPrice(html) {
+  if (!html) return null;
+  const patterns = [
+    /id="fundLastRate"[^>]*>\s*([\d.,]+)/i,
+    /id="etfLastRate"[^>]*>\s*([\d.,]+)/i,
+    /class="[^"]*(?:fund|etf)[-_]?last[-_]?rate[^"]*"[^>]*>\s*([\d.,]+)/i,
+    /class="[^"]*info-price[^"]*"[^>]*>\s*([\d.,]+)/i,
+    /class="[^"]*last[-_]?(?:rate|price)[^"]*"[^>]*>\s*([\d.,]+)/i,
+    /data-(?:last-)?rate\s*=\s*"([\d.,]+)"/i,
+    /"lastRate"\s*:\s*"?([\d.]+)"?/i,
+    /"last_rate"\s*:\s*"?([\d.]+)"?/i,
+    /"closingPrice"\s*:\s*"?([\d.]+)"?/i,
+    /שער\s*(?:אחרון|נוכחי)?[^0-9-]{0,40}([0-9]{2,6}(?:[.,][0-9]{1,4})?)/i,
+  ];
+  for (const re of patterns) {
+    const m = html.match(re);
+    if (!m) continue;
+    const raw = parseFloat(m[1].replace(/,/g, ''));
+    if (!isNaN(raw) && raw > 0) {
+      // Israeli sources quote in agorot (e.g. 12345.6 = 123.456 ILS).
+      // Values >100 we treat as agorot; otherwise as ILS.
+      return raw > 100 ? raw / 100 : raw;
+    }
+  }
+  return null;
+}
+
 export async function getQuote(ticker) {
-  const isMutualFund = /^\d{6,7}$/.test(ticker);  // pure numeric only
+  const isNumericIsraeli = /^\d{6,7}$/.test(ticker);  // pure numeric: ETF or mutual fund
   const rawId = ticker.replace(/\.TA$/i, '');
 
-  if (isMutualFund) {
-    try {
-      const html = await proxyFetch('https://www.funder.co.il/fund/' + rawId);
-      if (!html) throw new Error('empty');
-      const match =
-        html.match(/id="fundLastRate"[^>]*>\s*([\d.,]+)/i) ||
-        html.match(/שער[^0-9]*([0-9]{3,5}\.[0-9]{1,3})/i) ||
-        html.match(/class="[^"]*info-price[^"]*"[^>]*>\s*([\d,.]+)/i);
-      if (match) {
-        const agorot = parseFloat(match[1].replace(/,/g, ''));
-        if (!isNaN(agorot) && agorot > 0) return agorot / 100;
-      }
-    } catch (e) { console.warn('[QuoteFetcher] Funder failed:', e.message); }
+  if (isNumericIsraeli) {
+    // We can't tell ETF vs mutual fund from the number alone, so try both
+    // Funder paths plus the TASE Maya page as a fallback.
+    const padded = rawId.padStart(8, '0');
+    const urls = [
+      'https://www.funder.co.il/etf/' + rawId,
+      'https://www.funder.co.il/fund/' + rawId,
+      'https://market.tase.co.il/he/market_data/security/' + padded + '/major_data',
+    ];
+    for (const u of urls) {
+      try {
+        const html = await proxyFetch(u);
+        const price = extractIsraeliPrice(html);
+        if (price != null) { console.log(`[QuoteFetcher] OK: ${ticker} = ${price} via ${u}`); return price; }
+      } catch (e) { console.warn('[QuoteFetcher] failed:', u, e.message); }
+    }
   } else {
     const endpoints = [
       `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}`,

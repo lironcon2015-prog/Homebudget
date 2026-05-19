@@ -16,6 +16,9 @@ const ALLOWED_HOSTS = new Set([
   'query1.finance.yahoo.com',
   'query2.finance.yahoo.com',
   'www.funder.co.il',
+  'market.tase.co.il',
+  'maya.tase.co.il',
+  'mayaapi.tase.co.il',
 ]);
 
 const CORS_HEADERS = {
