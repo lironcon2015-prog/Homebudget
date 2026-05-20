@@ -137,7 +137,10 @@ function extractIsraeliPrice(html) {
   // Excludes BasePrice/PaperValue/Open/etc. — those are previous-day or
   // opening values and are a common false positive.
   const patterns = [
-    // Funder explicit IDs
+    // Bizportal (most reliable for tradedfund / ETF). Markup:
+    //   <div class="top-rate-line" ...><div class="num">5,844</div>...
+    /class="top-rate-line"[\s\S]{0,200}?class="num"[^>]*>\s*([\d.,]+)/i,
+    // Funder explicit IDs (when present)
     /id="fundLastRate"[^>]*>\s*([\d.,]+)/i,
     /id="etfLastRate"[^>]*>\s*([\d.,]+)/i,
     /class="[^"]*(?:fund|etf)[-_]?last[-_]?rate[^"]*"[^>]*>\s*([\d.,]+)/i,
