@@ -30,6 +30,8 @@ export class UI {
     this._bindSettings();
     this._bindIO();
     this._bindEditDialog();
+    const vEl = document.getElementById('settings-version');
+    if (vEl) vEl.textContent = 'v' + (window.JI_APP_VERSION || '?');
     document.getElementById('btn-hero-total')?.addEventListener('click', () => {
       this.isTotalMode = true;
       this.activeKidId = null;

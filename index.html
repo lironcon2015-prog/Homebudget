@@ -82,6 +82,7 @@ window.addEventListener('unhandledrejection', (e) => { if (!window.JI) jiShowBoo
     });
     await onBodyReady();
 
+    window.JI_APP_VERSION = v;
     const appEl = document.createElement('script');
     appEl.type = 'module';
     appEl.src = `./app.js?v=${v}`;
@@ -883,6 +884,7 @@ window.addEventListener('unhandledrejection', (e) => { if (!window.JI) jiShowBoo
           <input id="settings-worker-url" class="input-field" type="url" dir="ltr" placeholder="https://juniorinvest-quotes.<account>.workers.dev" />
           <p class="text-xs text-on-background/60 mt-1">אם הפרוקסים החיצוניים נופלים, פרוס Cloudflare Worker (worker/quote-proxy.js) והדבק כאן את ה-URL שלו.</p>
         </div>
+        <div id="settings-version" class="md:col-span-2 text-xs text-on-surface-variant/70 mt-2 text-left font-mono" dir="ltr"></div>
       </div>
     </div>
 
