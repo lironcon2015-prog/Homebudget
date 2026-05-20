@@ -12,6 +12,10 @@
   next page load — no need to keep an importmap in sync by hand.
 -->
 <link rel="manifest" href="./manifest.webmanifest" />
+<link rel="icon" type="image/png" sizes="32x32" href="./icons/favicon-32.png" />
+<link rel="icon" type="image/png" sizes="16x16" href="./icons/favicon-16.png" />
+<link rel="shortcut icon" href="./icons/favicon.ico" />
+<link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="הון ג'וניור" />
@@ -637,9 +641,7 @@ window.addEventListener('unhandledrejection', (e) => { if (!window.JI) jiShowBoo
 <nav class="hidden md:flex flex-col h-screen w-sidebar-width fixed right-0 top-0 bg-surface/30 backdrop-blur-md border-l-[0.5px] border-white/20 shadow-2xl py-stack-lg px-gutter z-50">
   <div class="mb-stack-lg">
     <div class="flex items-center gap-3">
-      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/30 to-transparent flex items-center justify-center border border-primary/40 shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_0_18px_rgba(206,189,255,0.25)]">
-        <span class="material-symbols-outlined text-primary" style="font-size:20px;">account_balance</span>
-      </div>
+      <img src="./icons/icon-192.png" alt="" class="w-10 h-10 rounded-xl shadow-[0_0_18px_rgba(206,189,255,0.35)]" />
       <div>
         <h1 class="font-display-lg text-headline-md text-primary tracking-widest font-semibold">הון ג'וניור</h1>
         <p class="font-label-sm text-label-sm text-on-surface-variant uppercase mt-1">תיק עילית</p>
@@ -689,9 +691,7 @@ window.addEventListener('unhandledrejection', (e) => { if (!window.JI) jiShowBoo
   <!-- Mobile top bar (Midnight Astral restyle) -->
   <div class="md:hidden flex justify-between items-center gap-2 h-14 bg-background/60 backdrop-blur-xl border-b-[0.5px] border-white/10 -mx-margin-mobile px-3 mb-2 z-40 sticky top-0">
     <h1 class="mobile-topbar-title font-headline-lg-mobile text-primary flex items-center gap-2 min-w-0">
-      <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-primary/40 to-transparent flex items-center justify-center border border-primary/50 shrink-0">
-        <span class="material-symbols-outlined text-primary" style="font-size:14px;">account_balance</span>
-      </div>
+      <img src="./icons/icon-192.png" alt="" class="w-7 h-7 rounded-lg shadow-[0_0_10px_rgba(206,189,255,0.4)] shrink-0" />
       <span class="truncate">הון ג'וניור</span>
     </h1>
     <div class="mobile-topbar-nav flex gap-0.5 shrink-0">
