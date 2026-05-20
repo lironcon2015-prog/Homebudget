@@ -1,0 +1,14 @@
+{
+  "name": "juniorinvest",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:offline": "node tools/build-offline.js"
+  },
+  "devDependencies": {
+    "@tailwindcss/container-queries": "^0.1.1",
+    "@tailwindcss/forms": "^0.5.10",
+    "esbuild": "^0.28.0",
+    "tailwindcss": "^3.4.17"
+  }
+}

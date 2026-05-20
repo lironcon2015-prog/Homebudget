@@ -1,0 +1,51 @@
+name: Build offline HTML
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - app.js
+      - src/**
+      - index.html
+      - icons/icon-192.png
+      - tailwind.config.js
+      - tools/build-offline.js
+      - tools/tailwind.input.css
+      - package.json
+      - package-lock.json
+      - version.json
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Use a deploy token so the follow-up push triggers Pages.
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Build dist/JuniorInvest-Offline.html
+        run: node tools/build-offline.js
+
+      - name: Commit if changed
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- dist/JuniorInvest-Offline.html; then
+            echo "no changes"
+            exit 0
+          fi
+          git add dist/JuniorInvest-Offline.html
+          git commit -m "ci: rebuild offline bundle ($(jq -r .version version.json))"
+          git push
