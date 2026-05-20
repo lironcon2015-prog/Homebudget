@@ -666,20 +666,18 @@ window.addEventListener('unhandledrejection', (e) => { if (!window.JI) jiShowBoo
         <span class="font-body-md text-body-md">יומן ופעולות</span>
       </a>
     </li>
+    <li>
+      <a data-nav="settings" class="rtl-nav-item icon-glow flex items-center gap-stack-sm p-3 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-white/5 transition-all duration-300 cursor-pointer">
+        <span class="material-symbols-outlined">settings</span>
+        <span class="font-body-md text-body-md">הגדרות</span>
+      </a>
+    </li>
   </ul>
 
   <div class="mt-auto pt-stack-md border-t-[0.5px] border-white/10 flex flex-col gap-stack-sm">
     <button id="btn-fetch-quotes-side" class="w-full text-primary hover:text-white py-3 rounded-lg flex items-center justify-center gap-2 border border-primary/30 bg-primary/10 hover:bg-primary/20 transition disabled:opacity-60 disabled:cursor-wait">
       <span class="material-symbols-outlined btn-sync-icon" style="font-size:18px;">sync</span>
       רענן שערים
-    </button>
-    <button id="btn-export" class="w-full py-3 rounded-lg font-semibold neon-button flex items-center justify-center gap-2">
-      <span class="material-symbols-outlined" style="font-size:18px;">download</span>
-      ייצוא JSON
-    </button>
-    <button id="btn-import" class="w-full text-on-surface-variant hover:text-on-surface py-3 rounded-lg flex items-center justify-center gap-2 border border-primary/20 hover:bg-white/5 hover:border-primary/40 transition">
-      <span class="material-symbols-outlined" style="font-size:18px;">upload</span>
-      ייבוא JSON
     </button>
     <input id="import-file" type="file" accept="application/json" class="hidden" />
   </div>
@@ -701,8 +699,7 @@ window.addEventListener('unhandledrejection', (e) => { if (!window.JI) jiShowBoo
       <button data-nav="holdings" class="p-2 text-on-surface-variant hover:text-on-surface transition-colors" aria-label="אחזקות"><span class="material-symbols-outlined">account_balance_wallet</span></button>
       <button data-nav="ledger" class="p-2 text-on-surface-variant hover:text-on-surface transition-colors" aria-label="יומן"><span class="material-symbols-outlined">receipt_long</span></button>
       <button id="btn-fetch-quotes-mobile" class="p-2 text-primary hover:text-white transition-colors disabled:opacity-60 disabled:cursor-wait" aria-label="רענן שערים"><span class="material-symbols-outlined btn-sync-icon">sync</span></button>
-      <button id="btn-export-mobile" class="p-2 text-on-surface-variant hover:text-primary transition-colors" aria-label="ייצוא"><span class="material-symbols-outlined">download</span></button>
-      <button id="btn-import-mobile" class="p-2 text-on-surface-variant hover:text-primary transition-colors" aria-label="ייבוא"><span class="material-symbols-outlined">upload</span></button>
+      <button data-nav="settings" class="p-2 text-on-surface-variant hover:text-on-surface transition-colors" aria-label="הגדרות"><span class="material-symbols-outlined">settings</span></button>
     </div>
   </div>
 
@@ -862,32 +859,6 @@ window.addEventListener('unhandledrejection', (e) => { if (!window.JI) jiShowBoo
       </form>
     </div>
 
-    <!-- Settings -->
-    <div class="glass-panel rounded-3xl p-4 sm:p-6 md:p-8 lg:p-10">
-      <h2 class="font-headline-md text-lg md:text-xl font-bold text-on-background mb-4 md:mb-6 flex items-center gap-3">
-        <span class="material-symbols-outlined text-primary">tune</span> הגדרות
-      </h2>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-        <div>
-          <label class="field-label">שער USD/ILS לשערוך</label>
-          <input id="settings-fx" class="input-field tabular-nums" type="number" step="0.0001" min="0" />
-        </div>
-        <div>
-          <label class="field-label">ילדים</label>
-          <ul id="settings-kids" class="flex flex-col gap-2"></ul>
-          <button id="btn-add-kid" class="mt-3 text-sm text-primary hover:text-primary-hover flex items-center gap-1">
-            <span class="material-symbols-outlined text-base">add</span> הוסף ילד/ה
-          </button>
-        </div>
-        <div class="md:col-span-2">
-          <label class="field-label">כתובת Worker לשערים (אופציונלי, מומלץ)</label>
-          <input id="settings-worker-url" class="input-field" type="url" dir="ltr" placeholder="https://juniorinvest-quotes.<account>.workers.dev" />
-          <p class="text-xs text-on-background/60 mt-1">אם הפרוקסים החיצוניים נופלים, פרוס Cloudflare Worker (worker/quote-proxy.js) והדבק כאן את ה-URL שלו.</p>
-        </div>
-        <div id="settings-version" class="md:col-span-2 text-xs text-on-surface-variant/70 mt-2 text-left font-mono" dir="ltr"></div>
-      </div>
-    </div>
-
     <!-- History -->
     <div class="glass-panel rounded-3xl p-4 sm:p-6 md:p-8 lg:p-10">
       <h2 class="font-headline-md text-xl md:text-2xl font-bold text-on-background flex items-center gap-3 md:gap-4 mb-5 md:mb-8">
@@ -910,6 +881,65 @@ window.addEventListener('unhandledrejection', (e) => { if (!window.JI) jiShowBoo
           <tbody id="ledger-tbody" class="font-data-tabular tabular-nums text-sm text-on-background"></tbody>
         </table>
       </div>
+    </div>
+
+  </section>
+
+  <!-- ================ SETTINGS ================ -->
+  <section id="view-settings" class="hidden flex-col gap-card-gap">
+
+    <!-- General settings -->
+    <div class="glass-panel rounded-3xl p-4 sm:p-6 md:p-8 lg:p-10">
+      <h2 class="font-headline-md text-xl md:text-2xl font-bold text-on-background flex items-center gap-3 md:gap-4 mb-5 md:mb-8">
+        <div class="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center border border-primary/20 shrink-0">
+          <span class="material-symbols-outlined text-primary text-xl">tune</span>
+        </div>
+        הגדרות כלליות
+      </h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+        <div>
+          <label class="field-label">שער USD/ILS לשערוך</label>
+          <input id="settings-fx" class="input-field tabular-nums" type="number" step="0.0001" min="0" />
+        </div>
+        <div>
+          <label class="field-label">ילדים</label>
+          <ul id="settings-kids" class="flex flex-col gap-2"></ul>
+          <button id="btn-add-kid" class="mt-3 text-sm text-primary hover:text-primary-hover flex items-center gap-1">
+            <span class="material-symbols-outlined text-base">add</span> הוסף ילד/ה
+          </button>
+        </div>
+        <div class="md:col-span-2">
+          <label class="field-label">כתובת Worker לשערים (אופציונלי, מומלץ)</label>
+          <input id="settings-worker-url" class="input-field" type="url" dir="ltr" placeholder="https://juniorinvest-quotes.<account>.workers.dev" />
+          <p class="text-xs text-on-background/60 mt-1">אם הפרוקסים החיצוניים נופלים, פרוס Cloudflare Worker (worker/quote-proxy.js) והדבק כאן את ה-URL שלו.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Backup -->
+    <div class="glass-panel rounded-3xl p-4 sm:p-6 md:p-8 lg:p-10">
+      <h2 class="font-headline-md text-xl md:text-2xl font-bold text-on-background flex items-center gap-3 md:gap-4 mb-5 md:mb-8">
+        <div class="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center border border-primary/20 shrink-0">
+          <span class="material-symbols-outlined text-primary text-xl">backup</span>
+        </div>
+        גיבוי ושחזור
+      </h2>
+      <p class="text-sm text-on-surface-variant mb-5">ייצא את כל המידע (יומן, ילדים, שערים והגדרות) לקובץ JSON, או טען קובץ קיים. הייבוא דורס את המידע הקיים.</p>
+      <div class="flex flex-col sm:flex-row gap-3">
+        <button id="btn-export" class="flex-1 py-3 rounded-lg font-semibold neon-button flex items-center justify-center gap-2">
+          <span class="material-symbols-outlined" style="font-size:18px;">download</span>
+          ייצוא JSON
+        </button>
+        <button id="btn-import" class="flex-1 py-3 rounded-lg flex items-center justify-center gap-2 border border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 transition">
+          <span class="material-symbols-outlined" style="font-size:18px;">upload</span>
+          ייבוא JSON
+        </button>
+      </div>
+    </div>
+
+    <!-- About / version -->
+    <div class="glass-panel rounded-3xl p-4 sm:p-6 md:p-8">
+      <div id="settings-version" class="text-xs text-on-surface-variant/70 text-left font-mono" dir="ltr"></div>
     </div>
 
   </section>

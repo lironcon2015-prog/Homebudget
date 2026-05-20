@@ -15,7 +15,7 @@ import { fetchQuotes, getWorkerUrl, setWorkerUrl, testWorker } from './io/QuoteF
 const $  = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
-const VIEWS = ['dashboard', 'holdings', 'ledger', 'kid-portfolio'];
+const VIEWS = ['dashboard', 'holdings', 'ledger', 'settings', 'kid-portfolio'];
 
 export class UI {
   constructor(stateManager) {
@@ -895,8 +895,6 @@ export class UI {
 
     $('#btn-export').addEventListener('click', doExport);
     $('#btn-import').addEventListener('click', doImport);
-    $('#btn-export-mobile').addEventListener('click', doExport);
-    $('#btn-import-mobile').addEventListener('click', doImport);
     $('#import-file').addEventListener('change', async (e) => {
       const file = e.target.files[0];
       if (!file) return;
