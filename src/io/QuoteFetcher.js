@@ -140,6 +140,9 @@ function extractIsraeliPrice(html) {
     // Bizportal (most reliable for tradedfund / ETF). Markup:
     //   <div class="top-rate-line" ...><div class="num">5,844</div>...
     /class="top-rate-line"[\s\S]{0,200}?class="num"[^>]*>\s*([\d.,]+)/i,
+    // Funder mutual-fund JSON (buyPrice == sellPrice == daily NAV).
+    /"buyPrice"\s*:\s*([\d.]+)/i,
+    /"sellPrice"\s*:\s*([\d.]+)/i,
     // Funder explicit IDs (when present)
     /id="fundLastRate"[^>]*>\s*([\d.,]+)/i,
     /id="etfLastRate"[^>]*>\s*([\d.,]+)/i,
@@ -183,11 +186,16 @@ function priceContextSnippet(html) {
 // (url, htmlLength, price). Order preserved.
 async function fetchIsraeliCandidates(rawId) {
   const padded = rawId.padStart(8, '0');
+  // Order matters: getQuote returns the first source whose HTML yields a
+  // price. Bizportal tradedfund is reliable for ETFs (top-rate-line
+  // markup); Funder /fund is reliable for mutual funds (buyPrice JSON).
+  // Trying Bizportal first prevents a Funder ETF's bid/ask spread (if
+  // it ever appears as buyPrice) from beating Bizportal's last price.
   const urls = [
-    'https://www.funder.co.il/etf/' + rawId,
-    'https://www.funder.co.il/fund/' + rawId,
     'https://www.bizportal.co.il/tradedfund/quote/generalview/' + rawId,
     'https://www.bizportal.co.il/mutualfund/quote/generalview/' + rawId,
+    'https://www.funder.co.il/fund/' + rawId,
+    'https://www.funder.co.il/etf/' + rawId,
     'https://market.tase.co.il/he/market_data/security/' + padded + '/major_data',
   ];
   const tasks = urls.map(async (url) => {
