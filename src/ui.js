@@ -862,7 +862,7 @@ export class UI {
              <input id="input-test-ticker" type="text" placeholder="AAPL / 1150184 / LUMI.TA" dir="ltr" class="input-field text-sm flex-1 min-w-0" style="padding:0.4rem 0.6rem;" />
              <button id="btn-test-worker" type="button" class="bg-primary/20 text-primary px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-primary/30 transition-colors whitespace-nowrap">בדוק טיקר</button>
            </div>
-           <div id="worker-test-result" class="mt-2 text-xs font-mono break-all text-on-surface-variant"></div>`);
+           <div id="worker-test-result" class="mt-2 text-xs font-mono break-all whitespace-pre-wrap text-on-surface-variant"></div>`);
         const runTest = async () => {
           const btn = $('#btn-test-worker');
           const out = $('#worker-test-result');
@@ -870,7 +870,7 @@ export class UI {
           btn.disabled = true; out.textContent = `בודק ${t}...`;
           const r = await testWorker(t);
           out.textContent = r.msg;
-          out.className = 'mt-2 text-xs font-mono break-all ' + (r.ok ? 'text-secondary' : 'text-red-400');
+          out.className = 'mt-2 text-xs font-mono break-all whitespace-pre-wrap ' + (r.ok ? 'text-secondary' : 'text-red-400');
           btn.disabled = false;
         };
         $('#btn-test-worker').addEventListener('click', runTest);

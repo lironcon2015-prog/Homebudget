@@ -48,7 +48,10 @@ export default {
     catch { return new Response('bad url', { status: 400, headers: CORS_HEADERS }); }
 
     if (parsed.protocol !== 'https:' || !ALLOWED_HOSTS.has(parsed.hostname)) {
-      return new Response('host not allowed', { status: 403, headers: CORS_HEADERS });
+      return new Response('host not allowed: ' + parsed.hostname, {
+        status: 403,
+        headers: { ...CORS_HEADERS, 'Cache-Control': 'no-store' },
+      });
     }
 
     try {
@@ -60,18 +63,20 @@ export default {
         },
       });
       const body = await upstream.text();
+      const ok = upstream.status >= 200 && upstream.status < 300;
       return new Response(body, {
         status: upstream.status,
         headers: {
           ...CORS_HEADERS,
           'Content-Type': upstream.headers.get('Content-Type') || 'text/plain; charset=utf-8',
-          'Cache-Control': 'public, max-age=60',
+          // Only cache successful responses; errors must always re-fetch.
+          'Cache-Control': ok ? 'public, max-age=60' : 'no-store',
         },
       });
     } catch (e) {
       return new Response('upstream error: ' + e.message, {
         status: 502,
-        headers: CORS_HEADERS,
+        headers: { ...CORS_HEADERS, 'Cache-Control': 'no-store' },
       });
     }
   },

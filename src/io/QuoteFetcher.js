@@ -28,7 +28,9 @@ async function proxyFetch(targetUrl) {
   const workerUrl = getWorkerUrl();
   const attempts = [];
   if (workerUrl) {
-    attempts.push({ url: workerUrl + '/?url=' + encodeURIComponent(targetUrl), json: false });
+    // Cache-bust so a stale Cloudflare edge response doesn't poison future calls.
+    const bust = '&_=' + Date.now();
+    attempts.push({ url: workerUrl + '/?url=' + encodeURIComponent(targetUrl) + bust, json: false });
   }
   attempts.push(
     { url: 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(targetUrl), json: false },
@@ -59,25 +61,35 @@ export async function testWorker(testTicker = 'AAPL') {
   const t0 = Date.now();
   try {
     if (isNumericIsraeli) {
-      const price = await getQuote(testTicker);
+      const results = await fetchIsraeliCandidates(testTicker);
       const ms = Date.now() - t0;
-      if (price != null) return { ok: true, msg: `✓ ${testTicker}=${price} (${ms}ms via Funder)` };
-      return { ok: false, msg: `Funder לא החזיר מחיר עבור ${testTicker} (${ms}ms)` };
+      const winner = results.find((r) => r.price != null);
+      if (winner) {
+        return { ok: true, msg: `✓ ${testTicker}=${winner.price} (${ms}ms via ${shortUrl(winner.url)})` };
+      }
+      const lines = results.map((r) => `  ${shortUrl(r.url)}: ${r.htmlLength}B html, no price`);
+      return { ok: false, msg: `אין מחיר ב-${results.length} מקורות (${ms}ms):\n` + lines.join('\n') };
     }
+    const bust = '&_=' + Date.now();
     const target = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(testTicker)}`;
-    const url = workerUrl + '/?url=' + encodeURIComponent(target);
+    const url = workerUrl + '/?url=' + encodeURIComponent(target) + bust;
     const res = await fetchWithTimeout(url, 10000);
     const ms = Date.now() - t0;
     const raw = await res.text();
-    if (!res.ok) return { ok: false, msg: `HTTP ${res.status} (${ms}ms): ${raw.slice(0, 120)}` };
+    if (!res.ok) return { ok: false, msg: `HTTP ${res.status} (${ms}ms): ${raw.slice(0, 200)}` };
     let price = null;
     try { price = JSON.parse(raw)?.chart?.result?.[0]?.meta?.regularMarketPrice; } catch {}
     if (typeof price === 'number') return { ok: true, msg: `✓ ${testTicker}=${price} (${ms}ms)` };
-    return { ok: false, msg: `תגובה לא תקינה (${ms}ms): ${raw.slice(0, 120)}` };
+    return { ok: false, msg: `תגובה לא תקינה (${ms}ms): ${raw.slice(0, 200)}` };
   } catch (e) {
     const ms = Date.now() - t0;
     return { ok: false, msg: `${e.name} (${ms}ms): ${e.message}` };
   }
+}
+
+function shortUrl(u) {
+  try { const p = new URL(u); return p.hostname.replace(/^www\./, '') + p.pathname; }
+  catch { return u; }
 }
 
 function extractIsraeliPrice(html) {
@@ -107,27 +119,38 @@ function extractIsraeliPrice(html) {
   return null;
 }
 
+// Fetch all Israeli candidate URLs in parallel and return per-URL results
+// (url, htmlLength, price). Order preserved.
+async function fetchIsraeliCandidates(rawId) {
+  const padded = rawId.padStart(8, '0');
+  const urls = [
+    'https://www.funder.co.il/etf/' + rawId,
+    'https://www.funder.co.il/fund/' + rawId,
+    'https://www.bizportal.co.il/tradedfund/quote/generalview/' + rawId,
+    'https://www.bizportal.co.il/mutualfund/quote/generalview/' + rawId,
+    'https://market.tase.co.il/he/market_data/security/' + padded + '/major_data',
+  ];
+  const tasks = urls.map(async (url) => {
+    try {
+      const html = await proxyFetch(url);
+      const price = extractIsraeliPrice(html);
+      return { url, htmlLength: html?.length ?? 0, price };
+    } catch (e) {
+      console.warn('[fetchIsraeliCandidates] failed', url, e.message);
+      return { url, htmlLength: 0, price: null };
+    }
+  });
+  return Promise.all(tasks);
+}
+
 export async function getQuote(ticker) {
   const isNumericIsraeli = /^\d{6,7}$/.test(ticker);  // pure numeric: ETF or mutual fund
   const rawId = ticker.replace(/\.TA$/i, '');
 
   if (isNumericIsraeli) {
-    // We can't tell ETF vs mutual fund from the number alone, so try both
-    // ETF and mutual-fund paths across Funder, Bizportal, and TASE Maya.
-    const padded = rawId.padStart(8, '0');
-    const urls = [
-      'https://www.funder.co.il/etf/' + rawId,
-      'https://www.funder.co.il/fund/' + rawId,
-      'https://www.bizportal.co.il/tradedfund/quote/generalview/' + rawId,
-      'https://www.bizportal.co.il/mutualfund/quote/generalview/' + rawId,
-      'https://market.tase.co.il/he/market_data/security/' + padded + '/major_data',
-    ];
-    for (const u of urls) {
-      try {
-        const html = await proxyFetch(u);
-        const price = extractIsraeliPrice(html);
-        if (price != null) { console.log(`[QuoteFetcher] OK: ${ticker} = ${price} via ${u}`); return price; }
-      } catch (e) { console.warn('[QuoteFetcher] failed:', u, e.message); }
+    const results = await fetchIsraeliCandidates(rawId);
+    for (const { url, price } of results) {
+      if (price != null) { console.log(`[QuoteFetcher] OK: ${ticker} = ${price} via ${url}`); return price; }
     }
   } else {
     const endpoints = [
