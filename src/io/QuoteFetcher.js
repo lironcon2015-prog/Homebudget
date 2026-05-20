@@ -74,6 +74,13 @@ export async function testWorker(testTicker = 'AAPL') {
         : `אין מחיר ב-${results.length} מקורות (${ms}ms)`;
       return { ok: !!winner, msg: header + ':\n' + lines.join('\n') };
     }
+    if (/^\d{6,7}=\d/.test(testTicker)) {
+      const [t, exp] = testTicker.split('=');
+      const results = await fetchIsraeliCandidates(t);
+      const ms = Date.now() - t0;
+      const lines = results.map((r) => `${shortUrl(r.url)}:\n` + findExpectedContexts(r.html, exp));
+      return { ok: true, msg: `חיפוש "${exp}" עבור ${t} (${ms}ms):\n\n` + lines.join('\n\n') };
+    }
     const bust = '&_=' + Date.now();
     const target = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(testTicker)}`;
     const url = workerUrl + '/?url=' + encodeURIComponent(target) + bust;
@@ -94,6 +101,34 @@ export async function testWorker(testTicker = 'AAPL') {
 function shortUrl(u) {
   try { const p = new URL(u); return p.hostname.replace(/^www\./, '') + p.pathname; }
   catch { return u; }
+}
+
+// Given an HTML blob and an expected price (e.g. "5844"), find up to 3
+// occurrences of common formattings (5844 / 5,844 / 58.44 / 58,44 / 5844.0)
+// and return each with ~80 chars of surrounding context.
+function findExpectedContexts(html, expected) {
+  if (!html || !expected) return '  (אין HTML)';
+  const variants = new Set([expected]);
+  const n = Number(expected);
+  if (!isNaN(n)) {
+    variants.add(String(n));
+    variants.add(n.toLocaleString('en-US'));      // 5,844
+    variants.add((n / 100).toFixed(2));           // 58.44
+    variants.add((n / 100).toFixed(2).replace('.', ',')); // 58,44
+    variants.add(n.toFixed(1));                   // 5844.0
+  }
+  const matches = [];
+  for (const v of variants) {
+    let idx = 0;
+    while ((idx = html.indexOf(v, idx)) !== -1 && matches.length < 8) {
+      const start = Math.max(0, idx - 80);
+      const end = Math.min(html.length, idx + v.length + 80);
+      const snippet = html.slice(start, end).replace(/\s+/g, ' ').trim();
+      matches.push(`  [${v}] …${snippet}…`);
+      idx += v.length;
+    }
+  }
+  return matches.length ? matches.slice(0, 3).join('\n') : `  (לא נמצא "${expected}" בשום וריאציה)`;
 }
 
 function extractIsraeliPrice(html) {
@@ -157,10 +192,10 @@ async function fetchIsraeliCandidates(rawId) {
       const html = await proxyFetch(url);
       const price = extractIsraeliPrice(html);
       const context = price == null ? priceContextSnippet(html) : '';
-      return { url, htmlLength: html?.length ?? 0, price, context };
+      return { url, html: html || '', htmlLength: html?.length ?? 0, price, context };
     } catch (e) {
       console.warn('[fetchIsraeliCandidates] failed', url, e.message);
-      return { url, htmlLength: 0, price: null, context: '' };
+      return { url, html: '', htmlLength: 0, price: null, context: '' };
     }
   });
   return Promise.all(tasks);

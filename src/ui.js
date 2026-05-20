@@ -861,7 +861,7 @@ export class UI {
       if (!$('#btn-test-worker')) {
         workerInput.insertAdjacentHTML('afterend',
           `<div class="mt-2 flex flex-wrap items-center gap-2">
-             <input id="input-test-ticker" type="text" placeholder="AAPL / 1150184 / LUMI.TA" dir="ltr" class="input-field text-sm flex-1 min-w-0" style="padding:0.4rem 0.6rem;" />
+             <input id="input-test-ticker" type="text" placeholder="AAPL / 1150184 / 1150184=5844" dir="ltr" class="input-field text-sm flex-1 min-w-0" style="padding:0.4rem 0.6rem;" />
              <button id="btn-test-worker" type="button" class="bg-primary/20 text-primary px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-primary/30 transition-colors whitespace-nowrap">בדוק טיקר</button>
            </div>
            <div id="worker-test-result" class="mt-2 text-xs font-mono break-all whitespace-pre-wrap text-on-surface-variant"></div>`);
