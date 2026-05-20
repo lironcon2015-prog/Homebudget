@@ -14,6 +14,7 @@ on:
       - package.json
       - package-lock.json
       - version.json
+      - .github/workflows/build-offline.yml
   workflow_dispatch:
 
 permissions:
@@ -39,13 +40,30 @@ jobs:
         run: node tools/build-offline.js
 
       - name: Commit if changed
+        id: commit
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           if git diff --quiet -- dist/JuniorInvest-Offline.html; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
             echo "no changes"
             exit 0
           fi
           git add dist/JuniorInvest-Offline.html
           git commit -m "ci: rebuild offline bundle ($(jq -r .version version.json))"
           git push
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Publish offline-latest release
+        if: steps.commit.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: offline-latest
+          name: Offline build (latest)
+          body: |
+            Single-file offline build of JuniorInvest. Download
+            `JuniorInvest-Offline.html` below and double-click it — no install,
+            no server, no CDN dependency. Rebuilt automatically on every push
+            to `main`.
+          files: dist/JuniorInvest-Offline.html
+          make_latest: true
