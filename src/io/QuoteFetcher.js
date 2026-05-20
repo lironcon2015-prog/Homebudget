@@ -67,7 +67,7 @@ export async function testWorker(testTicker = 'AAPL') {
       if (winner) {
         return { ok: true, msg: `✓ ${testTicker}=${winner.price} (${ms}ms via ${shortUrl(winner.url)})` };
       }
-      const lines = results.map((r) => `  ${shortUrl(r.url)}: ${r.htmlLength}B html, no price`);
+      const lines = results.map((r) => `  ${shortUrl(r.url)}: ${r.htmlLength}B html, no price${r.context || ''}`);
       return { ok: false, msg: `אין מחיר ב-${results.length} מקורות (${ms}ms):\n` + lines.join('\n') };
     }
     const bust = '&_=' + Date.now();
@@ -95,16 +95,26 @@ function shortUrl(u) {
 function extractIsraeliPrice(html) {
   if (!html) return null;
   const patterns = [
+    // Funder
     /id="fundLastRate"[^>]*>\s*([\d.,]+)/i,
     /id="etfLastRate"[^>]*>\s*([\d.,]+)/i,
     /class="[^"]*(?:fund|etf)[-_]?last[-_]?rate[^"]*"[^>]*>\s*([\d.,]+)/i,
     /class="[^"]*info-price[^"]*"[^>]*>\s*([\d.,]+)/i,
     /class="[^"]*last[-_]?(?:rate|price)[^"]*"[^>]*>\s*([\d.,]+)/i,
     /data-(?:last-)?rate\s*=\s*"([\d.,]+)"/i,
-    /"lastRate"\s*:\s*"?([\d.]+)"?/i,
-    /"last_rate"\s*:\s*"?([\d.]+)"?/i,
-    /"closingPrice"\s*:\s*"?([\d.]+)"?/i,
-    /שער\s*(?:אחרון|נוכחי)?[^0-9-]{0,40}([0-9]{2,6}(?:[.,][0-9]{1,4})?)/i,
+    // Bizportal / Next.js JSON keys
+    /"(?:lastRate|last_rate|lastPrice|last_price|currentPrice|closingPrice|closingRate|price|rate|nav)"\s*:\s*"?([\d.]+)"?/i,
+    /"PaperValue"\s*:\s*"?([\d.]+)"?/i,
+    /"BaseRate"\s*:\s*"?([\d.]+)"?/i,
+    // Generic value/price-bearing class names
+    /class="[^"]*(?:quote|trade)[-_]?(?:value|price|rate|last)[^"]*"[^>]*>\s*([\d.,]+)/i,
+    /class="[^"]*(?:value|price|rate)[-_]?(?:cell|last|current)[^"]*"[^>]*>\s*([\d.,]+)/i,
+    // <td>/<span> near a Hebrew price label
+    /שער\s*(?:אחרון|נוכחי|סגירה)?[^0-9-]{0,80}<[^>]+>\s*([\d.,]+)/i,
+    /שער\s*(?:אחרון|נוכחי|סגירה)?[^0-9-]{0,40}([0-9]{2,7}(?:[.,][0-9]{1,4})?)/i,
+    // Microdata / Schema.org
+    /itemprop="price"[^>]*content="([\d.,]+)"/i,
+    /itemprop="price"[^>]*>\s*([\d.,]+)/i,
   ];
   for (const re of patterns) {
     const m = html.match(re);
@@ -117,6 +127,20 @@ function extractIsraeliPrice(html) {
     }
   }
   return null;
+}
+
+// For diagnostics: surface the first plausible price-looking number with
+// ~60 chars of context on each side, so we can see what markup wraps it.
+function priceContextSnippet(html) {
+  if (!html) return '';
+  const re = /[\s>"=]([0-9]{2,6}\.[0-9]{1,4})[\s<",]/;
+  const m = html.match(re);
+  if (!m) return '';
+  const idx = html.indexOf(m[0]);
+  const start = Math.max(0, idx - 60);
+  const end = Math.min(html.length, idx + m[0].length + 60);
+  const snippet = html.slice(start, end).replace(/\s+/g, ' ').trim();
+  return ` | near "${snippet}"`;
 }
 
 // Fetch all Israeli candidate URLs in parallel and return per-URL results
@@ -134,10 +158,11 @@ async function fetchIsraeliCandidates(rawId) {
     try {
       const html = await proxyFetch(url);
       const price = extractIsraeliPrice(html);
-      return { url, htmlLength: html?.length ?? 0, price };
+      const context = price == null ? priceContextSnippet(html) : '';
+      return { url, htmlLength: html?.length ?? 0, price, context };
     } catch (e) {
       console.warn('[fetchIsraeliCandidates] failed', url, e.message);
-      return { url, htmlLength: 0, price: null };
+      return { url, htmlLength: 0, price: null, context: '' };
     }
   });
   return Promise.all(tasks);
