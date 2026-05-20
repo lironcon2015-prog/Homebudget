@@ -64,11 +64,15 @@ export async function testWorker(testTicker = 'AAPL') {
       const results = await fetchIsraeliCandidates(testTicker);
       const ms = Date.now() - t0;
       const winner = results.find((r) => r.price != null);
-      if (winner) {
-        return { ok: true, msg: `✓ ${testTicker}=${winner.price} (${ms}ms via ${shortUrl(winner.url)})` };
-      }
-      const lines = results.map((r) => `  ${shortUrl(r.url)}: ${r.htmlLength}B html, no price${r.context || ''}`);
-      return { ok: false, msg: `אין מחיר ב-${results.length} מקורות (${ms}ms):\n` + lines.join('\n') };
+      const lines = results.map((r) => {
+        const star = r === winner ? '★ ' : '  ';
+        const value = r.price != null ? `price=${r.price}` : `no price${r.context || ''}`;
+        return `${star}${shortUrl(r.url)}: ${r.htmlLength}B, ${value}`;
+      });
+      const header = winner
+        ? `✓ ${testTicker}=${winner.price} (${ms}ms)`
+        : `אין מחיר ב-${results.length} מקורות (${ms}ms)`;
+      return { ok: !!winner, msg: header + ':\n' + lines.join('\n') };
     }
     const bust = '&_=' + Date.now();
     const target = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(testTicker)}`;
@@ -94,37 +98,31 @@ function shortUrl(u) {
 
 function extractIsraeliPrice(html) {
   if (!html) return null;
+  // Only match keys/labels that explicitly mean "last/current" price.
+  // Excludes BasePrice/PaperValue/Open/etc. — those are previous-day or
+  // opening values and are a common false positive.
   const patterns = [
-    // Funder
+    // Funder explicit IDs
     /id="fundLastRate"[^>]*>\s*([\d.,]+)/i,
     /id="etfLastRate"[^>]*>\s*([\d.,]+)/i,
     /class="[^"]*(?:fund|etf)[-_]?last[-_]?rate[^"]*"[^>]*>\s*([\d.,]+)/i,
-    /class="[^"]*info-price[^"]*"[^>]*>\s*([\d.,]+)/i,
     /class="[^"]*last[-_]?(?:rate|price)[^"]*"[^>]*>\s*([\d.,]+)/i,
-    /data-(?:last-)?rate\s*=\s*"([\d.,]+)"/i,
-    // Bizportal / Next.js JSON keys
-    /"(?:lastRate|last_rate|lastPrice|last_price|currentPrice|closingPrice|closingRate|price|rate|nav)"\s*:\s*"?([\d.]+)"?/i,
-    /"PaperValue"\s*:\s*"?([\d.]+)"?/i,
-    /"BaseRate"\s*:\s*"?([\d.]+)"?/i,
-    // Generic value/price-bearing class names
-    /class="[^"]*(?:quote|trade)[-_]?(?:value|price|rate|last)[^"]*"[^>]*>\s*([\d.,]+)/i,
-    /class="[^"]*(?:value|price|rate)[-_]?(?:cell|last|current)[^"]*"[^>]*>\s*([\d.,]+)/i,
-    // <td>/<span> near a Hebrew price label
-    /שער\s*(?:אחרון|נוכחי|סגירה)?[^0-9-]{0,80}<[^>]+>\s*([\d.,]+)/i,
-    /שער\s*(?:אחרון|נוכחי|סגירה)?[^0-9-]{0,40}([0-9]{2,7}(?:[.,][0-9]{1,4})?)/i,
-    // Microdata / Schema.org
-    /itemprop="price"[^>]*content="([\d.,]+)"/i,
-    /itemprop="price"[^>]*>\s*([\d.,]+)/i,
+    /data-last-(?:rate|price)\s*=\s*"([\d.,]+)"/i,
+    // Bizportal / Next.js JSON — last/current only
+    /"(?:lastRate|last_rate|LastRate|lastPrice|last_price|LastPrice|LastTradeRate|LastTradePrice|currentPrice|CurrentPrice)"\s*:\s*"?([\d.]+)"?/i,
+    // Hebrew "שער אחרון" / "שער נוכחי" near a number (and optional inner tag)
+    /שער\s+אחרון[^0-9-]{0,80}<[^>]+>\s*([\d.,]+)/i,
+    /שער\s+אחרון[^0-9-]{0,40}([0-9]{2,7}(?:[.,][0-9]{1,4})?)/i,
+    /שער\s+נוכחי[^0-9-]{0,80}<[^>]+>\s*([\d.,]+)/i,
+    /שער\s+נוכחי[^0-9-]{0,40}([0-9]{2,7}(?:[.,][0-9]{1,4})?)/i,
   ];
   for (const re of patterns) {
     const m = html.match(re);
     if (!m) continue;
     const raw = parseFloat(m[1].replace(/,/g, ''));
-    if (!isNaN(raw) && raw > 0) {
-      // Israeli sources quote in agorot (e.g. 12345.6 = 123.456 ILS).
-      // Values >100 we treat as agorot; otherwise as ILS.
-      return raw > 100 ? raw / 100 : raw;
-    }
+    // Numeric Israeli tickers are stored with currency ILS-Agorot, so
+    // the price is kept in agorot (e.g. 5844 = 58.44 NIS). Don't divide.
+    if (!isNaN(raw) && raw > 0) return raw;
   }
   return null;
 }
