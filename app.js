@@ -1,4 +1,4 @@
-const APP_VERSION = '1.21.51'
+const APP_VERSION = '1.21.52'
 
 // ===== STORAGE =====
 const DB = {
@@ -797,6 +797,40 @@ function migrateDetectFields_v1() {
   if (changed > 0) console.log(`Migration v1: enriched ${changed} transactions with installments / standing-order / bit-paybox detection`)
 }
 
+// Backfill the Bit/Paybox recipient note ("נמען: <name>") onto rows that were
+// imported before recipient-notes existed. migrateDetectFields_v1 already
+// rewrote their vendor to "ביט <name>" but never wrote the note, and a
+// re-import would just be flagged as a duplicate — so existing rows would
+// otherwise never get the note. rebuildAutoNotes preserves user-written notes
+// and is idempotent (the "נמען:" segment is recognised as an auto-note).
+function migrateRecipientNotes_v1() {
+  if (localStorage.getItem('migration_recipient_notes_v1') === '1') return
+  if (typeof enrichDetectedFields !== 'function' || typeof rebuildAutoNotes !== 'function') return
+  const txs = getTransactions()
+  let changed = 0
+  for (const t of txs) {
+    const enriched = enrichDetectedFields(t)
+    if (!enriched.detectedRecipient) continue
+    const newNotes = rebuildAutoNotes(t.notes, {
+      installmentCurrent:    t.installmentCurrent,
+      installmentTotal:      t.installmentTotal,
+      installmentFinalMonth: t.installmentFinalMonth,
+      originalDate:          t.originalTransactionDate,
+      standingOrder:         t.standingOrder,
+      detectedRecipient:     enriched.detectedRecipient,
+    })
+    if (newNotes !== (t.notes || '')) {
+      t.notes = newNotes
+      t.detectedProvider  = enriched.detectedProvider
+      t.detectedRecipient = enriched.detectedRecipient
+      changed++
+    }
+  }
+  if (changed > 0) DB.set('finTransactions', txs)
+  localStorage.setItem('migration_recipient_notes_v1', '1')
+  if (changed > 0) console.log(`Migration recipient-notes v1: added recipient note to ${changed} bit/paybox transactions`)
+}
+
 // Historical CC bills sometimes printed the installment's ORIGINAL purchase
 // date instead of the per-cycle charge date — so installment 7/12 of a Nov
 // 2025 purchase ended up stored as date=2025-11-30, chargeDate=2026-06-10,
@@ -968,6 +1002,7 @@ document.addEventListener('DOMContentLoaded', () => {
   migrateOrphanedTransfers_v4()
   migrateRecurringCriteriaToAliases_v1()
   migrateDetectFields_v1()
+  if (typeof migrateRecipientNotes_v1 === 'function') migrateRecipientNotes_v1()
   migrateInstallmentDates_v1()
   migrateInstallmentDates_v2()
   migrateBudgetType_v1()

@@ -75,7 +75,7 @@ function detectBitPayboxRecipient(vendor, description) {
     .replace(/\d+\s*מתוך\s*\d+/g, ' ')
     .replace(/\b(bit|paybox)\b/gi, ' ')
     .replace(/(פייבוקס|פיי\s*בוקס|ביט)/g, ' ')
-    .replace(/(העברה|תשלום|זיכוי|חיוב|העבר|מקבל|למקבל|מאת|אל|לטובת|העברת|מתוך|הוראת\s*קבע)/g, ' ')
+    .replace(/(העבר[התי]?|תשלום|זיכוי|חיוב|מקבל|למקבל|מאת|אל|לטובת|מתוך|הוראת\s*קבע)/g, ' ')
     // Drop standalone single-letter Hebrew prepositions ("ל דנה" → "דנה").
     // Only when space-flanked, so prefixes glued to a name ("לאה") survive.
     .replace(/(?:^|\s)[למבה](?=\s)/g, ' ')
