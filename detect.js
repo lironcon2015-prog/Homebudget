@@ -96,14 +96,19 @@ function enrichDetectedFields(t) {
   const out = { ...t }
   const desc = String(t.description || '')
   const vendor = String(t.vendor || '')
+  // Cells the import template doesn't map (a "פירוט"/"הערות" column set to be
+  // ignored) are stashed here by parseWithTemplate. We scan them too so the
+  // "תשלום X מתוך Y" / "הוראת קבע" markers are found whether the column is
+  // mapped OR ignored — identical behaviour in both cases.
+  const extra = String(t._detectText || '')
 
-  const inst = detectInstallmentInfo(desc) || detectInstallmentInfo(vendor)
+  const inst = detectInstallmentInfo(desc) || detectInstallmentInfo(vendor) || detectInstallmentInfo(extra)
   if (inst) {
     out.installmentCurrent = inst.current
     out.installmentTotal = inst.total
   }
 
-  if (detectStandingOrder(desc) || detectStandingOrder(vendor)) {
+  if (detectStandingOrder(desc) || detectStandingOrder(vendor) || detectStandingOrder(extra)) {
     out.standingOrder = true
   }
 
