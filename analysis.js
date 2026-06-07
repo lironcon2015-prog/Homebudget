@@ -721,6 +721,34 @@ function _buildChatContext(question) {
     return `${m}: הכנסות ${Math.round(b.income)}, הוצאות ${Math.round(b.expense)}, נטו ${net >= 0 ? '+' : ''}${Math.round(net)} (${b.count} עסקאות)`
   })
 
+  // Deep mode only: a month × category expense table over the whole horizon.
+  // Unlike the raw-transaction list (which is row-capped), this is aggregated,
+  // so it gives complete, gap-free coverage of every month at category
+  // resolution for a tiny token cost. Uses analysisExpenseAmount so CC lump
+  // payments aren't double-counted against their itemized detail rows.
+  let catLines = []
+  if (deep) {
+    const monthSet = new Set(months)
+    const windowTx = all.filter(t => monthSet.has(getTxEffectiveMonth(t)))
+    const savingsInvestIds = (typeof analysisExpenseSavingsInvestIds === 'function') ? analysisExpenseSavingsInvestIds() : new Set()
+    const ccDetailWin = ccAccountsWithDetail(windowTx)
+    const catByMonth = {}
+    for (const t of windowTx) {
+      const amt = analysisExpenseAmount(t, savingsInvestIds, ccDetailWin)
+      if (!amt) continue
+      const em = getTxEffectiveMonth(t)
+      const cn = catName(t.categoryId)
+      if (!catByMonth[em]) catByMonth[em] = {}
+      catByMonth[em][cn] = (catByMonth[em][cn] || 0) + amt
+    }
+    catLines = months.map(m => {
+      const row = catByMonth[m]
+      if (!row) return `${m}: —`
+      const parts = Object.entries(row).sort((a, b) => b[1] - a[1]).map(([c, v]) => `${c} ${Math.round(v)}`)
+      return `${m}: ${parts.join(' · ')}`
+    })
+  }
+
   const accBalances = accs.map(a => {
     const bal = (typeof getAccountBalance === 'function') ? Math.round(getAccountBalance(a.id)) : 0
     return `${a.name} [${a.type}]: ${bal} ₪`
@@ -768,7 +796,7 @@ ${accBalances.join('\n')}
 
 סיכום חודשי — עד ${monthsBack} חודשים אחרונים שיש בהם נתונים (effMonth = חודש חיוב אפקטיבי; חיובי אשראי משויכים לחודש שבו ירדו בעו"ש):
 ${monthlyLines.join('\n')}
-
+${deep ? `\nפירוט חודשי לפי קטגוריה (הוצאות, ${monthsBack} חודשים, כיסוי מלא ללא חיתוך; analysisExpenseAmount — בלי כפל-ספירה של חיובי אשראי מרוכזים):\n${catLines.join('\n')}\n` : ''}
 ${deep ? '🔬 מצב ניתוח מעמיק מופעל — נתח לעומק, כולל מגמות ארוכות טווח.\n' : ''}עסקאות ${windowDays} הימים האחרונים, ללא העברות (${recent.length} שורות; amount חיובי = הכנסה, שלילי = הוצאה, refund חיובי = החזר שמקטין הוצאות):
 ${JSON.stringify(recent)}
 
