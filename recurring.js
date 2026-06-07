@@ -692,6 +692,28 @@ function _applyCadenceOverrides(items) {
   return items
 }
 
+// Current calendar month as 'YYYY-MM' — the reference point for deciding
+// whether an installment plan is still active (has/expects a charge this month).
+function _curYM() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+// Drop recurring entries whose installment plan has finished — i.e. the last
+// billing month is before the current month, so no charge is expected now.
+// A finished plan is KEPT only if the vendor has recurring activity AFTER the
+// plan ended (lastSeen later than the final month), meaning it's a genuine
+// ongoing recurring expense that merely happened to include installments.
+function _dropFinishedInstallments(items) {
+  const now = _curYM()
+  return items.filter(r => {
+    if (!r.installmentFinalMonth) return true
+    if (r.installmentFinalMonth >= now) return true
+    const lastSeenMonth = (r.lastSeen || '').slice(0, 7)
+    return lastSeenMonth && lastSeenMonth > r.installmentFinalMonth
+  })
+}
+
 // Synthetic recurring entries for active installment plans — surfaces a plan
 // in the recurring screen even before it accumulates the 3 occurrences that
 // auto-detection requires. Skipped when an auto/manual entry already covers
@@ -716,8 +738,13 @@ function _getInstallmentRecurring(coveredKeys) {
   for (const [key, txs] of Object.entries(groups)) {
     txs.sort((a, b) => (b.date || '').localeCompare(a.date || ''))
     const latest = txs[0]
-    // Plan already finished — no future charges to forecast.
-    if (latest.installmentCurrent >= latest.installmentTotal) continue
+    // Plan already finished — the last charge month is in the past, so there
+    // are no current/future charges to forecast. We prefer the final billing
+    // month (handles plans whose charges aren't all imported yet) and fall back
+    // to the current>=total count when no final month is recorded.
+    const fm = latest.installmentFinalMonth || ''
+    if (fm) { if (fm < _curYM()) continue }
+    else if (latest.installmentCurrent >= latest.installmentTotal) continue
     const cad = RECURRING_CADENCES.monthly
     const avg = txs.reduce((s, t) => s + (t.amount || 0), 0) / txs.length
     out.push({
@@ -786,8 +813,9 @@ function getAllRecurring() {
     ...manualFlags.map(m => m.sourceKey),
   ])
   const installments = _getInstallmentRecurring(covered)
-  return _attachInstallmentInfo(
+  const annotated = _attachInstallmentInfo(
       _applyCadenceOverrides(_applyAmountOverrides([...autoKept, ...manualFlags, ...manualGroups, ...installments])))
+  return _dropFinishedInstallments(annotated)
     .sort((a,b) => Math.abs(b.smoothedMonthly) - Math.abs(a.smoothedMonthly))
 }
 
@@ -819,8 +847,11 @@ function unhideRecurring(key) { const s = getHiddenRecurring(); s.delete(key); s
 
 let _recShowHidden = false
 let _recFlowMode = 'expense'  // 'expense' | 'income' — sticky toggle
+let _recInstallmentsOnly = false  // sticky filter: show only installment plans
 function toggleShowHiddenRecurring() { _recShowHidden = !_recShowHidden; renderRecurring() }
 function setRecurringFlowMode(mode) { _recFlowMode = mode; renderRecurring() }
+function toggleRecurringInstallmentsOnly() { _recInstallmentsOnly = !_recInstallmentsOnly; renderRecurring() }
+function _isInstallmentEntry(r) { return r.source === 'installment' || !!(r.installmentCurrent && r.installmentTotal) }
 
 // Recurring rows carry arbitrary Hebrew / punctuation in `key`, which breaks
 // inline onclick attribute string-escaping. We keep a render-time map from a
@@ -836,7 +867,9 @@ function renderRecurring() {
   const hidden = getHiddenRecurring()
   const expenseItems = items.filter(r => r.smoothedMonthly < 0)
   const incomeItems  = items.filter(r => r.smoothedMonthly > 0)
-  const bucket = _recFlowMode === 'income' ? incomeItems : expenseItems
+  const installmentCount = items.filter(_isInstallmentEntry).length
+  let bucket = _recFlowMode === 'income' ? incomeItems : expenseItems
+  if (_recInstallmentsOnly) bucket = bucket.filter(_isInstallmentEntry)
 
   const visible    = bucket.filter(r => !hidden.has(r.key))
   const hiddenList = bucket.filter(r =>  hidden.has(r.key))
@@ -874,7 +907,10 @@ function renderRecurring() {
   const toolbar = `
     <div class="recurring-toolbar">
       <div style="color:var(--text-muted);font-size:.85rem">${visible.length} ${modeLabel} פעילות · ${hiddenList.length} מוסתרות</div>
-      ${hiddenList.length > 0 ? `<button class="btn-ghost" onclick="toggleShowHiddenRecurring()">${_recShowHidden?'הסתר מוסתרות':'הצג מוסתרות'}</button>` : ''}
+      <div style="display:flex;gap:.4rem;align-items:center">
+        ${installmentCount > 0 ? `<button class="btn-ghost ${_recInstallmentsOnly?'active':''}" onclick="toggleRecurringInstallmentsOnly()" title="הצג רק עסקאות תשלומים פעילות">💳 תשלומים בלבד${_recInstallmentsOnly?' ✓':''}</button>` : ''}
+        ${hiddenList.length > 0 ? `<button class="btn-ghost" onclick="toggleShowHiddenRecurring()">${_recShowHidden?'הסתר מוסתרות':'הצג מוסתרות'}</button>` : ''}
+      </div>
     </div>`
 
   if (items.length === 0) {

@@ -1,4 +1,4 @@
-const APP_VERSION = '1.21.53'
+const APP_VERSION = '1.21.54'
 
 // ===== STORAGE =====
 const DB = {
@@ -942,6 +942,41 @@ function migrateInstallmentDates_v2() {
   if (changed > 0) console.log(`Migration v2: recomputed ${changed} installment txs (date + finalMonth + notes)`)
 }
 
+// Recompute installmentFinalMonth for existing rows using the charge-month
+// formula (chargeMonth(current) + (total-current)) instead of the older
+// purchaseMonth+total approach. The two agree when the "first installment =
+// purchase month + 1" convention holds, but the charge-based one is correct
+// even when the issuer charges the first installment in the purchase month, and
+// it doesn't depend on a reconstructed purchase date. Notes are rebuilt so the
+// "חודש חיוב אחרון" segment reflects the corrected month; user text is kept.
+function migrateInstallmentFinalMonth_v3() {
+  if (localStorage.getItem('migration_installment_final_month_v3') === '1') return
+  if (typeof getTxEffectiveMonth !== 'function') return
+  if (typeof installmentFinalMonthFromCharge !== 'function') return
+  if (typeof rebuildAutoNotes !== 'function') return
+  const txs = getTransactions()
+  let changed = 0
+  for (const t of txs) {
+    if (!t.installmentCurrent || !t.installmentTotal) continue
+    const chargeMonth = getTxEffectiveMonth(t)
+    const expFinal = installmentFinalMonthFromCharge(chargeMonth, t.installmentCurrent, t.installmentTotal)
+    if (!expFinal || expFinal === t.installmentFinalMonth) continue
+    t.installmentFinalMonth = expFinal
+    t.notes = rebuildAutoNotes(t.notes, {
+      installmentCurrent: t.installmentCurrent,
+      installmentTotal: t.installmentTotal,
+      installmentFinalMonth: t.installmentFinalMonth,
+      originalDate: t.originalTransactionDate,
+      standingOrder: t.standingOrder,
+      detectedRecipient: t.detectedRecipient,
+    })
+    changed++
+  }
+  if (changed > 0) DB.set('finTransactions', txs)
+  localStorage.setItem('migration_installment_final_month_v3', '1')
+  if (changed > 0) console.log(`Migration v3: recomputed installmentFinalMonth (charge-based) for ${changed} txs`)
+}
+
 // One-shot migration: the v1.21 release moved the recurring narrowing config
 // off its own localStorage key (finRecurringGroupCriteria, briefly used in
 // 1.21.0) and into the existing vendor-alias schema, so the criteria editor
@@ -1005,6 +1040,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (typeof migrateRecipientNotes_v1 === 'function') migrateRecipientNotes_v1()
   migrateInstallmentDates_v1()
   migrateInstallmentDates_v2()
+  if (typeof migrateInstallmentFinalMonth_v3 === 'function') migrateInstallmentFinalMonth_v3()
   migrateBudgetType_v1()
   migrateBudgetMonthly_v2()
   if (typeof migrateExcludeFromUnforeseen_v1 === 'function') migrateExcludeFromUnforeseen_v1()

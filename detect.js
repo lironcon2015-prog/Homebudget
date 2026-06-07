@@ -187,6 +187,23 @@ function remapInstallmentDateToBillCycle(origIsoDate, billingMonth, billingDay) 
   return `${ty}-${String(tm).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 }
 
+// Final billing month computed from the SPECIFIC installment we're looking at:
+//   finalMonth = chargeMonth(current) + (total - current)
+// where chargeMonth is the actual bill cycle this installment was charged in
+// ('YYYY-MM'). This is robust — it never reconstructs the purchase date, so it
+// stays correct regardless of the issuer's "first installment = purchase month
+// vs. month after" convention. Preferred over computeInstallmentFinalMonth.
+function installmentFinalMonthFromCharge(chargeMonth, current, total) {
+  const m = String(chargeMonth || '').match(/^(\d{4})-(\d{2})/)
+  if (!m) return ''
+  const cur = parseInt(current, 10), tot = parseInt(total, 10)
+  if (!cur || !tot || tot < cur) return ''
+  let y = parseInt(m[1], 10)
+  let mo = parseInt(m[2], 10) + (tot - cur)
+  while (mo > 12) { mo -= 12; y += 1 }
+  return `${y}-${String(mo).padStart(2, '0')}`
+}
+
 // Bill cycle of installment N (Israeli convention "first = purchase + 1"):
 // purchaseMonth + N. Returns 'YYYY-MM' (no day component).
 function installmentBillCycleMonth(purchaseDate, installmentCurrent) {
