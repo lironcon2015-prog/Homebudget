@@ -259,8 +259,8 @@ function periodPresets() {
   const nmS = new Date(now.getFullYear(), now.getMonth()+1, 1)
   const nmE = new Date(now.getFullYear(), now.getMonth()+2, 0)
   return [
-    { key: 'this_month',  label: 'חודש נוכחי',        start: _iso(som),                                       end: _iso(now) },
     { key: 'next_month',  label: 'חודש הבא',           start: _iso(nmS),                                       end: _iso(nmE) },
+    { key: 'this_month',  label: 'חודש נוכחי',        start: _iso(som),                                       end: _iso(now) },
     { key: 'last_month',  label: 'חודש קודם',          start: _iso(lmS),                                       end: _iso(lmE) },
     { key: 'last_3m',     label: '3 חודשים אחרונים',    start: _iso(new Date(now.getFullYear(), now.getMonth()-2, 1)), end: _iso(now) },
     { key: 'last_6m',     label: '6 חודשים אחרונים',    start: _iso(new Date(now.getFullYear(), now.getMonth()-5, 1)), end: _iso(now) },
@@ -278,7 +278,8 @@ function getActivePeriod() {
       if (p?.start && p?.end) return p
     }
   } catch {}
-  return periodPresets()[0]  // this_month
+  const presets = periodPresets()
+  return presets.find(p => p.key === 'this_month') || presets[0]  // default: current month
 }
 function setActivePeriod(p) { localStorage.setItem('finActivePeriod', JSON.stringify(p)) }
 

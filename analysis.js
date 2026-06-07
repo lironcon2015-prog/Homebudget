@@ -658,6 +658,11 @@ function deleteVendorAliasFromDrill(id) {
 
 // ===== CHAT =====
 let _chatMessages = []
+// Opt-in deep mode: widens the transaction window + row cap sent to the model.
+// Off by default to keep per-question token cost low; the user flips it on only
+// when they explicitly want a deeper, longer-horizon analysis.
+let _chatDeepMode = false
+function toggleChatDeep(el) { _chatDeepMode = !!el.checked }
 
 async function sendChat() {
   const input = document.getElementById('chatInput')
@@ -704,7 +709,12 @@ function _buildChatContext(question) {
     byMonth[em].expense += countedExpenseAmount(t)
     byMonth[em].count++
   }
-  const months = Object.keys(byMonth).sort().slice(-12)
+  // Deep mode widens both the monthly horizon and the raw-transaction window.
+  const deep = _chatDeepMode
+  const monthsBack = deep ? 24 : 12
+  const windowDays = deep ? 540 : 120
+  const rowCap = deep ? 1500 : 400
+  const months = Object.keys(byMonth).sort().slice(-monthsBack)
   const monthlyLines = months.map(m => {
     const b = byMonth[m]
     const net = b.income - b.expense
@@ -716,14 +726,14 @@ function _buildChatContext(question) {
     return `${a.name} [${a.type}]: ${bal} ₪`
   })
 
-  const cutoff = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 120)
+  const cutoff = new Date(today.getFullYear(), today.getMonth(), today.getDate() - windowDays)
   const cutoffIso = cutoff.toISOString().slice(0, 10)
   const recentRaw = all.filter(t => t.date && t.date >= cutoffIso && t.type !== 'transfer')
   const ccAccsWithDetailChat = ccAccountsWithDetail(recentRaw)
   const recent = recentRaw
     .filter(t => !shouldDropCcLump(t, ccAccsWithDetailChat))
     .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
-    .slice(0, 400)
+    .slice(0, rowCap)
     .map(t => {
       const acc = accInfo(t.accountId)
       const aliasDay = (typeof getTxAliasDay === 'function') ? getTxAliasDay(t) : null
@@ -756,10 +766,10 @@ function _buildChatContext(question) {
 יתרות חשבונות (כל סוגי החשבונות):
 ${accBalances.join('\n')}
 
-סיכום חודשי — 12 חודשים אחרונים שיש בהם נתונים (effMonth = חודש חיוב אפקטיבי; חיובי אשראי משויכים לחודש שבו ירדו בעו"ש):
+סיכום חודשי — עד ${monthsBack} חודשים אחרונים שיש בהם נתונים (effMonth = חודש חיוב אפקטיבי; חיובי אשראי משויכים לחודש שבו ירדו בעו"ש):
 ${monthlyLines.join('\n')}
 
-עסקאות 120 הימים האחרונים, ללא העברות (${recent.length} שורות; amount חיובי = הכנסה, שלילי = הוצאה, refund חיובי = החזר שמקטין הוצאות):
+${deep ? '🔬 מצב ניתוח מעמיק מופעל — נתח לעומק, כולל מגמות ארוכות טווח.\n' : ''}עסקאות ${windowDays} הימים האחרונים, ללא העברות (${recent.length} שורות; amount חיובי = הכנסה, שלילי = הוצאה, refund חיובי = החזר שמקטין הוצאות):
 ${JSON.stringify(recent)}
 
 שאלת המשתמש: ${question}`
