@@ -113,6 +113,16 @@ function enrichDetectedFields(t) {
     if (out.vendor !== rewritten) out.vendor = rewritten
     out.detectedProvider = bp.provider
     out.detectedRecipient = bp.recipient
+  } else if (t._detectText) {
+    // The recipient sits in a column the import template doesn't map. Surface
+    // it as a NOTE only — deliberately NOT rewriting the vendor — so the dedup
+    // hash (date|amount|vendor|description) is unchanged and re-imports of the
+    // same file are still recognised as duplicates.
+    const bp2 = detectBitPayboxRecipient(vendor, String(t._detectText))
+    if (bp2 && bp2.recipient) {
+      out.detectedProvider = bp2.provider
+      out.detectedRecipient = bp2.recipient
+    }
   }
 
   return out

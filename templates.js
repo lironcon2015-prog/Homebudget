@@ -308,6 +308,22 @@ function parseWithTemplate(rows, template) {
       if (parsed) chargeDate = parsed
     }
 
+    // Cells the template does NOT map to a known field (e.g. a "פירוט"/"הערות"
+    // column the user chose to ignore) can still hold the Bit/Paybox recipient.
+    // Stash them so enrichment can surface the recipient as a NOTE. We use only
+    // unmapped cells (date/amount/vendor/category/chargeDate/description are
+    // excluded) so account names, categories etc. don't leak into the name.
+    const _mappedIdx = new Set([
+      columns_.date?.index,
+      columns_.amount?.index, columns_.amount?.debitIndex, columns_.amount?.creditIndex,
+      columns_.vendor?.index, columns_.category?.index,
+      columns_.chargeDate?.index, columns_.description?.index,
+    ].filter(i => i != null))
+    const _detectText = row
+      .map((c, i) => (_mappedIdx.has(i) ? '' : String(c ?? '').trim()))
+      .filter(Boolean)
+      .join(' ')
+
     transactions.push({
       date,
       amount,
@@ -316,6 +332,7 @@ function parseWithTemplate(rows, template) {
       type: amount > 0 ? 'income' : 'expense',
       category,
       ...(chargeDate ? { chargeDate } : {}),
+      ...(_detectText ? { _detectText } : {}),
     })
     stats.parsed++
   }
