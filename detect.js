@@ -76,6 +76,9 @@ function detectBitPayboxRecipient(vendor, description) {
     .replace(/\b(bit|paybox)\b/gi, ' ')
     .replace(/(פייבוקס|פיי\s*בוקס|ביט)/g, ' ')
     .replace(/(העברה|תשלום|זיכוי|חיוב|העבר|מקבל|למקבל|מאת|אל|לטובת|העברת|מתוך|הוראת\s*קבע)/g, ' ')
+    // Drop standalone single-letter Hebrew prepositions ("ל דנה" → "דנה").
+    // Only when space-flanked, so prefixes glued to a name ("לאה") survive.
+    .replace(/(?:^|\s)[למבה](?=\s)/g, ' ')
     .replace(/[^א-תA-Za-z\s'"]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
@@ -109,6 +112,7 @@ function enrichDetectedFields(t) {
     const rewritten = `${bp.provider} ${bp.recipient}`
     if (out.vendor !== rewritten) out.vendor = rewritten
     out.detectedProvider = bp.provider
+    out.detectedRecipient = bp.recipient
   }
 
   return out
@@ -193,6 +197,7 @@ function rebuildAutoNotes(existingNotes, fields) {
     /^תשלום\s+\d+\s+מתוך\s+\d+$/.test(s) ||
     /^חודש\s+חיוב\s+אחרון:/.test(s) ||
     /^תאריך\s+עסקה\s+מקורי:/.test(s) ||
+    /^נמען:\s/.test(s) ||
     s === 'הוראת קבע'
   const userParts = segments.filter(s => !isAuto(s))
   const autoParts = []
@@ -208,6 +213,9 @@ function rebuildAutoNotes(existingNotes, fields) {
     if (m) autoParts.push(`תאריך עסקה מקורי: ${m[3]}/${m[2]}/${m[1]}`)
   }
   if (fields.standingOrder) autoParts.push('הוראת קבע')
+  // Bit/Paybox payee — surfaced as a note so the user can later turn it into
+  // a proper vendor/alias ("הפיכה לספק").
+  if (fields.detectedRecipient) autoParts.push(`נמען: ${fields.detectedRecipient}`)
   return [...autoParts, ...userParts].join(' · ')
 }
 

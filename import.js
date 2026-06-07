@@ -248,6 +248,7 @@ function _finalizeParsedTransactions(parsed, accountId) {
       if (e.installmentTotal)   t.installmentTotal   = e.installmentTotal
       if (e.standingOrder)      t.standingOrder      = true
       if (e.detectedProvider)   t.detectedProvider   = e.detectedProvider
+      if (e.detectedRecipient)  t.detectedRecipient  = e.detectedRecipient
       if (e.vendor && e.vendor !== t.vendor) t.vendor = e.vendor
     })
   }
@@ -490,6 +491,7 @@ function saveImport() {
                         installmentFinalMonth: t._installmentFinalMonth,
                         standingOrder:      t.standingOrder,
                         originalDate:       t._originalDate,
+                        detectedRecipient:  t.detectedRecipient,
                       }) : '',
     ...(t.installmentCurrent ? { installmentCurrent: t.installmentCurrent } : {}),
     ...(t.installmentTotal   ? { installmentTotal:   t.installmentTotal   } : {}),
@@ -497,6 +499,7 @@ function saveImport() {
     ...(t._originalDate ? { originalTransactionDate: t._originalDate } : {}),
     ...(t.standingOrder ? { standingOrder: true } : {}),
     ...(t.detectedProvider ? { detectedProvider: t.detectedProvider } : {}),
+    ...(t.detectedRecipient ? { detectedRecipient: t.detectedRecipient } : {}),
     sourceHash:       t._hash,
     legacySourceHash: t._legacyHash,
     looseHash:        t._looseHash,

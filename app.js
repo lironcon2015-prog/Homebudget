@@ -1,4 +1,4 @@
-const APP_VERSION = '1.21.50'
+const APP_VERSION = '1.21.51'
 
 // ===== STORAGE =====
 const DB = {
@@ -776,6 +776,7 @@ function migrateDetectFields_v1() {
       if (looksBare) {
         t.vendor = enriched.vendor
         t.detectedProvider = enriched.detectedProvider
+        t.detectedRecipient = enriched.detectedRecipient
         touched = true
       }
     }
