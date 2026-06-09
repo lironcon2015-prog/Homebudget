@@ -113,6 +113,22 @@ html[data-privacy] .stat-card:hover .stat-value { filter: none; }
 .cat-pick-btn.cat-pick-none { grid-column: 1 / -1; justify-content: center; color: var(--text-muted); border-inline-start-color: var(--border); }
 .cat-badge-add { border: 1px dashed var(--border-bright); border-radius: var(--r-pill); padding: .1rem .5rem; }
 
+/* Command palette */
+.cp-input { width: 100%; font-size: 1rem; padding: .7rem .9rem; margin-bottom: .6rem; }
+.cp-results { display: flex; flex-direction: column; gap: .15rem; max-height: 56vh; overflow-y: auto; }
+.cp-item { display: flex; align-items: center; gap: .6rem; padding: .55rem .65rem; border-radius: var(--r-md); border: none; background: transparent; color: var(--text-primary); font-family: inherit; font-size: .9rem; cursor: pointer; text-align: start; width: 100%; }
+.cp-item.active { background: var(--bg-hover); }
+.cp-ic { width: 26px; display: flex; align-items: center; justify-content: center; flex: none; font-size: 1.05rem; }
+.cp-label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cp-sub { font-size: .72rem; color: var(--text-muted); flex: none; }
+.cp-empty { text-align: center; color: var(--text-muted); padding: 1.5rem; font-size: .88rem; }
+.cp-help-row { display: flex; align-items: center; gap: .75rem; padding: .4rem 0; }
+.cp-help-row kbd { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 6px; padding: .15rem .5rem; font-family: monospace; font-size: .8rem; min-width: 110px; text-align: center; }
+.cp-trigger { display: flex; align-items: center; gap: .5rem; width: 100%; margin-bottom: .6rem; padding: .5rem .7rem; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-surface); color: var(--text-secondary); font-family: inherit; font-size: .85rem; cursor: pointer; transition: all .15s; }
+.cp-trigger:hover { background: var(--bg-hover); color: var(--text-primary); }
+.cp-trigger > span { flex: 1; text-align: start; }
+.cp-trigger kbd { font-family: monospace; font-size: .72rem; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 5px; padding: .05rem .35rem; }
+
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { direction: rtl; font-size: 16px; }
 body { font-family: 'Heebo', sans-serif; background: var(--bg-base); color: var(--text-primary); min-height: 100vh; -webkit-font-smoothing: antialiased; position: relative; overflow-x: hidden; }
