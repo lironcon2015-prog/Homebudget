@@ -342,8 +342,8 @@ function _drawTxTable() {
           const avatarBg = cat ? cat.color + '22' : 'rgba(100,116,139,.15)'
           const avatarIcon = cat ? (catIconHTML(cat, 18) || '📋') : '📋'
           const catLabel = cat
-            ? `<span class="tx-vendor-cat cat-badge-clickable" onclick="filterTxByCategory('${cat.id}')" title="סנן לפי קטגוריה זו" style="color:${cat.color}">${catIconHTML(cat)} ${cat.name}</span>`
-            : `<span class="tx-vendor-cat cat-badge-clickable" onclick="filterTxByCategory('__none__')" title="סנן לפי לא־מסווג" style="color:var(--text-muted)">— לא מסווג</span>`
+            ? `<span class="tx-vendor-cat cat-badge-clickable" onclick="event.stopPropagation();openTxCategoryPicker('${tx.id}')" title="שנה קטגוריה" style="color:${cat.color}">${catIconHTML(cat)} ${cat.name} ▾</span>`
+            : `<span class="tx-vendor-cat cat-badge-clickable cat-badge-add" onclick="event.stopPropagation();openTxCategoryPicker('${tx.id}')" title="הוסף קטגוריה" style="color:var(--text-muted)">+ סווג</span>`
           const vendorName = resolveVendor(tx.vendor, tx.amount, getTxAliasDay(tx)) || '—'
           const descLine = tx.description && tx.description !== tx.vendor
             ? `<div style="font-size:.72rem;color:var(--text-muted);margin-top:.1rem">${tx.description}</div>` : ''
@@ -430,7 +430,137 @@ function _renderTxSelectToolbar(_filteredCount) {
   el.innerHTML = `
     <button class="btn-ghost" onclick="toggleTxSelectMode()" style="font-size:.85rem">בטל בחירה</button>
     <span style="color:var(--text-muted);font-size:.85rem">${n} נבחרו</span>
+    <button class="btn-ghost" ${n<1?'disabled':''} onclick="bulkRecategorize()" style="font-size:.85rem">🏷️ סווג</button>
+    <button class="btn-ghost" ${n<1?'disabled':''} onclick="bulkExportCsv()" style="font-size:.85rem">⬇️ CSV</button>
+    <button class="btn-danger" ${n<1?'disabled':''} onclick="bulkDelete()" style="font-size:.85rem">🗑️ מחק</button>
     <button class="btn-primary" ${n<2?'disabled':''} onclick="openMergeRecurringModal()" style="font-size:.85rem">אחד לקבועה</button>`
+}
+
+// ===== INLINE CATEGORIZE =====
+// Quick category change straight from the list (no edit modal). On select,
+// offers an undoable "apply to similar uncategorized" toast via propagateCategoryToSimilar.
+let _txCatPickHandler = null
+let _txCatPickSheet = null
+
+function openTxCategoryPicker(txId, onPick) {
+  const cats = getCategories()
+  const expCats = cats.filter(c => c.type === 'expense')
+  const incCats = cats.filter(c => c.type === 'income')
+  const btn = c => `<button class="cat-pick-btn" onclick="_txPickCat('${c.id}')" style="--cc:${c.color}">${catIconHTML(c)} <span>${c.name}</span></button>`
+  const html = `
+    <input id="catPickSearch" class="cat-pick-search" placeholder="חיפוש קטגוריה..." oninput="_filterCatPick(this.value)">
+    <div class="cat-pick-grid" id="catPickGrid">
+      <div class="cat-pick-section">הוצאות</div>${expCats.map(btn).join('')}
+      <div class="cat-pick-section">הכנסות</div>${incCats.map(btn).join('')}
+      <button class="cat-pick-btn cat-pick-none" onclick="_txPickCat('')">— הסר קטגוריה —</button>
+    </div>`
+  _txCatPickHandler = onPick || (catId => setTxCategory(txId, catId))
+  _txCatPickSheet = (typeof UK_sheet === 'function') ? UK_sheet({ title: 'בחר קטגוריה', content: html }) : null
+}
+
+function _txPickCat(catId) {
+  const h = _txCatPickHandler, s = _txCatPickSheet
+  _txCatPickHandler = null; _txCatPickSheet = null
+  if (s) s.close()
+  if (h) h(catId)
+}
+
+function _filterCatPick(term) {
+  term = (term || '').trim().toLowerCase()
+  document.querySelectorAll('#catPickGrid .cat-pick-btn').forEach(b => {
+    if (b.classList.contains('cat-pick-none')) return
+    b.style.display = (!term || b.textContent.toLowerCase().includes(term)) ? '' : 'none'
+  })
+}
+
+function setTxCategory(txId, catId) {
+  const txs = getTransactions()
+  const tx = txs.find(t => t.id === txId)
+  if (!tx) return
+  tx.categoryId = catId || ''
+  DB.set('finTransactions', txs)
+  if (typeof UK_haptic === 'function') UK_haptic('tap')
+  _drawTxTable()
+  if (typeof renderDashboard === 'function' && typeof _currentScreen !== 'undefined' && _currentScreen === 'dashboard') renderDashboard()
+  const cat = catId ? getCategoryById(catId) : null
+  const label = cat ? cat.name : 'ללא קטגוריה'
+  let similar = 0
+  if (catId && tx.vendor && typeof normalizeVendorForAutocat === 'function') {
+    const target = normalizeVendorForAutocat(tx.vendor)
+    similar = txs.filter(t => t.id !== txId && !t.categoryId && t.type !== 'transfer' && t.vendor && normalizeVendorForAutocat(t.vendor) === target).length
+  }
+  if (similar > 0) {
+    toast(`סווג כ-${label}`, { type: 'success', action: { label: `החל על ${similar} דומות`, onClick: () => {
+      const all = getTransactions()
+      const n = propagateCategoryToSimilar(all, tx.vendor, catId, txId)
+      DB.set('finTransactions', all)
+      _drawTxTable()
+      toast(`סווגו ${n} עסקאות דומות`, { type: 'success' })
+    } } })
+  } else {
+    toast(`סווג כ-${label}`, { type: 'success' })
+  }
+}
+
+// ===== BULK ACTIONS =====
+async function bulkDelete() {
+  const ids = [..._txSelected]
+  if (!ids.length) return
+  if (!await confirmDialog(`למחוק ${ids.length} עסקאות?`, { danger: true, confirmText: 'מחק' })) return
+  const snapshot = getTransactions().slice()
+  DB.set('finTransactions', getTransactions().filter(t => !_txSelected.has(t.id)))
+  _txSelected.clear(); _txSelectMode = false
+  _drawTxTable(); _renderTxSelectToolbar()
+  if (typeof renderDashboard === 'function') renderDashboard()
+  toast(`${ids.length} עסקאות נמחקו`, { type: 'success', action: { label: 'בטל', onClick: () => {
+    DB.set('finTransactions', snapshot); _drawTxTable(); if (typeof renderDashboard === 'function') renderDashboard()
+  } } })
+}
+
+function bulkRecategorize() {
+  if (!_txSelected.size) return
+  openTxCategoryPicker(null, catId => {
+    const txs = getTransactions()
+    let n = 0
+    txs.forEach(t => { if (_txSelected.has(t.id) && t.categoryId !== (catId || '')) { t.categoryId = catId || ''; n++ } })
+    DB.set('finTransactions', txs)
+    _txSelected.clear(); _txSelectMode = false
+    _drawTxTable(); _renderTxSelectToolbar()
+    if (typeof renderDashboard === 'function') renderDashboard()
+    const cat = catId ? getCategoryById(catId) : null
+    toast(`${n} עסקאות סווגו כ-${cat ? cat.name : 'ללא קטגוריה'}`, { type: 'success' })
+  })
+}
+
+function bulkExportCsv() {
+  const rows = getTransactions().filter(t => _txSelected.has(t.id))
+  if (!rows.length) return
+  _exportTxToCsv(rows, 'transactions_selected.csv')
+}
+
+// Lightweight CSV (BOM for Excel Hebrew) — distinct from reports.js exportExcel()
+// which dumps the full dataset; this exports an arbitrary row subset.
+function _exportTxToCsv(rows, filename) {
+  const headers = ['תאריך', 'ספק', 'קטגוריה', 'סכום', 'סוג', 'הערות']
+  const esc = v => { v = String(v == null ? '' : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v }
+  const lines = [headers.join(',')]
+  rows.forEach(t => {
+    const cat = getCategoryById(t.categoryId)
+    lines.push([
+      formatDate(t.date),
+      resolveVendor(t.vendor, t.amount, getTxAliasDay(t)) || t.vendor || '',
+      cat ? cat.name : '',
+      t.amount,
+      t.type || '',
+      t.notes || '',
+    ].map(esc).join(','))
+  })
+  const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = filename; a.click()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+  toast(`יוצאו ${rows.length} עסקאות ל-CSV`, { type: 'success' })
 }
 
 function openMergeRecurringModal() {

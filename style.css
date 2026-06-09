@@ -93,6 +93,15 @@ html[data-privacy] .stat-card:hover .stat-value { filter: none; }
 .accent-swatches button.active { border-color: var(--text-primary); transform: scale(1.1); }
 .accent-swatches button.accent-reset { background: var(--bg-elevated); color: var(--text-secondary); display: flex; align-items: center; justify-content: center; font-size: 1rem; }
 
+/* Inline category picker (UK_sheet content) */
+.cat-pick-search { width: 100%; margin-bottom: .75rem; }
+.cat-pick-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: .4rem; max-height: 55vh; overflow-y: auto; }
+.cat-pick-section { grid-column: 1 / -1; font-size: .75rem; font-weight: 700; color: var(--text-muted); margin-top: .35rem; }
+.cat-pick-btn { display: flex; align-items: center; gap: .45rem; padding: .55rem .6rem; border-radius: var(--r-md); border: 1px solid var(--border); background: var(--bg-surface); color: var(--text-primary); font-family: inherit; font-size: .85rem; cursor: pointer; text-align: start; min-height: 44px; border-inline-start: 3px solid var(--cc, var(--border)); transition: background .12s; }
+.cat-pick-btn:hover { background: var(--bg-hover); }
+.cat-pick-btn.cat-pick-none { grid-column: 1 / -1; justify-content: center; color: var(--text-muted); border-inline-start-color: var(--border); }
+.cat-badge-add { border: 1px dashed var(--border-bright); border-radius: var(--r-pill); padding: .1rem .5rem; }
+
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { direction: rtl; font-size: 16px; }
 body { font-family: 'Heebo', sans-serif; background: var(--bg-base); color: var(--text-primary); min-height: 100vh; -webkit-font-smoothing: antialiased; position: relative; overflow-x: hidden; }
