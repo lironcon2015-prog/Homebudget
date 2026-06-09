@@ -1,4 +1,4 @@
-const APP_VERSION = '1.27.1'
+const APP_VERSION = '1.27.2'
 
 // ===== STORAGE =====
 const DB = {
@@ -18,8 +18,14 @@ const DB = {
 }
 
 // ===== UTILS =====
-function formatCurrency(n) {
+function formatCurrencyPlain(n) {
   return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', minimumFractionDigits: 2 }).format(n)
+}
+// HTML display variant — wraps the amount in .cur so privacy mode can blur every
+// figure from one CSS rule. Use formatCurrencyPlain() for NON-HTML contexts
+// (chart tooltips, title attributes, toasts, AI prompt strings, CSV).
+function formatCurrency(n) {
+  return `<span class="cur">${formatCurrencyPlain(n)}</span>`
 }
 function formatDate(str) {
   if (!str) return ''

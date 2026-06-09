@@ -63,21 +63,17 @@
 }
 :root[data-theme="light"] body::after { opacity: 0.015; }
 
-/* ===== PRIVACY MODE ===== blur monetary figures; hover a card / tap a value to peek. */
-html[data-privacy] :is(.amt-int, .amt-dec, .amt-sym, .amount-inc, .amount-exp, .amount-muted,
-  .tx-cell-amount, .bento-stat-value, .bento-hero-amount, .hero-amount, .stat-value,
-  .rec-cell-amount, .cf-income, .cf-expense, .cf-net, .cf-total, .ins-bill-amt,
-  .prop-next-amt, .unforeseen-row-amt, .chip-value, .hidden-vendor-total, .report-kpi, .bal-amt) {
+/* ===== PRIVACY MODE ===== every amount is rendered via formatCurrency()/
+   _richAmount() which wrap it in .cur, so one rule blurs them all. Budget amounts
+   live in editable inputs, handled separately. Hover a card / tap a value / focus
+   an input to peek. */
+html[data-privacy] .cur,
+html[data-privacy] .budget-input {
   filter: blur(9px); transition: filter .12s; cursor: pointer; user-select: none;
 }
-html[data-privacy] .card:hover :is(.amt-int, .amt-dec, .amt-sym, .amount-inc, .amount-exp, .amount-muted,
-  .tx-cell-amount, .bento-stat-value, .bento-hero-amount, .hero-amount, .stat-value,
-  .rec-cell-amount, .cf-income, .cf-expense, .cf-net, .cf-total, .ins-bill-amt,
-  .prop-next-amt, .unforeseen-row-amt, .chip-value, .hidden-vendor-total, .report-kpi, .bal-amt),
-html[data-privacy] :is(.amt-int, .amt-dec, .amt-sym, .amount-inc, .amount-exp, .amount-muted,
-  .tx-cell-amount, .bento-stat-value, .bento-hero-amount, .hero-amount, .stat-value,
-  .rec-cell-amount, .cf-income, .cf-expense, .cf-net, .cf-total, .ins-bill-amt,
-  .prop-next-amt, .unforeseen-row-amt, .chip-value, .hidden-vendor-total, .report-kpi, .bal-amt):active {
+html[data-privacy] .card:hover .cur,
+html[data-privacy] .cur:active,
+html[data-privacy] .budget-input:focus {
   filter: none;
 }
 

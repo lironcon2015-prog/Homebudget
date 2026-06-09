@@ -212,7 +212,7 @@ async function performBalanceAdjustment(accountId, ym, diff) {
     balanceAdjustment: true,     // tag for future filtering / hiding
   })
   DB.set('finTransactions', txs)
-  if (typeof toast === 'function') toast(`נוספה עסקת התאמה (${formatCurrency(num)}) ל-${ymDisp}`, { type: 'success' })
+  if (typeof toast === 'function') toast(`נוספה עסקת התאמה (${formatCurrencyPlain(num)}) ל-${ymDisp}`, { type: 'success' })
   renderReconcileTable()
 }
 

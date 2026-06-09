@@ -254,7 +254,7 @@ function _renderBudgetGenModal() {
     const notesHTML = p.recurringNotes.length === 0 ? '' :
       '<div class="bgen-notes">' +
       p.recurringNotes.map(n => `
-        <span class="bgen-note ${n.expectedThisMonth?'bgen-note-hot':''}" title="ממוצע ${formatCurrency(n.avgAmount)}">
+        <span class="bgen-note ${n.expectedThisMonth?'bgen-note-hot':''}" title="ממוצע ${formatCurrencyPlain(n.avgAmount)}">
           ${n.vendor} · ${n.cadence}${n.expectedThisMonth?' · צפוי בחודש היעד':''}
         </span>`).join('') + '</div>'
     const outBadge = p.wasTrimmed ? '<span class="bgen-badge">חריג הוחרג</span>' : ''

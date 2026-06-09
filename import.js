@@ -461,8 +461,8 @@ function _buildParseSummary() {
   return `
     <div class="parse-summary">
       ${tplBadge}
-      <span>הכנסות: <b style="color:var(--income)">+${Math.round(incomeSum).toLocaleString('he-IL')}</b></span>
-      <span>הוצאות: <b style="color:var(--expense)">${Math.round(expenseSum).toLocaleString('he-IL')}</b></span>
+      <span>הכנסות: <b style="color:var(--income)" class="cur">+${Math.round(incomeSum).toLocaleString('he-IL')}</b></span>
+      <span>הוצאות: <b style="color:var(--expense)" class="cur">${Math.round(expenseSum).toLocaleString('he-IL')}</b></span>
       <span>טווח: ${minDate || '—'} → ${maxDate || '—'}</span>
       ${skippedNote ? `<span style="color:var(--text-muted)">${skippedNote}</span>` : ''}
     </div>`

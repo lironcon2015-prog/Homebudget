@@ -66,7 +66,7 @@ function renderDashboard() {
         color: rt.net >= 0 ? 'var(--income)' : 'var(--expense)',
         icon: '🔁',
         bg: rt.net >= 0 ? 'var(--income-bg)' : 'var(--expense-bg)',
-        tooltip: `${rt.count} פעולות קבועות (לא־מוסתרות)\nהכנסות: +${formatCurrency(rt.income)}\nהוצאות: -${formatCurrency(rt.expense)}\n\nחישוב חודשי שקול: דו-חודשי /2, רבעוני /3.`
+        tooltip: `${rt.count} פעולות קבועות (לא־מוסתרות)\nהכנסות: +${formatCurrencyPlain(rt.income)}\nהוצאות: -${formatCurrencyPlain(rt.expense)}\n\nחישוב חודשי שקול: דו-חודשי /2, רבעוני /3.`
       })
     }
   }

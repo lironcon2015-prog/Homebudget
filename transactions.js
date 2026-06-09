@@ -7,7 +7,7 @@ function _richAmount(dispAmt) {
   const intPart = Math.floor(abs).toLocaleString('he-IL')
   const cents = Math.round(abs * 100) % 100
   const decPart = '.' + String(cents).padStart(2, '0')
-  return `${sign}<span class="amt-sym">₪</span><span class="amt-int">${intPart}</span><span class="amt-dec">${decPart}</span>`
+  return `<span class="cur">${sign}<span class="amt-sym">₪</span><span class="amt-int">${intPart}</span><span class="amt-dec">${decPart}</span></span>`
 }
 
 // Bulk-select mode: when on, each row gets a checkbox and a toolbar lets

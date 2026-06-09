@@ -65,7 +65,7 @@ function _drawAnalysis() {
         color: rt.net >= 0 ? 'var(--income)' : 'var(--expense)',
         icon: '🔁',
         bg: rt.net >= 0 ? 'var(--income-bg)' : 'var(--expense-bg)',
-        tooltip: `${rt.count} פעולות קבועות (לא־מוסתרות)\nהכנסות: +${formatCurrency(rt.income)}\nהוצאות: -${formatCurrency(rt.expense)}\n\nחודשי שקול: דו-חודשי /2, רבעוני /3.`
+        tooltip: `${rt.count} פעולות קבועות (לא־מוסתרות)\nהכנסות: +${formatCurrencyPlain(rt.income)}\nהוצאות: -${formatCurrencyPlain(rt.expense)}\n\nחודשי שקול: דו-חודשי /2, רבעוני /3.`
       })
     }
   }
@@ -136,7 +136,7 @@ function _renderExpensePie(periodTx) {
         },
         plugins: {
           legend: { position: 'bottom', labels: { color: CHART_COLORS.ticks, font: { family: CHART_COLORS.font, size: 11 }, padding: 10 } },
-          tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${formatCurrency(ctx.raw)}` } }
+          tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${formatCurrencyPlain(ctx.raw)}` } }
         }
       }
     })
