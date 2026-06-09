@@ -116,6 +116,9 @@ function renderDashboard() {
 
   // Recent transactions (10)
   _renderRecentTx(all)
+
+  // Dashboard insights (Inbox / MoM chips / upcoming bills) — Phase 5
+  if (typeof INS_renderDashboard === 'function') INS_renderDashboard()
 }
 
 function _renderAccountBalances() {

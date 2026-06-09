@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'finance-v1.26.0'
+const CACHE_VERSION = 'finance-v1.27.0'
 const ASSETS = [
   './',
   './index.html',
@@ -26,6 +26,7 @@ const ASSETS = [
   './feedback.js',
   './scrollMirror.js',
   './palette.js',
+  './insights.js',
   './manifest.json',
   './icons/icon-192.png',
   './icons/icon-512.png',
