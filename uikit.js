@@ -208,42 +208,83 @@ function UK_onSwipe(el, opts = {}) {
   })
 }
 
-// Pull-to-refresh: arms only at scrollTop<=0; runs asyncFn past a pull threshold.
-function UK_onPullToRefresh(container, asyncFn) {
-  if (!container) return
+// Pull-to-refresh on a page that scrolls the document. Touch listeners attach to
+// `target`, but the "at top" arm-check uses the WINDOW scroll position (the app's
+// .main-content has min-height:100vh, so the document scrolls, not the element).
+// A fixed indicator shows the pull; past threshold it runs asyncFn.
+function UK_onPullToRefresh(target, asyncFn) {
+  if (!target) return
   let y0 = null, dy = 0, busy = false
-  let ind = container.querySelector(':scope > .uk-ptr')
+  let ind = document.getElementById('ukPtr')
   if (!ind) {
     ind = document.createElement('div')
+    ind.id = 'ukPtr'
     ind.className = 'uk-ptr'
     ind.innerHTML = '<span class="uk-ptr-spin">↻</span>'
-    container.prepend(ind)
+    document.body.appendChild(ind)
   }
-  const reset = () => { ind.classList.remove('armed', 'busy'); ind.style.transform = ''; y0 = null; dy = 0 }
-  container.addEventListener('touchstart', e => {
-    if (busy || container.scrollTop > 0) { y0 = null; return }
+  const atTop = () => (window.scrollY || document.documentElement.scrollTop || 0) <= 0
+  const reset = () => { ind.classList.remove('armed', 'busy', 'show'); ind.style.transform = ''; y0 = null; dy = 0 }
+  target.addEventListener('touchstart', e => {
+    if (busy || !atTop()) { y0 = null; return }
     y0 = e.touches[0].clientY
   }, { passive: true })
-  container.addEventListener('touchmove', e => {
+  target.addEventListener('touchmove', e => {
     if (y0 === null || busy) return
     dy = e.touches[0].clientY - y0
-    if (dy > 0 && container.scrollTop <= 0) {
-      const pull = Math.min(dy, 90)
-      ind.style.transform = `translateY(${pull}px)`
+    if (dy > 0 && atTop()) {
+      ind.classList.add('show')
+      ind.style.transform = `translateY(${Math.min(dy, 90)}px)`
       ind.classList.toggle('armed', dy > 70)
     }
   }, { passive: true })
-  container.addEventListener('touchend', async () => {
+  target.addEventListener('touchend', async () => {
     if (y0 === null || busy) { reset(); return }
     if (dy > 70) {
-      busy = true; ind.classList.add('busy'); ind.classList.remove('armed')
-      ind.style.transform = 'translateY(46px)'
+      busy = true; ind.classList.add('busy', 'show'); ind.classList.remove('armed')
+      ind.style.transform = 'translateY(50px)'
       UK_haptic('success')
       try { await asyncFn() } catch (e) { console.error(e) }
       finally { busy = false; reset() }
     } else { reset() }
   })
 }
+
+// ===== FAB (mobile quick actions) =====
+let _UK_fabSheet = null
+function UK_openFab() {
+  UK_haptic('tap')
+  const html = `<div class="fab-actions">
+    <button class="fab-action" onclick="_UK_fabAct('tx')"><span class="fab-action-ic">➕</span> עסקה חדשה</button>
+    <button class="fab-action" onclick="_UK_fabAct('import')"><span class="fab-action-ic">📥</span> ייבוא דוח</button>
+    <button class="fab-action" onclick="_UK_fabAct('privacy')"><span class="fab-action-ic">🙈</span> ${UK_isPrivacy() ? 'הצג סכומים' : 'הסתר סכומים'}</button>
+  </div>`
+  _UK_fabSheet = UK_sheet({ title: 'פעולה מהירה', content: html })
+}
+function _UK_fabAct(which) {
+  if (_UK_fabSheet) { _UK_fabSheet.close(); _UK_fabSheet = null }
+  if (which === 'tx' && typeof addManualTransaction === 'function') addManualTransaction()
+  else if (which === 'import' && typeof navigate === 'function') navigate('import')
+  else if (which === 'privacy') UK_togglePrivacy()
+}
+
+// Pull-to-refresh action: backup to Drive when signed in, else just re-render.
+async function _UK_pullRefresh() {
+  if (typeof driveBackup === 'function' && typeof _driveToken !== 'undefined' && _driveToken) {
+    await driveBackup()
+  } else {
+    UK_rerenderActiveScreen()
+    if (typeof toast === 'function') toast('רוענן', { type: 'info', duration: 1500 })
+  }
+}
+
+// Wire mobile gestures once the DOM is ready (touch devices only).
+function UK_initMobile() {
+  if (!('ontouchstart' in window)) return
+  const mc = document.querySelector('.main-content')
+  if (mc) UK_onPullToRefresh(mc, _UK_pullRefresh)
+}
+document.addEventListener('DOMContentLoaded', UK_initMobile)
 
 // ===== VENDOR AVATAR =====
 const UK_AVATAR_PALETTE = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#ef4444', '#6366f1', '#14b8a6', '#f43f5e']

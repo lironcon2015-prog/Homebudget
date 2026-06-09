@@ -359,7 +359,7 @@ function _drawTxTable() {
           return `<tr ${isNonCounted||isMirror?'class="tx-noncounted"':''}>
             ${selectCell}
             <td class="tx-cell-main">
-              <div class="tx-vendor-cell">
+              <div class="tx-vendor-cell" data-id="${tx.id}">
                 <div class="tx-avatar" style="background:${avatarBg}">${avatarIcon}</div>
                 <div>
                   <div class="tx-vendor-name">${vendorName}${recurringFlagBadge}${installmentBadge}${standingOrderBadge}${groupBadge}</div>
@@ -379,6 +379,8 @@ function _drawTxTable() {
         }).join('')}
       </tbody>
     </table>`
+
+  _wireTxSwipe()
 
   // Pagination
   const pag = document.getElementById('txPagination')
@@ -561,6 +563,46 @@ function _exportTxToCsv(rows, filename) {
   a.href = url; a.download = filename; a.click()
   setTimeout(() => URL.revokeObjectURL(url), 1000)
   toast(`יוצאו ${rows.length} עסקאות ל-CSV`, { type: 'success' })
+}
+
+// ===== MOBILE SWIPE ACTIONS =====
+// Attach RTL-aware swipe to each row's vendor cell (touch only). Swipe toward the
+// inline-end → actions sheet (edit/categorize/delete); toward start → quick categorize.
+function _wireTxSwipe() {
+  if (typeof UK_onSwipe !== 'function') return
+  if (!matchMedia('(max-width:768px)').matches) return
+  document.querySelectorAll('#txTable .tx-vendor-cell[data-id]').forEach(cell => {
+    const id = cell.dataset.id
+    UK_onSwipe(cell, {
+      onEnd: () => _openTxSwipeActions(id),
+      onStart: () => openTxCategoryPicker(id),
+    })
+  })
+}
+
+function _openTxSwipeActions(id) {
+  if (typeof UK_sheet !== 'function') { openEditModal(id); return }
+  UK_sheet({
+    title: 'פעולות',
+    actions: [
+      { label: '✏️ ערוך', onClick: () => { openEditModal(id) } },
+      { label: '🏷️ סווג', onClick: () => { openTxCategoryPicker(id) } },
+      { label: '🗑️ מחק', className: 'btn-danger', onClick: () => { _deleteTxById(id) } },
+    ],
+  })
+}
+
+async function _deleteTxById(id) {
+  if (!await confirmDialog('למחוק עסקה זו?', { danger: true, confirmText: 'מחק' })) return
+  const snapshot = getTransactions().find(t => t.id === id)
+  DB.set('finTransactions', getTransactions().filter(t => t.id !== id))
+  _drawTxTable()
+  if (typeof renderDashboard === 'function') renderDashboard()
+  toast('העסקה נמחקה', { type: 'success', action: snapshot ? { label: 'בטל', onClick: () => {
+    const cur = getTransactions()
+    if (!cur.some(t => t.id === id)) { cur.push(snapshot); DB.set('finTransactions', cur) }
+    _drawTxTable(); if (typeof renderDashboard === 'function') renderDashboard()
+  } } : null })
 }
 
 function openMergeRecurringModal() {
