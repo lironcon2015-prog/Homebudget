@@ -142,7 +142,7 @@ function _renderAccountBalances() {
           <div class="list-item-name">${a.name}</div>
           <div class="list-item-sub">${TYPE[a.type]||a.type}${a.institution?' · '+a.institution:''}</div>
         </div>
-        <span style="font-weight:700;color:${color}">${formatCurrency(bal)}</span>
+        <span class="bal-amt" style="font-weight:700;color:${color}">${formatCurrency(bal)}</span>
       </div>`
   }).join('')
 }

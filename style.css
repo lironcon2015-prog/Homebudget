@@ -63,14 +63,23 @@
 }
 :root[data-theme="light"] body::after { opacity: 0.015; }
 
-/* ===== PRIVACY MODE ===== blur all monetary figures; tap a card to peek. */
-html[data-privacy] .amt-int, html[data-privacy] .amt-dec, html[data-privacy] .amt-sym,
-html[data-privacy] .amount-inc, html[data-privacy] .amount-exp, html[data-privacy] .amount-muted,
-html[data-privacy] .stat-value {
-  filter: blur(8px); transition: filter .15s; user-select: none;
+/* ===== PRIVACY MODE ===== blur monetary figures; hover a card / tap a value to peek. */
+html[data-privacy] :is(.amt-int, .amt-dec, .amt-sym, .amount-inc, .amount-exp, .amount-muted,
+  .tx-cell-amount, .bento-stat-value, .bento-hero-amount, .hero-amount, .stat-value,
+  .rec-cell-amount, .cf-income, .cf-expense, .cf-net, .cf-total, .ins-bill-amt,
+  .prop-next-amt, .unforeseen-row-amt, .chip-value, .hidden-vendor-total, .report-kpi, .bal-amt) {
+  filter: blur(9px); transition: filter .12s; cursor: pointer; user-select: none;
 }
-html[data-privacy] .stat-card:active .stat-value,
-html[data-privacy] .stat-card:hover .stat-value { filter: none; }
+html[data-privacy] .card:hover :is(.amt-int, .amt-dec, .amt-sym, .amount-inc, .amount-exp, .amount-muted,
+  .tx-cell-amount, .bento-stat-value, .bento-hero-amount, .hero-amount, .stat-value,
+  .rec-cell-amount, .cf-income, .cf-expense, .cf-net, .cf-total, .ins-bill-amt,
+  .prop-next-amt, .unforeseen-row-amt, .chip-value, .hidden-vendor-total, .report-kpi, .bal-amt),
+html[data-privacy] :is(.amt-int, .amt-dec, .amt-sym, .amount-inc, .amount-exp, .amount-muted,
+  .tx-cell-amount, .bento-stat-value, .bento-hero-amount, .hero-amount, .stat-value,
+  .rec-cell-amount, .cf-income, .cf-expense, .cf-net, .cf-total, .ins-bill-amt,
+  .prop-next-amt, .unforeseen-row-amt, .chip-value, .hidden-vendor-total, .report-kpi, .bal-amt):active {
+  filter: none;
+}
 
 /* ===== UI KIT ===== sheet body, avatar initials, pull-to-refresh ===== */
 .uk-sheet-body { font-size: .92rem; }
