@@ -2,13 +2,30 @@
 <html lang="he" dir="rtl">
 <head>
   <meta charset="UTF-8">
-  <!-- v1.21.50 -->
+  <!-- v1.23.0 -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>כספים – ניהול פיננסי</title>
-  <link rel="stylesheet" href="style.css?v=1.22.0">
+  <script>
+  /* Apply theme/accent/privacy before first paint (no FOUC). */
+  (function () {
+    try {
+      var m = localStorage.getItem('uiTheme') || 'system';
+      var light = m === 'light' || (m === 'system' && matchMedia('(prefers-color-scheme: light)').matches);
+      document.documentElement.dataset.theme = light ? 'light' : 'dark';
+      var a = localStorage.getItem('uiAccent');
+      if (a) {
+        document.documentElement.style.setProperty('--accent', a);
+        var n = parseInt((a.replace('#', '')), 16);
+        if (!isNaN(n)) document.documentElement.style.setProperty('--accent-dim', 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',0.15)');
+      }
+      if (localStorage.getItem('uiPrivacy')) document.documentElement.dataset.privacy = '1';
+    } catch (e) {}
+  })();
+  </script>
+  <link rel="stylesheet" href="style.css?v=1.23.0">
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
@@ -375,7 +392,35 @@
       <button class="tab-btn" onclick="switchTab('reconcile',this)">התאמת יתרות</button>
       <button class="tab-btn" onclick="switchTab('data',this)">ניהול נתונים</button>
       <button class="tab-btn" onclick="switchTab('backup',this)">גיבוי</button>
+      <button class="tab-btn" onclick="switchTab('appearance',this)">מראה</button>
       <button class="tab-btn" onclick="switchTab('feedback',this)">משוב ורעיונות</button>
+    </div>
+
+    <div class="tab-panel" id="tab-appearance">
+      <div class="card" style="max-width:560px">
+        <div class="card-title">מראה</div>
+        <label class="form-label">ערכת נושא</label>
+        <div class="seg-control" id="themeSeg">
+          <button type="button" data-theme-mode="light" onclick="UK_setTheme('light')">☀️ בהיר</button>
+          <button type="button" data-theme-mode="dark" onclick="UK_setTheme('dark')">🌙 כהה</button>
+          <button type="button" data-theme-mode="system" onclick="UK_setTheme('system')">🖥️ מערכת</button>
+        </div>
+        <label class="form-label" style="margin-top:1.1rem">צבע מערכת</label>
+        <div class="accent-swatches" id="accentSwatches">
+          <button type="button" data-accent="#3b82f6" style="--sw:#3b82f6" onclick="UK_setAccent('#3b82f6')" aria-label="כחול"></button>
+          <button type="button" data-accent="#8b5cf6" style="--sw:#8b5cf6" onclick="UK_setAccent('#8b5cf6')" aria-label="סגול"></button>
+          <button type="button" data-accent="#10b981" style="--sw:#10b981" onclick="UK_setAccent('#10b981')" aria-label="ירוק"></button>
+          <button type="button" data-accent="#f59e0b" style="--sw:#f59e0b" onclick="UK_setAccent('#f59e0b')" aria-label="כתום"></button>
+          <button type="button" data-accent="#ec4899" style="--sw:#ec4899" onclick="UK_setAccent('#ec4899')" aria-label="ורוד"></button>
+          <button type="button" data-accent="#06b6d4" style="--sw:#06b6d4" onclick="UK_setAccent('#06b6d4')" aria-label="טורקיז"></button>
+          <button type="button" data-accent="" class="accent-reset" onclick="UK_setAccent('')" aria-label="ברירת מחדל" title="ברירת מחדל">↺</button>
+        </div>
+        <label class="form-label" style="margin-top:1.1rem;display:flex;align-items:center;gap:.5rem;cursor:pointer">
+          <input type="checkbox" id="privacyToggle" onchange="UK_setPrivacy(this.checked)" style="width:auto">
+          הסתר סכומים (מצב פרטיות)
+        </label>
+        <div style="font-size:.78rem;color:var(--text-muted);margin-top:.3rem">מטשטש את כל הסכומים במסכים. ריחוף/נגיעה בכרטיס סטטיסטיקה חושף זמנית.</div>
+      </div>
     </div>
 
     <div class="tab-panel" id="tab-accounts">
@@ -869,28 +914,29 @@
   <button onclick="applyUpdate()">עדכן עכשיו</button>
 </div>
 
-<script>const _v = '1.22.0';</script>
-<script src="app.js?v=1.22.0"></script>
-<script src="core.js?v=1.22.0"></script>
-<script src="ui.js?v=1.22.0"></script>
-<script src="icons.js?v=1.22.0"></script>
-<script src="templates.js?v=1.22.0"></script>
-<script src="autocat.js?v=1.22.0"></script>
-<script src="detect.js?v=1.22.0"></script>
-<script src="budget.js?v=1.22.0"></script>
-<script src="budgetGen.js?v=1.22.0"></script>
-<script src="recurring.js?v=1.22.0"></script>
-<script src="dashboard.js?v=1.22.0"></script>
-<script src="transactions.js?v=1.22.0"></script>
-<script src="wizard.js?v=1.22.0"></script>
-<script src="import.js?v=1.22.0"></script>
-<script src="analysis.js?v=1.22.0"></script>
-<script src="settings.js?v=1.22.0"></script>
-<script src="drive.js?v=1.22.0"></script>
-<script src="property.js?v=1.22.0"></script>
-<script src="reports.js?v=1.22.0"></script>
-<script src="feedback.js?v=1.22.0"></script>
-<script src="scrollMirror.js?v=1.22.0"></script>
+<script>const _v = '1.23.0';</script>
+<script src="app.js?v=1.23.0"></script>
+<script src="core.js?v=1.23.0"></script>
+<script src="ui.js?v=1.23.0"></script>
+<script src="uikit.js?v=1.23.0"></script>
+<script src="icons.js?v=1.23.0"></script>
+<script src="templates.js?v=1.23.0"></script>
+<script src="autocat.js?v=1.23.0"></script>
+<script src="detect.js?v=1.23.0"></script>
+<script src="budget.js?v=1.23.0"></script>
+<script src="budgetGen.js?v=1.23.0"></script>
+<script src="recurring.js?v=1.23.0"></script>
+<script src="dashboard.js?v=1.23.0"></script>
+<script src="transactions.js?v=1.23.0"></script>
+<script src="wizard.js?v=1.23.0"></script>
+<script src="import.js?v=1.23.0"></script>
+<script src="analysis.js?v=1.23.0"></script>
+<script src="settings.js?v=1.23.0"></script>
+<script src="drive.js?v=1.23.0"></script>
+<script src="property.js?v=1.23.0"></script>
+<script src="reports.js?v=1.23.0"></script>
+<script src="feedback.js?v=1.23.0"></script>
+<script src="scrollMirror.js?v=1.23.0"></script>
 
 <!-- SERVICE WORKER REGISTRATION & UPDATE LOGIC -->
 <script>
