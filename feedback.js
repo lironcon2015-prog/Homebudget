@@ -74,8 +74,8 @@ async function syncFeedbackItem(id) {
 // Two subtle ghost buttons mounted into every screen's .page-header.
 const FEEDBACK_DOCK_HTML = `
   <div class="feedback-dock" role="group" aria-label="משוב">
-    <button class="fb-btn" type="button" title="דיווח על באג" onclick="openFeedbackModal('bug')"><span class="fb-ic">🐞</span><span class="fb-label">באג</span></button>
-    <button class="fb-btn" type="button" title="הצעת רעיון לפיתוח" onclick="openFeedbackModal('idea')"><span class="fb-ic">💡</span><span class="fb-label">רעיון</span></button>
+    <button class="fb-btn" type="button" title="דיווח על באג" aria-label="דיווח על באג" onclick="openFeedbackModal('bug')"><span class="fb-ic" aria-hidden="true">🐞</span><span class="fb-label">באג</span></button>
+    <button class="fb-btn" type="button" title="הצעת רעיון לפיתוח" aria-label="הצעת רעיון לפיתוח" onclick="openFeedbackModal('idea')"><span class="fb-ic" aria-hidden="true">💡</span><span class="fb-label">רעיון</span></button>
   </div>`
 
 function mountFeedbackButtons() {

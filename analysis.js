@@ -631,8 +631,8 @@ function saveVendorAliasFromDrill(existingId) {
   const minRaw = document.getElementById('vendorAliasAmountMin')?.value
   const maxRaw = document.getElementById('vendorAliasAmountMax')?.value
   const patterns = patternsRaw.split('\n').map(s => s.trim()).filter(Boolean)
-  if (!displayName) { alert('שם תצוגה חובה'); return }
-  if (patterns.length === 0) { alert('יש להזין לפחות ביטוי אחד'); return }
+  if (!displayName) { toast('שם תצוגה חובה', { type: 'error' }); return }
+  if (patterns.length === 0) { toast('יש להזין לפחות ביטוי אחד', { type: 'error' }); return }
   // Preserve any day-of-month constraint set from settings/drill — this modal
   // doesn't expose those fields, so we'd otherwise wipe them on save.
   const prevAlias = (existingId && existingId !== 'null')
@@ -649,8 +649,8 @@ function saveVendorAliasFromDrill(existingId) {
   _drawAnalysis()
 }
 
-function deleteVendorAliasFromDrill(id) {
-  if (!confirm('למחוק את האיחוד? שמות גולמיים יוצגו כמו שהם.')) return
+async function deleteVendorAliasFromDrill(id) {
+  if (!await confirmDialog('למחוק את האיחוד? שמות גולמיים יוצגו כמו שהם.', { danger: true, confirmText: 'מחק' })) return
   deleteVendorAlias(id)
   _renderVendorDrill()
   _drawAnalysis()
@@ -669,7 +669,7 @@ async function sendChat() {
   const msg = input.value.trim()
   if (!msg) return
   const apiKey = getApiKey()
-  if (!apiKey) { alert('חסר מפתח Gemini API – הזן בהגדרות'); return }
+  if (!apiKey) { toast('חסר מפתח Gemini API – הזן בהגדרות', { type: 'error' }); return }
 
   input.value = ''
   _chatMessages.push({ role: 'user', text: msg })

@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>כספים – ניהול פיננסי</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=1.22.0">
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
@@ -677,7 +677,7 @@
   <div class="modal-box">
     <div class="modal-header">
       <h3>איחוד לקבועה</h3>
-      <button class="modal-close" onclick="closeMergeRecurringModal()">✕</button>
+      <button class="modal-close" aria-label="סגור" onclick="closeMergeRecurringModal()">✕</button>
     </div>
     <div id="mergeRecurringBody"></div>
     <div style="display:flex;gap:.75rem;justify-content:flex-end;margin-top:1.25rem">
@@ -692,7 +692,7 @@
   <div class="modal-box">
     <div class="modal-header">
       <h3 id="editModalTitle">עריכת עסקה</h3>
-      <button class="modal-close" onclick="closeEditModal()">✕</button>
+      <button class="modal-close" aria-label="סגור" onclick="closeEditModal()">✕</button>
     </div>
     <div id="editModalBody"></div>
     <div style="display:flex;gap:.75rem;justify-content:space-between;margin-top:1.25rem">
@@ -710,7 +710,7 @@
   <div class="modal-box" style="width:min(640px,96vw)">
     <div class="modal-header">
       <h3>בחר הוצאה לקיזוז ההחזר</h3>
-      <button class="modal-close" onclick="closeRefundPicker()">✕</button>
+      <button class="modal-close" aria-label="סגור" onclick="closeRefundPicker()">✕</button>
     </div>
     <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.7rem">
       <input id="refundPickSearch" placeholder="חיפוש לפי ספק או סכום…" oninput="renderRefundPickerList()" style="flex:1;min-width:11rem">
@@ -730,7 +730,7 @@
   <div class="modal-box" style="max-width:520px">
     <div class="modal-header">
       <h3 id="catEditTitle">עריכת קטגוריה</h3>
-      <button class="modal-close" onclick="closeCatEditModal()">✕</button>
+      <button class="modal-close" aria-label="סגור" onclick="closeCatEditModal()">✕</button>
     </div>
     <div id="catEditBody"></div>
     <div style="display:flex;gap:.75rem;justify-content:space-between;margin-top:1.25rem">
@@ -748,7 +748,7 @@
   <div class="modal-box" style="max-width:640px">
     <div class="modal-header">
       <h3>פירוט הוצאות – כל הקטגוריות</h3>
-      <button class="modal-close" onclick="closeExpenseBreakdownModal()">✕</button>
+      <button class="modal-close" aria-label="סגור" onclick="closeExpenseBreakdownModal()">✕</button>
     </div>
     <div id="expenseBreakdownModalBody"></div>
     <div style="display:flex;gap:.75rem;justify-content:flex-end;margin-top:1.25rem">
@@ -762,7 +762,7 @@
   <div class="modal-box" style="max-width:860px">
     <div class="modal-header">
       <h3 id="vendorDrillTitle">עסקאות ספק</h3>
-      <button class="modal-close" onclick="closeVendorDrill()">✕</button>
+      <button class="modal-close" aria-label="סגור" onclick="closeVendorDrill()">✕</button>
     </div>
     <div id="vendorDrillBody"></div>
     <div style="display:flex;gap:.75rem;justify-content:flex-end;margin-top:1.25rem">
@@ -776,7 +776,7 @@
   <div class="modal-box modal-box-wide">
     <div class="modal-header">
       <h3 id="drillTitle">היסטוריית עסקאות</h3>
-      <button class="modal-close" onclick="closeRecurringDrill()">✕</button>
+      <button class="modal-close" aria-label="סגור" onclick="closeRecurringDrill()">✕</button>
     </div>
     <div id="drillBody"></div>
     <div style="display:flex;gap:.75rem;justify-content:flex-end;margin-top:1.25rem">
@@ -790,7 +790,7 @@
   <div class="modal-box modal-box-wide">
     <div class="modal-header">
       <h3>פירוט תשלומי משכנתא</h3>
-      <button class="modal-close" onclick="closeMortgagePaidModal()">✕</button>
+      <button class="modal-close" aria-label="סגור" onclick="closeMortgagePaidModal()">✕</button>
     </div>
     <div id="mortgagePaidBody"></div>
     <div style="display:flex;gap:.75rem;justify-content:flex-end;margin-top:1.25rem">
@@ -803,7 +803,7 @@
   <div class="modal-box" style="max-width:640px">
     <div class="modal-header">
       <h3>סיווג אוטומטי — דרושה החלטה</h3>
-      <button class="modal-close" onclick="closeAutocatModal()">✕</button>
+      <button class="modal-close" aria-label="סגור" onclick="closeAutocatModal()">✕</button>
     </div>
     <div id="autocatModalBody"></div>
     <div style="display:flex;gap:.75rem;justify-content:flex-end;margin-top:1.25rem">
@@ -818,7 +818,7 @@
   <div class="modal-box" style="max-width:900px">
     <div class="modal-header">
       <h3>מיפוי עמודות — מקור חדש</h3>
-      <button class="modal-close" onclick="closeTplWizard()">✕</button>
+      <button class="modal-close" aria-label="סגור" onclick="closeTplWizard()">✕</button>
     </div>
     <div id="tplWizardBody"></div>
     <div style="display:flex;gap:.75rem;justify-content:space-between;margin-top:1.25rem">
@@ -836,7 +836,7 @@
   <div class="modal-box modal-box-wide">
     <div class="modal-header">
       <h3 id="budgetGenTitle">הצעת תקציב</h3>
-      <button class="modal-close" onclick="closeBudgetGenModal()">✕</button>
+      <button class="modal-close" aria-label="סגור" onclick="closeBudgetGenModal()">✕</button>
     </div>
     <div id="budgetGenBody"></div>
     <div style="display:flex;gap:.75rem;justify-content:space-between;margin-top:1.25rem;flex-wrap:wrap">
@@ -854,7 +854,7 @@
   <div class="modal-box modal-box-wide">
     <div class="modal-header">
       <h3 id="budgetRowTitle">עסקאות בשורת תקציב</h3>
-      <button class="modal-close" onclick="closeBudgetRowModal()">✕</button>
+      <button class="modal-close" aria-label="סגור" onclick="closeBudgetRowModal()">✕</button>
     </div>
     <div id="budgetRowBody"></div>
     <div style="display:flex;gap:.75rem;justify-content:flex-end;margin-top:1.25rem">
@@ -869,28 +869,28 @@
   <button onclick="applyUpdate()">עדכן עכשיו</button>
 </div>
 
-<script>const _v = '1.21.58';</script>
-<script src="app.js?v=1.21.58"></script>
-<script src="core.js?v=1.21.58"></script>
-<script src="ui.js?v=1.21.58"></script>
-<script src="icons.js?v=1.21.58"></script>
-<script src="templates.js?v=1.21.58"></script>
-<script src="autocat.js?v=1.21.58"></script>
-<script src="detect.js?v=1.21.58"></script>
-<script src="budget.js?v=1.21.58"></script>
-<script src="budgetGen.js?v=1.21.58"></script>
-<script src="recurring.js?v=1.21.58"></script>
-<script src="dashboard.js?v=1.21.58"></script>
-<script src="transactions.js?v=1.21.58"></script>
-<script src="wizard.js?v=1.21.58"></script>
-<script src="import.js?v=1.21.58"></script>
-<script src="analysis.js?v=1.21.58"></script>
-<script src="settings.js?v=1.21.58"></script>
-<script src="drive.js?v=1.21.58"></script>
-<script src="property.js?v=1.21.58"></script>
-<script src="reports.js?v=1.21.58"></script>
-<script src="feedback.js?v=1.21.58"></script>
-<script src="scrollMirror.js?v=1.21.58"></script>
+<script>const _v = '1.22.0';</script>
+<script src="app.js?v=1.22.0"></script>
+<script src="core.js?v=1.22.0"></script>
+<script src="ui.js?v=1.22.0"></script>
+<script src="icons.js?v=1.22.0"></script>
+<script src="templates.js?v=1.22.0"></script>
+<script src="autocat.js?v=1.22.0"></script>
+<script src="detect.js?v=1.22.0"></script>
+<script src="budget.js?v=1.22.0"></script>
+<script src="budgetGen.js?v=1.22.0"></script>
+<script src="recurring.js?v=1.22.0"></script>
+<script src="dashboard.js?v=1.22.0"></script>
+<script src="transactions.js?v=1.22.0"></script>
+<script src="wizard.js?v=1.22.0"></script>
+<script src="import.js?v=1.22.0"></script>
+<script src="analysis.js?v=1.22.0"></script>
+<script src="settings.js?v=1.22.0"></script>
+<script src="drive.js?v=1.22.0"></script>
+<script src="property.js?v=1.22.0"></script>
+<script src="reports.js?v=1.22.0"></script>
+<script src="feedback.js?v=1.22.0"></script>
+<script src="scrollMirror.js?v=1.22.0"></script>
 
 <!-- SERVICE WORKER REGISTRATION & UPDATE LOGIC -->
 <script>

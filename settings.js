@@ -187,15 +187,15 @@ function saveReconcileEntry(accountId, ym, value) {
 // toast. Doesn't touch other months — adjusting one month shifts every
 // subsequent computed balance by the same delta, which may close OR open
 // new gaps; the user keeps full control by re-entering bank values.
-function performBalanceAdjustment(accountId, ym, diff) {
+async function performBalanceAdjustment(accountId, ym, diff) {
   const num = Number(diff)
   if (!isFinite(num) || Math.abs(num) <= 0.005) return
   const acc = getAccounts().find(a => a.id === accountId)
-  if (!acc) { alert('לא נמצא חשבון'); return }
+  if (!acc) { toast('לא נמצא חשבון', { type: 'error' }); return }
   const ymDisp = ym.slice(5) + '/' + ym.slice(0,4)
   const direction = num > 0 ? 'הכנסה' : 'הוצאה'
   const msg = `ליצור עסקת ${direction} של ${formatCurrency(Math.abs(num))} בסוף ${ymDisp} (חשבון: ${acc.name}) כדי להתאים את היתרה לבנק?`
-  if (!confirm(msg)) return
+  if (!await confirmDialog(msg, { confirmText: 'צור עסקה', title: 'התאמת יתרה' })) return
   const lastDay = _lastDayOfMonth(ym)
   const txs = getTransactions()
   txs.push({
@@ -277,7 +277,7 @@ function addAliasFromForm() {
   const dayMinRaw = document.getElementById('aliasInputDayMin')?.value
   const dayMaxRaw = document.getElementById('aliasInputDayMax')?.value
   const patterns = patternsRaw.split(/[,\n]/).map(s => s.trim()).filter(Boolean)
-  if (!displayName || patterns.length === 0) { alert('שם תצוגה וביטוי אחד לפחות חובה'); return }
+  if (!displayName || patterns.length === 0) { toast('שם תצוגה וביטוי אחד לפחות חובה', { type: 'error' }); return }
   addVendorAlias(patterns, displayName, minRaw, maxRaw, dayMinRaw, dayMaxRaw)
   document.getElementById('aliasInputDisplay').value = ''
   document.getElementById('aliasInputPatterns').value = ''
@@ -287,35 +287,35 @@ function addAliasFromForm() {
   renderAliasList()
 }
 
-function editAliasPrompt(id) {
+async function editAliasPrompt(id) {
   const alias = getVendorAliases().find(a => a.id === id)
   if (!alias) return
-  const newDisplay = prompt('שם תצוגה:', alias.displayName)
+  const newDisplay = await promptDialog('שם תצוגה:', { defaultValue: alias.displayName, title: 'עריכת איחוד' })
   if (newDisplay === null) return
-  const newPatterns = prompt('ביטויים לזיהוי (שורה/פסיק לכל אחד):', (alias.patterns || []).join(', '))
+  const newPatterns = await promptDialog('ביטויים לזיהוי (שורה/פסיק לכל אחד):', { defaultValue: (alias.patterns || []).join(', '), multiline: true, title: 'עריכת איחוד' })
   if (newPatterns === null) return
   const currentAmount = formatAliasAmountRange(alias.amountMin, alias.amountMax)
-  const newAmount = prompt(
+  const newAmount = await promptDialog(
     'טווח סכום (לדוגמה: 100-200, או 5000 לסכום מדויק. ריק = ללא הגבלה):',
-    currentAmount
+    { defaultValue: currentAmount, title: 'עריכת איחוד' }
   )
   if (newAmount === null) return
   const currentDay = formatAliasDayRange(alias.dayMin, alias.dayMax)
-  const newDay = prompt(
+  const newDay = await promptDialog(
     'טווח יום חיוב (1–31). לדוגמה: 9-11, או 10 ליום מדויק. ריק = ללא הגבלה:',
-    currentDay
+    { defaultValue: currentDay, title: 'עריכת איחוד' }
   )
   if (newDay === null) return
   const patterns = newPatterns.split(/[,\n]/).map(s => s.trim()).filter(Boolean)
-  if (!newDisplay.trim() || patterns.length === 0) { alert('שם תצוגה וביטוי אחד לפחות חובה'); return }
+  if (!newDisplay.trim() || patterns.length === 0) { toast('שם תצוגה וביטוי אחד לפחות חובה', { type: 'error' }); return }
   const { amountMin, amountMax } = parseAliasAmountRange(newAmount)
   const { dayMin,    dayMax    } = parseAliasDayRange(newDay)
   updateVendorAlias(id, patterns, newDisplay.trim(), amountMin, amountMax, dayMin, dayMax)
   renderAliasList()
 }
 
-function removeAlias(id) {
-  if (!confirm('למחוק את האיחוד? שמות גולמיים יוצגו כמו שהם.')) return
+async function removeAlias(id) {
+  if (!await confirmDialog('למחוק את האיחוד? שמות גולמיים יוצגו כמו שהם.', { danger: true, confirmText: 'מחק' })) return
   deleteVendorAlias(id)
   renderAliasList()
 }
@@ -367,17 +367,17 @@ function renderRulesList() {
 function addRuleFromForm() {
   const p = document.getElementById('ruleInputPattern').value.trim()
   const cid = document.getElementById('ruleInputCategory').value
-  if (!p || !cid) { alert('מילת מפתח וקטגוריה חובה'); return }
+  if (!p || !cid) { toast('מילת מפתח וקטגוריה חובה', { type: 'error' }); return }
   addCategoryRule(p, cid)
   document.getElementById('ruleInputPattern').value = ''
   renderRulesList()
   // Retroactively re-categorize uncategorized transactions matching the new rule
   const changed = applyRulesToUncategorized()
-  if (changed > 0) alert(`${changed} עסקאות קיימות סווגו על פי הכלל החדש`)
+  if (changed > 0) toast(`${changed} עסקאות קיימות סווגו על פי הכלל החדש`, { type: 'success' })
 }
 
-function removeRule(id) {
-  if (!confirm('למחוק את הכלל?')) return
+async function removeRule(id) {
+  if (!await confirmDialog('למחוק את הכלל?', { danger: true, confirmText: 'מחק' })) return
   deleteCategoryRule(id)
   renderRulesList()
 }
@@ -428,19 +428,19 @@ function renderTemplatesList() {
   }).join('')
 }
 
-function renameTemplate(id) {
+async function renameTemplate(id) {
   const list = getTemplates()
   const t = list.find(x => x.id === id)
   if (!t) return
-  const newName = prompt('שם חדש לתבנית:', t.name)
+  const newName = await promptDialog('שם חדש לתבנית:', { defaultValue: t.name, title: 'שינוי שם תבנית' })
   if (!newName || newName === t.name) return
   t.name = newName.trim()
   saveTemplates(list)
   renderTemplatesList()
 }
 
-function confirmDeleteTemplate(id) {
-  if (!confirm('למחוק את התבנית? ייבוא עתידי מאותו מקור ידרוש מיפוי מחדש.')) return
+async function confirmDeleteTemplate(id) {
+  if (!await confirmDialog('למחוק את התבנית? ייבוא עתידי מאותו מקור ידרוש מיפוי מחדש.', { danger: true, confirmText: 'מחק' })) return
   deleteTemplate(id)
   renderTemplatesList()
 }
@@ -467,7 +467,7 @@ function _onAccTypeChange() {
 
 function saveAccount() {
   const name = document.getElementById('accName').value.trim()
-  if (!name) { alert('שם החשבון חובה'); return }
+  if (!name) { toast('שם החשבון חובה', { type: 'error' }); return }
   const accounts = getAccounts()
   const type = document.getElementById('accType').value
   const patternsRaw = document.getElementById('accPatterns')?.value || ''
@@ -500,27 +500,29 @@ function saveAccount() {
   renderSettings()
 }
 
-function editAccountPatterns(id) {
+async function editAccountPatterns(id) {
   const accs = getAccounts()
   const acc = accs.find(a => a.id === id)
   if (!acc) return
   const current = (acc.paymentVendorPatterns || []).join('\n')
-  const v = prompt(`דפוסי זיהוי לחשבון "${acc.name}":\n(שורה לכל ביטוי - משמש לזיהוי העברות אל החשבון בדפי הבנק)`, current)
+  const v = await promptDialog(`דפוסי זיהוי לחשבון "${acc.name}":\n(שורה לכל ביטוי - משמש לזיהוי העברות אל החשבון בדפי הבנק)`, { defaultValue: current, multiline: true, title: 'דפוסי זיהוי' })
   if (v === null) return
   acc.paymentVendorPatterns = v.split('\n').map(s => s.trim()).filter(Boolean)
   DB.set('finAccounts', accs)
+  invalidateAccountCache()
+  if (typeof invalidateCcLumpDetectCache === 'function') invalidateCcLumpDetectCache()
   renderSettings()
 }
 
-function editAccountBillingDay(id) {
+async function editAccountBillingDay(id) {
   const accs = getAccounts()
   const acc = accs.find(a => a.id === id)
   if (!acc) return
   const current = acc.billingDay || 10
-  const v = prompt(`יום חיוב בחודש עבור "${acc.name}" (1–31):`, current)
+  const v = await promptDialog(`יום חיוב בחודש עבור "${acc.name}" (1–31):`, { defaultValue: String(current), title: 'יום חיוב' })
   if (v === null) return
   const day = parseInt(v, 10)
-  if (isNaN(day) || day < 1 || day > 31) { alert('יום לא חוקי. הזן מספר בין 1 ל-31.'); return }
+  if (isNaN(day) || day < 1 || day > 31) { toast('יום לא חוקי. הזן מספר בין 1 ל-31.', { type: 'error' }); return }
   acc.billingDay = day
   DB.set('finAccounts', accs)
   invalidateAccountCache()
@@ -529,17 +531,17 @@ function editAccountBillingDay(id) {
 
 function runAutoLinkTransfers() {
   const n = autoLinkTransfersByPattern()
-  alert(n === 0 ? 'לא נמצאו העברות חדשות להתאמה' : `זוהו וסומנו ${n} העברות לפי דפוסים`)
+  toast(n === 0 ? 'לא נמצאו העברות חדשות להתאמה' : `זוהו וסומנו ${n} העברות לפי דפוסים`, { type: n === 0 ? 'info' : 'success' })
   renderSettings()
 }
 
-function deleteAccount(id) {
+async function deleteAccount(id) {
   const acc = getAccounts().find(a => a.id === id)
   const owned = getTransactions().filter(t => t.accountId === id).length
   const msg = owned > 0
     ? `למחוק את חשבון "${acc?.name||''}"?\nפעולה זו תמחק גם ${owned} עסקאות שייכות אליו.`
     : `למחוק את חשבון "${acc?.name||''}"?`
-  if (!confirm(msg)) return
+  if (!await confirmDialog(msg, { danger: true, confirmText: 'מחק' })) return
   // Drop tx on the deleted account, and scrub stale cross-account links.
   const remainingTx = getTransactions().filter(t => t.accountId !== id)
   remainingTx.forEach(t => {
@@ -550,6 +552,7 @@ function deleteAccount(id) {
   DB.set('finAccounts', getAccounts().filter(a => a.id !== id))
   invalidatePLCache()
   invalidateAccountCache()
+  if (typeof invalidateCcLumpDetectCache === 'function') invalidateCcLumpDetectCache()
   renderSettings()
 }
 
@@ -601,7 +604,7 @@ function toggleCatForm() {
 
 function saveCategory() {
   const name = document.getElementById('catName').value.trim()
-  if (!name) { alert('שם הקטגוריה חובה'); return }
+  if (!name) { toast('שם הקטגוריה חובה', { type: 'error' }); return }
   const cats = getCategories()
   cats.push({
     id:     genId(),
@@ -630,10 +633,10 @@ function _deleteCategoryAndScrub(id) {
   if (typeof invalidateCapitalIncomeCache === 'function') invalidateCapitalIncomeCache()
 }
 
-function deleteCategory(id) {
+async function deleteCategory(id) {
   const cat = getCategories().find(c => c.id === id)
-  if (cat?.system) { alert('לא ניתן למחוק קטגוריית מערכת'); return }
-  if (!confirm('האם למחוק קטגוריה זו?')) return
+  if (cat?.system) { toast('לא ניתן למחוק קטגוריית מערכת', { type: 'error' }); return }
+  if (!await confirmDialog('האם למחוק קטגוריה זו?', { danger: true, confirmText: 'מחק' })) return
   _deleteCategoryAndScrub(id)
   renderSettings()
 }
@@ -729,7 +732,7 @@ function saveCatEdit() {
   const idx  = cats.findIndex(c => c.id === _catEditId)
   if (idx < 0) return
   const name = document.getElementById('catEditName').value.trim()
-  if (!name) { alert('שם חובה'); return }
+  if (!name) { toast('שם חובה', { type: 'error' }); return }
   cats[idx].name  = name
   cats[idx].icon  = document.getElementById('catEditIcon').value.trim() || '📋'
   cats[idx].color = document.getElementById('catEditColor').value
@@ -745,11 +748,11 @@ function saveCatEdit() {
   renderSettings()
 }
 
-function deleteFromCatModal() {
+async function deleteFromCatModal() {
   if (!_catEditId) return
   const cat = getCategoryById(_catEditId)
   if (!cat || cat.system) return
-  if (!confirm('למחוק את הקטגוריה? עסקאות שסווגו אליה יוצגו כלא־מסווגות.')) return
+  if (!await confirmDialog('למחוק את הקטגוריה? עסקאות שסווגו אליה יוצגו כלא־מסווגות.', { danger: true, confirmText: 'מחק' })) return
   _deleteCategoryAndScrub(_catEditId)
   closeCatEditModal()
   renderSettings()
@@ -758,13 +761,13 @@ function deleteFromCatModal() {
 // ===== PROMPT =====
 function savePrompt() {
   const val = document.getElementById('promptInput').value.trim()
-  if (!val) { alert('ההנחיות לא יכולות להיות ריקות'); return }
+  if (!val) { toast('ההנחיות לא יכולות להיות ריקות', { type: 'error' }); return }
   localStorage.setItem('geminiPrompt', val)
   document.getElementById('promptMsg').textContent = '✅ ההנחיות נשמרו'
   document.getElementById('promptMsg').style.color = 'var(--income)'
 }
-function resetPrompt() {
-  if (!confirm('לאפס את ההנחיות לברירת המחדל?')) return
+async function resetPrompt() {
+  if (!await confirmDialog('לאפס את ההנחיות לברירת המחדל?', { confirmText: 'אפס' })) return
   localStorage.removeItem('geminiPrompt')
   document.getElementById('promptInput').value = DEFAULT_PROMPT
   document.getElementById('promptMsg').textContent = '✅ אופס לברירת מחדל'
@@ -803,30 +806,38 @@ function renderImportBatches() {
   }).join('')
 }
 
-function deleteImportBatch(batchId) {
+async function deleteImportBatch(batchId) {
   const txs = getTransactions()
   const batchTxs = txs.filter(t => (t.importBatch || '_manual') === batchId)
   const file = batchTxs[0]?.sourceFile || 'לא ידוע'
-  if (!confirm(`למחוק ${batchTxs.length} עסקאות מהקובץ "${file}"?`)) return
+  if (!await confirmDialog(`למחוק ${batchTxs.length} עסקאות מהקובץ "${file}"?`, { danger: true, confirmText: 'מחק' })) return
+  const snapshot = txs.slice()
   DB.set('finTransactions', txs.filter(t => (t.importBatch || '_manual') !== batchId))
   renderImportBatches()
+  toast(`${batchTxs.length} עסקאות נמחקו`, {
+    type: 'success',
+    action: { label: 'בטל', onClick: () => { DB.set('finTransactions', snapshot); renderImportBatches(); if (typeof renderDashboard === 'function') renderDashboard() } },
+  })
 }
 
-function deleteAllTransactions() {
+async function deleteAllTransactions() {
   const count = getTransactions().length
-  if (count === 0) { alert('אין עסקאות למחיקה'); return }
-  if (!confirm(`האם למחוק ${count} עסקאות? פעולה זו בלתי הפיכה!`)) return
-  if (!confirm('האם אתה בטוח? מומלץ לגבות קודם.')) return
+  if (count === 0) { toast('אין עסקאות למחיקה', { type: 'info' }); return }
+  if (!await confirmDialog(`למחוק את כל ${count} העסקאות? מומלץ לגבות קודם. ניתן לבטל מיד לאחר המחיקה.`, { danger: true, confirmText: 'מחק הכל' })) return
+  const snapshot = getTransactions().slice()
   DB.set('finTransactions', [])
   localStorage.removeItem('migration_cc_transfers')
   renderImportBatches()
-  alert('כל העסקאות נמחקו')
+  toast(`${count} עסקאות נמחקו`, {
+    type: 'success',
+    action: { label: 'בטל', onClick: () => { DB.set('finTransactions', snapshot); renderImportBatches(); if (typeof renderDashboard === 'function') renderDashboard() } },
+  })
 }
 
 // ===== API KEY =====
 function saveApiKey() {
   const key = document.getElementById('apiKeyInput').value.trim()
-  if (!key) { alert('הזן מפתח API'); return }
+  if (!key) { toast('הזן מפתח API', { type: 'error' }); return }
   localStorage.setItem('geminiApiKey', key)
   document.getElementById('apiKeyMsg').textContent = '✅ מפתח נשמר בהצלחה'
   document.getElementById('apiKeyMsg').style.color = 'var(--income)'
@@ -850,15 +861,15 @@ function _parseModelsInput() {
 
 function saveGeminiModelsFromUI() {
   const list = _parseModelsInput()
-  if (!list.length) { alert('צריך לפחות מודל אחד'); return }
+  if (!list.length) { toast('צריך לפחות מודל אחד', { type: 'error' }); return }
   setGeminiModels(list)
   const msg = document.getElementById('modelsMsg')
   msg.textContent = `✅ נשמרו ${list.length} מודלים`
   msg.style.color = 'var(--income)'
 }
 
-function resetGeminiModelsFromUI() {
-  if (!confirm('לאפס את מפל המודלים לברירת המחדל?')) return
+async function resetGeminiModelsFromUI() {
+  if (!await confirmDialog('לאפס את מפל המודלים לברירת המחדל?', { confirmText: 'אפס' })) return
   localStorage.removeItem('geminiModels')
   loadGeminiModelsToUI()
   const msg = document.getElementById('modelsMsg')
@@ -872,10 +883,10 @@ function _escHtml(s) {
 
 async function runGeminiModelsTest() {
   const key = getApiKey()
-  if (!key) { alert('שמור קודם מפתח API'); return }
+  if (!key) { toast('שמור קודם מפתח API', { type: 'error' }); return }
   const promptText = (document.getElementById('modelsTestPrompt').value || '').trim() || 'בדיקה'
   const list = _parseModelsInput()
-  if (!list.length) { alert('הזן מודלים לבדיקה'); return }
+  if (!list.length) { toast('הזן מודלים לבדיקה', { type: 'error' }); return }
   const out = document.getElementById('modelsTestResult')
   out.innerHTML = `<div style="color:var(--text-muted)">⏳ בודק ${list.length} מודלים...</div>`
   const btn = document.getElementById('modelsTestBtn')

@@ -166,7 +166,7 @@ async function driveRestore() {
     driveSignIn()
     return
   }
-  if (!confirm('שחזור יחליף את כל הנתונים הנוכחיים בגיבוי האחרון מ-Drive — כולל שינויים מקומיים שעדיין לא גובו. להמשיך?')) return
+  if (!await confirmDialog('שחזור יחליף את כל הנתונים הנוכחיים בגיבוי האחרון מ-Drive — כולל שינויים מקומיים שעדיין לא גובו. להמשיך?', { danger: true, confirmText: 'שחזר', title: 'שחזור מ-Drive' })) return
   _showDriveStatus('משחזר…', false)
   try {
     const file = await _driveFindFile()

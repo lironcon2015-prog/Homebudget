@@ -360,12 +360,12 @@ function applyBudgetProposals() {
   }
   closeBudgetGenModal()
   if (typeof renderBudgetScreen === 'function') renderBudgetScreen()
-  alert(`${applied} תקציבים הוחלו על ${(typeof _budgetFormatMonth==='function')?_budgetFormatMonth(target):target}.`)
+  toast(`${applied} תקציבים הוחלו על ${(typeof _budgetFormatMonth==='function')?_budgetFormatMonth(target):target}.`, { type: 'success' })
 }
 
 async function adviseBudgetWithGemini() {
   const apiKey = (typeof getApiKey === 'function') ? getApiKey() : localStorage.getItem('geminiApiKey')
-  if (!apiKey) { alert('חסר מפתח Gemini API – הזן בהגדרות'); return }
+  if (!apiKey) { toast('חסר מפתח Gemini API – הזן בהגדרות', { type: 'error' }); return }
   if (!_budgetGenProposals || _budgetGenProposals.length === 0) return
   const btn = document.getElementById('bgenAdviceBtn')
   if (btn) { btn.disabled = true; btn.textContent = 'טוען…' }

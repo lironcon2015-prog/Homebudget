@@ -537,22 +537,22 @@ function onBudgetScreenChange(input) {
   renderBudgetScreen()
 }
 
-function copyBudgetFromPrevMonth() {
+async function copyBudgetFromPrevMonth() {
   const monthKey = getBudgetScreenMonth()
   const [y, m] = monthKey.split('-').map(Number)
   const prev = _ym(new Date(y, m - 2, 1))
   const source = getBudgetsForMonth(prev)
-  if (source.length === 0) { alert(`אין תקציב ב-${_budgetFormatMonth(prev)}`); return }
-  if (!confirm(`להעתיק ${source.length} ערכי תקציב מ-${_budgetFormatMonth(prev)} ל-${_budgetFormatMonth(monthKey)}? (דריסת ערכים קיימים)`)) return
+  if (source.length === 0) { toast(`אין תקציב ב-${_budgetFormatMonth(prev)}`, { type: 'error' }); return }
+  if (!await confirmDialog(`להעתיק ${source.length} ערכי תקציב מ-${_budgetFormatMonth(prev)} ל-${_budgetFormatMonth(monthKey)}? (דריסת ערכים קיימים)`, { confirmText: 'העתק' })) return
   source.forEach(b => setBudget(b.categoryId, monthKey, b.amount, b.type || 'expense', !!b.carryOver))
   renderBudgetScreen()
 }
 
-function clearBudgetForMonth() {
+async function clearBudgetForMonth() {
   const monthKey = getBudgetScreenMonth()
   const source = getBudgetsForMonth(monthKey)
   if (source.length === 0) return
-  if (!confirm(`למחוק את כל ${source.length} ערכי התקציב ל-${_budgetFormatMonth(monthKey)}?`)) return
+  if (!await confirmDialog(`למחוק את כל ${source.length} ערכי התקציב ל-${_budgetFormatMonth(monthKey)}?`, { danger: true, confirmText: 'מחק' })) return
   saveBudgets(getBudgets().filter(b => b.monthKey !== monthKey))
   renderBudgetScreen()
 }

@@ -434,7 +434,7 @@ function _renderTxSelectToolbar(_filteredCount) {
 }
 
 function openMergeRecurringModal() {
-  if (_txSelected.size < 2) { alert('בחר לפחות שתי עסקאות לאיחוד'); return }
+  if (_txSelected.size < 2) { toast('בחר לפחות שתי עסקאות לאיחוד', { type: 'error' }); return }
   const ids = [...(_txSelected)]
   const txs = getTransactions().filter(t => ids.includes(t.id))
   const defaultLabel = (txs[0] ? resolveVendor(txs[0].vendor || '', txs[0].amount, getTxAliasDay(txs[0])) : '') || txs[0]?.vendor || 'קבועה ידנית'
@@ -471,13 +471,13 @@ function closeMergeRecurringModal() {
 function confirmMergeRecurring() {
   const label = document.getElementById('mergeLabel').value.trim()
   const cadence = document.getElementById('mergeCadence').value
-  if (!label) { alert('יש להזין תווית לקבוצה'); return }
-  if (_txSelected.size < 2) { alert('בחר לפחות שתי עסקאות'); return }
+  if (!label) { toast('יש להזין תווית לקבוצה', { type: 'error' }); return }
+  if (_txSelected.size < 2) { toast('בחר לפחות שתי עסקאות', { type: 'error' }); return }
   const res = createManualRecurringGroup({ label, cadence, txIds: [..._txSelected] })
-  if (!res) { alert('נכשל ביצירת הקבוצה'); return }
+  if (!res) { toast('נכשל ביצירת הקבוצה', { type: 'error' }); return }
   _txSelected.clear()
   _txSelectMode = false
   closeMergeRecurringModal()
   _drawTxTable()
-  alert(`נוצרה קבוצה קבועה "${label}" עם ${res.count} עסקאות`)
+  toast(`נוצרה קבוצה קבועה "${label}" עם ${res.count} עסקאות`, { type: 'success' })
 }

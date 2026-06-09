@@ -1,11 +1,18 @@
-const APP_VERSION = '1.21.58'
+const APP_VERSION = '1.22.0'
 
 // ===== STORAGE =====
 const DB = {
   get: (key, def = []) => { try { return JSON.parse(localStorage.getItem(key)) ?? def } catch { return def } },
   set: (key, val) => {
-    localStorage.setItem(key, JSON.stringify(val))
+    try {
+      localStorage.setItem(key, JSON.stringify(val))
+    } catch (e) {
+      console.error('DB.set failed', key, e)
+      if (typeof toast === 'function') toast('השמירה נכשלה — ייתכן שנגמר מקום האחסון', { type: 'error', duration: 6000 })
+      return false
+    }
     if (typeof _onBackupKeyWrite === 'function') _onBackupKeyWrite(key)
+    return true
   },
   getObj: (key, def = {}) => { try { return JSON.parse(localStorage.getItem(key)) ?? def } catch { return def } },
 }
@@ -567,25 +574,25 @@ function propagateCategoryToSimilar(txs, vendor, categoryId, skipId) {
 // on every transaction whose normalized vendor matches the one currently
 // being edited. Confirms with the user first. Writes the current categoryId
 // selected in the modal — even before saving — so user can preview.
-function applyCategoryToAllSimilar() {
+async function applyCategoryToAllSimilar() {
   if (!_editId) return
   const vendor = document.getElementById('editVendor').value
   const catId  = document.getElementById('editCategory').value
-  if (!vendor.trim()) { alert('יש להזין שם ספק לפני החלה על דומים'); return }
-  if (!catId)         { alert('יש לבחור קטגוריה לפני החלה על דומים'); return }
+  if (!vendor.trim()) { toast('יש להזין שם ספק לפני החלה על דומים', { type: 'error' }); return }
+  if (!catId)         { toast('יש לבחור קטגוריה לפני החלה על דומים', { type: 'error' }); return }
   if (typeof normalizeVendorForAutocat !== 'function') return
   const target = normalizeVendorForAutocat(vendor)
-  if (!target) { alert('שם הספק לא תקין'); return }
+  if (!target) { toast('שם הספק לא תקין', { type: 'error' }); return }
 
   const txs = getTransactions()
   const matches = txs.filter(t =>
     t.vendor && t.type !== 'transfer' && normalizeVendorForAutocat(t.vendor) === target
   )
-  if (matches.length === 0) { alert('לא נמצאו עסקאות דומות'); return }
+  if (matches.length === 0) { toast('לא נמצאו עסקאות דומות', { type: 'error' }); return }
 
   const cat = getCategoryById(catId)
   const catLabel = cat ? `${catIconText(cat)} ${cat.name}` : catId
-  if (!confirm(`להחיל את הקטגוריה "${catLabel}" על ${matches.length} עסקאות עם אותו ספק (כולל עסקאות שכבר מסווגות)?`)) return
+  if (!await confirmDialog(`להחיל את הקטגוריה "${catLabel}" על ${matches.length} עסקאות עם אותו ספק (כולל עסקאות שכבר מסווגות)?`, { confirmText: 'החל' })) return
 
   let changed = 0
   txs.forEach(t => {

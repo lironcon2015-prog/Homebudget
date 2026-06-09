@@ -447,7 +447,7 @@ function applyRecurringCriteriaFromDrill(drillKey, vendorLabel) {
   const dayMaxRaw    = f('drillCriteriaDayMax')?.value
 
   let alias = findAliasForDrillKey(drillKey) || _seedAliasForDrillKey(drillKey, vendorLabel)
-  if (!alias) { alert('לא ניתן ליצור איחוד — אין עסקה עם שם ספק תקין.'); return }
+  if (!alias) { toast('לא ניתן ליצור איחוד — אין עסקה עם שם ספק תקין.', { type: 'error' }); return }
   updateVendorAlias(
     alias.id,
     alias.patterns,
@@ -607,7 +607,7 @@ function _recurringSignFor(key) {
 function applyRecurringManualAmount(key) {
   const raw = document.getElementById('drillManualAmount')?.value
   const n = parseFloat(raw)
-  if (!isFinite(n) || n === 0) { alert('הזן סכום תקין.'); return }
+  if (!isFinite(n) || n === 0) { toast('הזן סכום תקין.', { type: 'error' }); return }
   const ov = getRecurringAmountOverrides()
   ov[key] = { mode: 'manual', amount: _recurringSignFor(key) * Math.abs(n) }
   setRecurringAmountOverrides(ov)
@@ -1004,20 +1004,20 @@ function hideRecurringByIdx(idx)   { const k = _recKeyMap[idx]; if (k) hideRecur
 function unhideRecurringByIdx(idx) { const k = _recKeyMap[idx]; if (k) unhideRecurring(k) }
 function openRecurringDrillByIdx(idx) { const k = _recKeyMap[idx]; if (k) openRecurringDrill(k) }
 
-function unmergeManualRecurringByIdx(idx) {
+async function unmergeManualRecurringByIdx(idx) {
   const k = _recKeyMap[idx]
   if (!k || !k.startsWith('mgroup:')) return
   const groupId = k.slice('mgroup:'.length)
-  if (!confirm('לפרק את הקבוצה? העסקאות יחזרו להופיע ברשימת העסקאות הרגילה.')) return
+  if (!await confirmDialog('לפרק את הקבוצה? העסקאות יחזרו להופיע ברשימת העסקאות הרגילה.', { confirmText: 'פרק' })) return
   unmergeManualRecurringGroup(groupId)
   renderRecurring()
 }
 
-function clearRecurringFlagByIdx(idx) {
+async function clearRecurringFlagByIdx(idx) {
   const k = _recKeyMap[idx]
   if (!k || !k.startsWith('mflag:')) return
   const vendorKey = k.slice('mflag:'.length)
-  if (!confirm('להסיר את הסימון הידני? אם הספק עדיין חוזר באופן קבוע, הוא ימשיך להופיע מזיהוי אוטומטי.')) return
+  if (!await confirmDialog('להסיר את הסימון הידני? אם הספק עדיין חוזר באופן קבוע, הוא ימשיך להופיע מזיהוי אוטומטי.', { confirmText: 'הסר סימון' })) return
   clearRecurringFlagForVendorKey(vendorKey)
   renderRecurring()
 }

@@ -307,11 +307,11 @@ function _propPaymentsTable(t) {
     </div>`
 }
 
-function editPropertyNote(id) {
+async function editPropertyNote(id) {
   const list = getPropertyPayments()
   const row = list.find(x => x.id === id)
   if (!row) return
-  const newNote = prompt('הזן הערה לשורה זו (השאר ריק כדי למחוק):', row.notes || '')
+  const newNote = await promptDialog('הזן הערה לשורה זו (השאר ריק כדי למחוק):', { defaultValue: row.notes || '', multiline: true, title: 'הערה לשורה' })
   if (newNote !== null) {
     row.notes = newNote.trim()
     savePropertyPayments(list)
@@ -456,8 +456,8 @@ function addPropertyPayment() {
   renderProperty()
 }
 
-function deletePropertyPayment(id) {
-  if (!confirm('למחוק את השורה?')) return
+async function deletePropertyPayment(id) {
+  if (!await confirmDialog('למחוק את השורה?', { danger: true, confirmText: 'מחק' })) return
   const list = getPropertyPayments().filter(x => x.id !== id)
   savePropertyPayments(list)
   renderProperty()
@@ -563,7 +563,7 @@ function addManualMortgage() {
   const notesInput= document.getElementById('manualMortNotes')
   const date = _dmyToIso(dateInput.value)
   const amount = parseFloat(amtInput.value) || 0
-  if (!date || amount <= 0) { alert('נדרשים תאריך וסכום'); return }
+  if (!date || amount <= 0) { toast('נדרשים תאריך וסכום', { type: 'error' }); return }
   const list = getPropertyManualMortgage()
   list.push({ id: genId(), date, amount, notes: notesInput.value || '' })
   savePropertyManualMortgage(list)
@@ -571,8 +571,8 @@ function addManualMortgage() {
   renderProperty()
 }
 
-function deleteManualMortgage(id) {
-  if (!confirm('למחוק את התשלום?')) return
+async function deleteManualMortgage(id) {
+  if (!await confirmDialog('למחוק את התשלום?', { danger: true, confirmText: 'מחק' })) return
   const list = getPropertyManualMortgage().filter(x => x.id !== id)
   savePropertyManualMortgage(list)
   _renderMortgagePaidModal()
@@ -584,9 +584,9 @@ function deleteManualMortgage(id) {
 // missing columns are tolerated. Type column maps Hebrew labels → enum.
 function importPropertyXlsx(file) {
   if (!file) return
-  if (typeof XLSX === 'undefined') { alert('ספריית האקסל לא נטענה'); return }
+  if (typeof XLSX === 'undefined') { toast('ספריית האקסל לא נטענה', { type: 'error' }); return }
   const reader = new FileReader()
-  reader.onload = e => {
+  reader.onload = async e => {
     try {
       const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true })
       const sheet = wb.Sheets[wb.SheetNames[0]]
@@ -622,13 +622,13 @@ function importPropertyXlsx(file) {
         mapped.push(row)
       }
       
-      if (mapped.length === 0) { alert('לא נמצאו שורות תקפות באקסל'); return }
-      if (!confirm(`לייבא ${mapped.length} שורות? פעולה זו תחליף את הטבלה הקיימת.`)) return
+      if (mapped.length === 0) { toast('לא נמצאו שורות תקפות באקסל', { type: 'error' }); return }
+      if (!await confirmDialog(`לייבא ${mapped.length} שורות? פעולה זו תחליף את הטבלה הקיימת.`, { danger: true, confirmText: 'ייבא' })) return
       savePropertyPayments(mapped)
       renderProperty()
-      alert(`✅ יובאו ${mapped.length} שורות`)
+      toast(`יובאו ${mapped.length} שורות`, { type: 'success' })
     } catch (err) {
-      alert('שגיאה בקריאת האקסל: ' + err.message)
+      toast('שגיאה בקריאת האקסל: ' + err.message, { type: 'error' })
     }
     document.getElementById('propXlsxInput').value = ''
   }
