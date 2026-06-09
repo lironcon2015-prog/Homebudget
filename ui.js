@@ -22,7 +22,9 @@ function toast(msg, opts = {}) {
   const { type = 'info', duration = 3200, action = null } = opts
   const el = document.createElement('div')
   el.className = `toast toast-${type}`
-  el.setAttribute('role', 'status')
+  // Errors interrupt assertively; everything else announces politely.
+  el.setAttribute('role', type === 'error' ? 'alert' : 'status')
+  el.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite')
 
   const span = document.createElement('span')
   span.className = 'toast-msg'
@@ -66,6 +68,7 @@ function confirmDialog(message, opts = {}) {
     title = '',
   } = opts
   return new Promise(resolve => {
+    const lastFocused = document.activeElement
     const overlay = document.createElement('div')
     overlay.className = 'modal-overlay open'
     overlay.style.zIndex = '1200'
@@ -80,7 +83,10 @@ function confirmDialog(message, opts = {}) {
       const h = document.createElement('div')
       h.className = 'modal-header'
       h.innerHTML = '<h3></h3>'
-      h.querySelector('h3').textContent = title
+      const h3 = h.querySelector('h3')
+      h3.textContent = title
+      h3.id = 'confirmDlgTitle' + Date.now()
+      box.setAttribute('aria-labelledby', h3.id)
       box.appendChild(h)
     }
 
@@ -105,11 +111,13 @@ function confirmDialog(message, opts = {}) {
     const close = val => {
       document.removeEventListener('keydown', onKey)
       overlay.remove()
+      if (lastFocused && typeof lastFocused.focus === 'function') lastFocused.focus()
       resolve(val)
     }
     const onKey = e => {
-      if (e.key === 'Escape') close(false)
-      else if (e.key === 'Enter') close(true)
+      if (e.key === 'Escape') { close(false); return }
+      if (e.key === 'Enter') { close(true); return }
+      if (e.key === 'Tab') _trapFocus(e, box)
     }
     overlay.addEventListener('click', e => { if (e.target === overlay) close(false) })
     cancelBtn.onclick = () => close(false)
@@ -118,6 +126,101 @@ function confirmDialog(message, opts = {}) {
 
     document.body.appendChild(overlay)
     okBtn.focus()
+  })
+}
+
+// Keeps Tab/Shift+Tab cycling inside `container` (focus trap for modals).
+function _trapFocus(e, container) {
+  const focusables = container.querySelectorAll(
+    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+  )
+  if (!focusables.length) return
+  const first = focusables[0]
+  const last = focusables[focusables.length - 1]
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus() }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
+}
+
+// ===== PROMPT DIALOG =====
+// Promise-based replacement for blocking prompt(). Resolves the entered string,
+// or null on cancel/ESC/backdrop. Mirrors confirmDialog's focus + trap handling.
+function promptDialog(message, opts = {}) {
+  const {
+    defaultValue = '',
+    multiline = false,
+    placeholder = '',
+    confirmText = 'אישור',
+    cancelText = 'ביטול',
+    title = '',
+  } = opts
+  return new Promise(resolve => {
+    const lastFocused = document.activeElement
+    const overlay = document.createElement('div')
+    overlay.className = 'modal-overlay open'
+    overlay.style.zIndex = '1200'
+
+    const box = document.createElement('div')
+    box.className = 'modal-box'
+    box.style.width = 'min(440px,95vw)'
+    box.setAttribute('role', 'dialog')
+    box.setAttribute('aria-modal', 'true')
+
+    if (title) {
+      const h = document.createElement('div')
+      h.className = 'modal-header'
+      h.innerHTML = '<h3></h3>'
+      const h3 = h.querySelector('h3')
+      h3.textContent = title
+      h3.id = 'promptDlgTitle' + Date.now()
+      box.setAttribute('aria-labelledby', h3.id)
+      box.appendChild(h)
+    }
+
+    const label = document.createElement('label')
+    label.className = 'form-label'
+    label.style.cssText = 'display:block;white-space:pre-line;margin-bottom:.5rem'
+    label.textContent = message
+    box.appendChild(label)
+
+    const field = document.createElement(multiline ? 'textarea' : 'input')
+    if (!multiline) field.type = 'text'
+    if (multiline) field.rows = 4
+    field.value = defaultValue
+    if (placeholder) field.placeholder = placeholder
+    label.appendChild(field)
+
+    const actions = document.createElement('div')
+    actions.style.cssText = 'display:flex;gap:.6rem;justify-content:flex-end;margin-top:1.25rem'
+    const cancelBtn = document.createElement('button')
+    cancelBtn.className = 'btn-ghost'
+    cancelBtn.textContent = cancelText
+    const okBtn = document.createElement('button')
+    okBtn.className = 'btn-primary'
+    okBtn.textContent = confirmText
+    actions.appendChild(cancelBtn)
+    actions.appendChild(okBtn)
+    box.appendChild(actions)
+    overlay.appendChild(box)
+
+    const close = val => {
+      document.removeEventListener('keydown', onKey)
+      overlay.remove()
+      if (lastFocused && typeof lastFocused.focus === 'function') lastFocused.focus()
+      resolve(val)
+    }
+    const onKey = e => {
+      if (e.key === 'Escape') { close(null); return }
+      if (e.key === 'Enter' && !multiline) { close(field.value); return }
+      if (e.key === 'Tab') _trapFocus(e, box)
+    }
+    overlay.addEventListener('click', e => { if (e.target === overlay) close(null) })
+    cancelBtn.onclick = () => close(null)
+    okBtn.onclick = () => close(field.value)
+    document.addEventListener('keydown', onKey)
+
+    document.body.appendChild(overlay)
+    field.focus()
+    field.select && field.select()
   })
 }
 
