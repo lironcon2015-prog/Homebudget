@@ -35,6 +35,7 @@ function _txViewAmount(t, accountId) {
 let _txAdvOpen = false
 
 function renderTransactions() {
+  if (typeof IS_MOBILE_UI !== 'undefined' && IS_MOBILE_UI && typeof M_renderTransactions === 'function') return M_renderTransactions()
   _txPage = 0
   renderPeriodSelector('txPeriodSelector', () => { _txPage = 0; _drawTxTable() })
   _buildTxAccountFilter()
@@ -184,6 +185,7 @@ function _getFiltered() {
 }
 
 function _drawTxTable() {
+  if (typeof IS_MOBILE_UI !== 'undefined' && IS_MOBILE_UI && typeof M_drawTxList === 'function') return M_drawTxList()
   const filtered = _getFiltered()
   const accountId = document.getElementById('txAccountFilter')?.value || ''
   const acc = accountId ? getAccounts().find(a => a.id === accountId) : null

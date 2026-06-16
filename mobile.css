@@ -1,0 +1,233 @@
+/* ===== MOBILE LAYER — Dark Glass =====
+   Every rule scoped under html.m-ui so desktop CSS stays fully inert. Reuses the
+   app's CSS custom properties (--bg-*, --accent, --income, --expense, …) and the
+   existing modal→bottom-sheet transform in style.css. */
+
+html.m-ui { --m-bnav-h: 64px; }
+
+/* Per-screen M_topbar replaces the global navbar + sidebar drawer on mobile.
+   Force-hide them (and the desktop sidebar) regardless of width so touch
+   tablets in the 901–1024px band also get the mobile chrome. */
+html.m-ui .navbar { display: none; }
+html.m-ui .sidebar { display: none; }
+
+/* Migrated screens carry their own sticky M_topbar (handles the notch inset).
+   Fallback desktop-rendered screens don't, so give them top safe-area spacing. */
+html.m-ui .screen:not(:has(.m-topbar)) { padding-top: env(safe-area-inset-top, 0px); }
+
+html.m-ui .main-content {
+  margin: 0;
+  padding: 0 0.85rem;
+  padding-bottom: calc(var(--m-bnav-h) + env(safe-area-inset-bottom, 0px) + 1rem);
+}
+
+html.m-ui .screen { padding: 0; }
+html.m-ui .screen.active { animation: mFade .22s ease; }
+@keyframes mFade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* ---- Top bar ---- */
+html.m-ui .m-topbar {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; justify-content: space-between; gap: .5rem;
+  padding: calc(env(safe-area-inset-top, 0px) + .65rem) .15rem .6rem;
+  background: linear-gradient(180deg, var(--bg-base) 70%, transparent);
+  backdrop-filter: blur(8px);
+}
+html.m-ui .m-topbar-title { font-size: 1.5rem; font-weight: 800; letter-spacing: -.5px; margin: 0; }
+html.m-ui .m-topbar-actions { display: flex; gap: .4rem; }
+html.m-ui .m-iconbtn {
+  width: 40px; height: 40px; border-radius: 13px; border: 1px solid rgba(255,255,255,.07);
+  background: var(--bg-surface); color: var(--text-secondary); font-size: 1.05rem;
+  display: grid; place-items: center; cursor: pointer;
+}
+html.m-ui .m-iconbtn:active { transform: scale(.92); }
+
+/* ---- Period bar (reuses renderPeriodSelector markup) ---- */
+html.m-ui .m-period { margin: 0 -0.15rem .9rem; }
+html.m-ui .m-period .period-selector { display: block; }
+html.m-ui .m-period .period-presets {
+  display: flex; gap: .4rem; overflow-x: auto; padding: .15rem .15rem .3rem;
+  -webkit-overflow-scrolling: touch; scrollbar-width: none;
+}
+html.m-ui .m-period .period-presets::-webkit-scrollbar { display: none; }
+html.m-ui .m-period .period-btn {
+  flex: 0 0 auto; padding: .5rem .85rem; border-radius: 11px; font-size: .82rem; font-weight: 600;
+  border: 1px solid rgba(255,255,255,.06); background: var(--bg-surface); color: var(--text-secondary);
+}
+html.m-ui .m-period .period-btn.active {
+  background: var(--accent); color: #fff; border-color: transparent;
+}
+html.m-ui .m-period .period-custom { padding: .5rem .15rem 0; flex-wrap: wrap; gap: .4rem; }
+
+/* ---- Hero ---- */
+html.m-ui .m-hero {
+  position: relative; overflow: hidden; border-radius: 22px; padding: 1.25rem 1.3rem;
+  margin-bottom: .9rem; border: 1px solid rgba(255,255,255,.1);
+  background: linear-gradient(135deg, rgba(59,130,246,.20), rgba(139,92,246,.10));
+  backdrop-filter: blur(20px);
+  box-shadow: inset 0 1px 1px rgba(255,255,255,.10), 0 8px 30px rgba(0,0,0,.4);
+}
+html.m-ui .m-hero.neg { background: linear-gradient(135deg, rgba(244,63,94,.18), rgba(139,92,246,.08)); }
+html.m-ui .m-hero-ring {
+  position: absolute; inset-inline-start: -34px; top: -34px; width: 130px; height: 130px;
+  border-radius: 50%; border: 14px solid rgba(255,255,255,.05);
+}
+html.m-ui .m-hero-k { color: var(--text-secondary); font-size: .82rem; font-weight: 600; }
+html.m-ui .m-hero-v { font-size: 2.4rem; font-weight: 800; letter-spacing: -1.5px; margin: .25rem 0 .35rem; }
+html.m-ui .m-hero.pos .m-hero-v { color: var(--income); }
+html.m-ui .m-hero.neg .m-hero-v { color: var(--expense); }
+html.m-ui .m-hero-trend {
+  display: inline-block; font-size: .8rem; font-weight: 700; padding: .2rem .6rem; border-radius: 9px;
+}
+html.m-ui .m-hero.pos .m-hero-trend { background: rgba(16,185,129,.14); color: var(--income); }
+html.m-ui .m-hero.neg .m-hero-trend { background: rgba(244,63,94,.14); color: var(--expense); }
+html.m-ui .m-hero-sub { color: var(--text-muted); font-size: .76rem; margin-top: .5rem; }
+
+/* ---- Stat chips ---- */
+html.m-ui .m-chips {
+  display: flex; gap: .6rem; overflow-x: auto; padding-bottom: .3rem; margin-bottom: 1rem;
+  -webkit-overflow-scrolling: touch; scrollbar-width: none;
+}
+html.m-ui .m-chips::-webkit-scrollbar { display: none; }
+html.m-ui .m-chip {
+  flex: 0 0 auto; min-width: 116px; padding: .75rem .85rem; border-radius: 16px;
+  background: var(--bg-surface); border: 1px solid rgba(255,255,255,.06);
+}
+html.m-ui .m-chip-k { color: var(--text-muted); font-size: .72rem; font-weight: 600; }
+html.m-ui .m-chip-v { font-size: 1.15rem; font-weight: 800; margin-top: .2rem; }
+
+/* ---- Cards / sections ---- */
+html.m-ui .m-card {
+  background: var(--bg-surface); border: 1px solid rgba(255,255,255,.06); border-radius: 18px;
+  padding: 1rem; margin-bottom: 1rem; backdrop-filter: blur(14px);
+}
+html.m-ui .m-tx-card { padding: .35rem .65rem; }
+html.m-ui .m-section-head {
+  display: flex; align-items: center; justify-content: space-between; margin: .25rem .15rem .6rem;
+}
+html.m-ui .m-section-head h3 { font-size: .98rem; font-weight: 700; margin: 0; }
+html.m-ui .m-section-head a { color: var(--accent); font-size: .82rem; font-weight: 600; }
+html.m-ui .m-muted { color: var(--text-muted); }
+html.m-ui .pos { color: var(--income); }
+html.m-ui .neg { color: var(--expense); }
+html.m-ui .m-empty-line { color: var(--text-muted); font-size: .85rem; text-align: center; padding: 1rem; }
+
+/* ---- Chart ---- */
+html.m-ui .m-chart-wrap { height: 200px; }
+
+/* ---- Category bars ---- */
+html.m-ui .m-catbar + .m-catbar { margin-top: .7rem; }
+html.m-ui .m-catbar-head { display: flex; justify-content: space-between; font-size: .85rem; margin-bottom: .3rem; }
+html.m-ui .m-catbar-track { height: 8px; border-radius: 5px; background: rgba(255,255,255,.06); overflow: hidden; }
+html.m-ui .m-catbar-fill { height: 100%; border-radius: 5px; }
+
+/* ---- Account rows ---- */
+html.m-ui .m-acct-row {
+  display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .6rem .2rem;
+}
+html.m-ui .m-acct-row + .m-acct-row { border-top: 1px solid rgba(255,255,255,.05); }
+html.m-ui .m-acct-name { font-weight: 600; font-size: .92rem; }
+html.m-ui .m-acct-bal { font-weight: 800; font-size: .98rem; }
+html.m-ui .m-flow-nums { display: flex; gap: .6rem; font-weight: 700; font-size: .85rem; }
+
+/* ---- Transaction rows ---- */
+html.m-ui .m-tx-row {
+  display: flex; align-items: center; gap: .7rem; padding: .65rem .35rem; cursor: pointer;
+  touch-action: pan-y;
+}
+html.m-ui .m-tx-row + .m-tx-row { border-top: 1px solid rgba(255,255,255,.05); }
+html.m-ui .m-tx-row:active { background: rgba(255,255,255,.03); }
+html.m-ui .m-tx-row .tx-avatar, html.m-ui .m-tx-row .uk-avatar {
+  flex: 0 0 auto; border-radius: 13px; display: grid; place-items: center;
+}
+html.m-ui .m-tx-mid { flex: 1; min-width: 0; }
+html.m-ui .m-tx-name { font-weight: 600; font-size: .92rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html.m-ui .m-tx-sub { color: var(--text-muted); font-size: .76rem; margin-top: .15rem; }
+html.m-ui .m-tx-amt { font-weight: 800; font-size: 1rem; white-space: nowrap; }
+html.m-ui .m-tx-check { width: 20px; height: 20px; flex: 0 0 auto; }
+html.m-ui .m-badge {
+  font-size: .65rem; font-weight: 700; padding: .05rem .35rem; border-radius: 6px;
+  background: rgba(255,255,255,.07); color: var(--text-secondary); margin-inline-start: .25rem;
+}
+
+/* ---- Search + type chips + filter ---- */
+html.m-ui .m-search-row { display: flex; gap: .5rem; margin-bottom: .7rem; }
+html.m-ui .m-search {
+  flex: 1; display: flex; align-items: center; gap: .5rem; padding: .65rem .85rem; border-radius: 14px;
+  background: var(--bg-surface); border: 1px solid rgba(255,255,255,.06); color: var(--text-muted);
+}
+html.m-ui .m-search input { flex: 1; border: none; background: transparent; color: var(--text-primary); font-size: 16px; outline: none; }
+html.m-ui .m-filter-btn {
+  flex: 0 0 auto; min-width: 48px; border-radius: 14px; border: 1px solid rgba(255,255,255,.06);
+  background: var(--bg-surface); color: var(--text-secondary); font-size: .9rem; font-weight: 700;
+}
+html.m-ui .m-filter-btn.has-active { background: var(--accent); color: #fff; border-color: transparent; }
+html.m-ui .m-typechips { display: flex; gap: .45rem; overflow-x: auto; margin-bottom: .8rem; scrollbar-width: none; }
+html.m-ui .m-typechips::-webkit-scrollbar { display: none; }
+html.m-ui .m-chip-btn {
+  flex: 0 0 auto; padding: .5rem .9rem; border-radius: 12px; font-size: .82rem; font-weight: 600;
+  border: 1px solid rgba(255,255,255,.06); background: var(--bg-surface); color: var(--text-secondary);
+}
+html.m-ui .m-chip-btn.active { background: rgba(59,130,246,.18); color: #fff; border-color: rgba(59,130,246,.4); }
+
+html.m-ui .m-tx-summary { display: flex; gap: .5rem; overflow-x: auto; margin-bottom: .7rem; scrollbar-width: none; }
+html.m-ui .m-tx-summary::-webkit-scrollbar { display: none; }
+html.m-ui .m-sum-chip {
+  flex: 0 0 auto; padding: .4rem .7rem; border-radius: 11px; font-size: .82rem; font-weight: 700;
+  background: var(--bg-surface); border: 1px solid rgba(255,255,255,.05);
+}
+html.m-ui .m-select-toolbar { display: flex; gap: .4rem; flex-wrap: wrap; margin-bottom: .6rem; }
+html.m-ui .m-pagination { display: flex; justify-content: center; padding: .4rem 0 1rem; }
+html.m-ui .m-loadmore {
+  width: 100%; padding: .8rem; border-radius: 14px; font-weight: 700; font-size: .9rem;
+  background: var(--bg-surface); border: 1px solid rgba(255,255,255,.07); color: var(--accent);
+}
+
+/* hidden filter stash; becomes visible inside the filter sheet */
+html.m-ui .m-stash { display: none; }
+html.m-ui .m-stash-open { display: block; }
+html.m-ui .m-stash-open select, html.m-ui .m-stash-open input { width: 100%; margin-bottom: .25rem; }
+html.m-ui .m-amt-range { display: flex; gap: .5rem; }
+html.m-ui .m-check { display: flex; align-items: center; gap: .5rem; margin: .5rem 0; font-size: .9rem; }
+html.m-ui .m-filter-clear { margin-top: 1rem; text-align: center; }
+
+/* ---- "More" launcher sheet ---- */
+html.m-ui .m-more-list { display: flex; flex-direction: column; gap: .35rem; }
+html.m-ui .m-more-row {
+  display: flex; align-items: center; gap: .85rem; padding: .9rem .8rem; border-radius: 14px;
+  background: var(--bg-surface); border: 1px solid rgba(255,255,255,.05); color: var(--text-primary);
+  font-size: 1rem; font-weight: 600; text-align: start; width: 100%;
+}
+html.m-ui .m-more-ic { font-size: 1.3rem; }
+html.m-ui .m-more-label { flex: 1; }
+html.m-ui .m-more-chev { color: var(--text-muted); font-size: 1.3rem; }
+
+/* ===== Bottom nav (Dark Glass) + center FAB ===== */
+html.m-ui .bottom-nav {
+  height: calc(var(--m-bnav-h) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  background: rgba(12,12,16,.82); backdrop-filter: blur(24px);
+  border-top: 1px solid rgba(255,255,255,.06);
+  display: flex; align-items: center; justify-content: space-around;
+}
+html.m-ui .bottom-nav .bnav-item {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+  color: rgba(255,255,255,.32); font-size: .62rem; font-weight: 600; background: none; border: none;
+}
+html.m-ui .bottom-nav .bnav-item.active { color: var(--accent); }
+html.m-ui .bottom-nav .bnav-item.active::before { content: none; }
+html.m-ui .bnav-spacer { flex: 1; }
+
+html.m-ui .fab {
+  display: grid; place-items: center; position: fixed; z-index: 60;
+  bottom: calc(var(--m-bnav-h) / 2 + env(safe-area-inset-bottom, 0px) - 4px);
+  inset-inline-start: 50%; transform: translateX(50%);
+  width: 58px; height: 58px; border-radius: 20px; border: none; color: #fff; font-size: 1.7rem;
+  background: linear-gradient(135deg, var(--accent), #8b5cf6);
+  box-shadow: 0 10px 26px rgba(59,130,246,.5);
+}
+html.m-ui .fab:active { transform: translateX(50%) scale(.93); }
+
+/* RTL: translateX direction flips, keep centered */
+html[dir="rtl"].m-ui .fab { inset-inline-start: auto; inset-inline-end: 50%; transform: translateX(-50%); }
+html[dir="rtl"].m-ui .fab:active { transform: translateX(-50%) scale(.93); }

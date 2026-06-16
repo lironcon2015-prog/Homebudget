@@ -2,7 +2,7 @@
 <html lang="he" dir="rtl">
 <head>
   <meta charset="UTF-8">
-  <!-- v1.27.2 -->
+  <!-- v1.28.0 -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -25,7 +25,9 @@
     } catch (e) {}
   })();
   </script>
-  <link rel="stylesheet" href="style.css?v=1.27.2">
+  <link rel="stylesheet" href="style.css?v=1.28.0">
+  <link rel="stylesheet" href="mobile.css?v=1.28.0">
+  <script src="mobile/mobile-detect.js?v=1.28.0"></script>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
@@ -60,15 +62,12 @@
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="2"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>
     <span>עסקאות</span>
   </a>
-  <a class="bnav-item" data-screen="budget" onclick="navigate('budget')">
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-    <span>תקציב</span>
-  </a>
+  <span class="bnav-spacer" aria-hidden="true"></span>
   <a class="bnav-item" data-screen="analysis" onclick="navigate('analysis')">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
     <span>ניתוח</span>
   </a>
-  <a class="bnav-item" onclick="toggleMobileMenu()">
+  <a class="bnav-item m-more-tab" onclick="(typeof M_openMore==='function')?M_openMore():toggleMobileMenu()">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>
     <span>עוד</span>
   </a>
@@ -922,31 +921,36 @@
   <button onclick="applyUpdate()">עדכן עכשיו</button>
 </div>
 
-<script>const _v = '1.27.2';</script>
-<script src="app.js?v=1.27.2"></script>
-<script src="core.js?v=1.27.2"></script>
-<script src="ui.js?v=1.27.2"></script>
-<script src="uikit.js?v=1.27.2"></script>
-<script src="icons.js?v=1.27.2"></script>
-<script src="templates.js?v=1.27.2"></script>
-<script src="autocat.js?v=1.27.2"></script>
-<script src="detect.js?v=1.27.2"></script>
-<script src="budget.js?v=1.27.2"></script>
-<script src="budgetGen.js?v=1.27.2"></script>
-<script src="recurring.js?v=1.27.2"></script>
-<script src="dashboard.js?v=1.27.2"></script>
-<script src="transactions.js?v=1.27.2"></script>
-<script src="wizard.js?v=1.27.2"></script>
-<script src="import.js?v=1.27.2"></script>
-<script src="analysis.js?v=1.27.2"></script>
-<script src="settings.js?v=1.27.2"></script>
-<script src="drive.js?v=1.27.2"></script>
-<script src="property.js?v=1.27.2"></script>
-<script src="reports.js?v=1.27.2"></script>
-<script src="feedback.js?v=1.27.2"></script>
-<script src="scrollMirror.js?v=1.27.2"></script>
-<script src="palette.js?v=1.27.2"></script>
-<script src="insights.js?v=1.27.2"></script>
+<script>const _v = '1.28.0';</script>
+<script src="app.js?v=1.28.0"></script>
+<script src="core.js?v=1.28.0"></script>
+<script src="ui.js?v=1.28.0"></script>
+<script src="uikit.js?v=1.28.0"></script>
+<script src="icons.js?v=1.28.0"></script>
+<script src="templates.js?v=1.28.0"></script>
+<script src="autocat.js?v=1.28.0"></script>
+<script src="detect.js?v=1.28.0"></script>
+<script src="budget.js?v=1.28.0"></script>
+<script src="budgetGen.js?v=1.28.0"></script>
+<script src="recurring.js?v=1.28.0"></script>
+<script src="dashboard.js?v=1.28.0"></script>
+<script src="transactions.js?v=1.28.0"></script>
+<script src="wizard.js?v=1.28.0"></script>
+<script src="import.js?v=1.28.0"></script>
+<script src="analysis.js?v=1.28.0"></script>
+<script src="settings.js?v=1.28.0"></script>
+<script src="drive.js?v=1.28.0"></script>
+<script src="property.js?v=1.28.0"></script>
+<script src="reports.js?v=1.28.0"></script>
+<script src="feedback.js?v=1.28.0"></script>
+<script src="scrollMirror.js?v=1.28.0"></script>
+<script src="palette.js?v=1.28.0"></script>
+<script src="insights.js?v=1.28.0"></script>
+
+<!-- MOBILE LAYER (Dark Glass) — activates only on mobile via IS_MOBILE_UI / html.m-ui -->
+<script src="mobile/shell.js?v=1.28.0"></script>
+<script src="mobile/dashboard.js?v=1.28.0"></script>
+<script src="mobile/transactions.js?v=1.28.0"></script>
 
 <!-- SERVICE WORKER REGISTRATION & UPDATE LOGIC -->
 <script>

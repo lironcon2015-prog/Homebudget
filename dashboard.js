@@ -1,6 +1,7 @@
 let _monthlyChart = null
 
 function renderDashboard() {
+  if (typeof IS_MOBILE_UI !== 'undefined' && IS_MOBILE_UI && typeof M_renderDashboard === 'function') return M_renderDashboard()
   renderPeriodSelector('dashPeriodSelector', () => renderDashboard())
   const period = getActivePeriod()
 
