@@ -167,6 +167,25 @@ html[data-privacy] .budget-input:focus {
 .ins-inbox-vendor { font-weight: 700; font-size: 1rem; }
 .ins-inbox-meta { font-size: .8rem; color: var(--text-muted); }
 .ins-inbox-count { font-size: .72rem; color: var(--text-muted); }
+
+/* ===== suspicious / anomalous transactions card ===== */
+.ins-anomalies { margin-bottom: 1.25rem; border-color: rgba(244,63,94,.22); }
+.ins-anom-titlerow { display: flex; align-items: center; justify-content: space-between; }
+.ins-anom-titlerow[onclick] { cursor: pointer; }
+.ins-anom-expand { font-size: .8rem; color: var(--accent); font-weight: 600; }
+.ins-anom-row { display: flex; align-items: center; gap: .6rem; padding: .55rem 0; border-bottom: 1px solid var(--border-light); cursor: pointer; }
+.ins-anom-row:last-child { border-bottom: none; }
+.ins-anom-sev { font-size: .9rem; }
+.ins-anom-main { flex: 1; min-width: 0; }
+.ins-anom-vendor { font-size: .9rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ins-anom-tag { font-size: .7rem; font-weight: 600; color: var(--text-muted); }
+.ins-anom-detail { font-size: .74rem; color: var(--text-muted); }
+.ins-anom-side { display: flex; align-items: center; gap: .5rem; flex: 0 0 auto; }
+.ins-anom-amt { font-weight: 700; font-size: .88rem; }
+.ins-anom-ok { font-size: .75rem; padding: .25rem .6rem; border-radius: var(--r-pill); border: 1px solid var(--border); background: var(--bg-surface); color: var(--text-secondary); cursor: pointer; }
+.ins-anom-ok:hover { background: var(--bg-hover); color: var(--text-primary); }
+.ins-anom-all { width: 100%; margin-top: .5rem; padding: .55rem; border-radius: var(--r-md); border: 1px solid var(--border); background: none; color: var(--accent); font-weight: 600; font-size: .82rem; cursor: pointer; }
+.ins-anom-reviewtop { display: flex; align-items: center; justify-content: space-between; margin-bottom: .5rem; font-size: .85rem; color: var(--text-muted); }
 .ins-inbox-done { text-align: center; padding: 2rem; font-size: 1rem; }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }

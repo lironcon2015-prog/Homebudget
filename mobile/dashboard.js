@@ -34,6 +34,7 @@ function M_renderDashboard() {
       <button class="m-iconbtn" onclick="navigate('settings')" aria-label="הגדרות">⚙️</button>
     `)}
     <div id="mDashPeriod" class="m-period"></div>
+    <div id="mDashAnomalies"></div>
 
     <section class="m-hero ${trendPos ? 'pos' : 'neg'}">
       <div class="m-hero-ring"></div>
@@ -67,6 +68,7 @@ function M_renderDashboard() {
   `
 
   M_renderPeriodBar('mDashPeriod', () => M_renderDashboard())
+  if (typeof ANOM_renderInto === 'function') ANOM_renderInto('mDashAnomalies')
   M_dashLastImport(all)
   M_dashChart(all, period)
   M_dashCats(periodTx)

@@ -301,6 +301,15 @@ html.m-ui .m-prop-pay-amt { font-weight: 800; font-size: 1rem; }
 html.m-ui .m-prop-pay-meta { color: var(--text-muted); font-size: .76rem; margin-top: .3rem; }
 html.m-ui .m-amt-2col { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; }
 
+/* anomalies card on the native mobile dashboard */
+html.m-ui .ins-anomalies {
+  background: var(--bg-surface); border: 1px solid rgba(244,63,94,.28); border-radius: 18px;
+  padding: 1rem; margin-bottom: 1rem; backdrop-filter: blur(14px);
+}
+html.m-ui .ins-anomalies .card-title { font-size: .98rem; font-weight: 700; margin-bottom: .4rem; }
+html.m-ui .ins-anom-ok { min-height: 32px; }
+html.m-ui .ins-anom-row { padding: .6rem 0; }
+
 /* ===== Settings + Import (native polish) ===== */
 /* Dark Glass tab chips instead of the underline tab bar */
 html.m-ui .tabs-bar { border-bottom: none; gap: .4rem; padding-bottom: .4rem; margin-bottom: 1rem; }
