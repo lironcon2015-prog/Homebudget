@@ -115,6 +115,7 @@ function _mortgagePaid(catId) {
 
 // ===== RENDER =====
 function renderProperty() {
+  if (typeof IS_MOBILE_UI !== 'undefined' && IS_MOBILE_UI && typeof M_renderProperty === 'function') return M_renderProperty()
   const container = document.getElementById('propertyBody')
   if (!container) return
   const t = _propertyTotals()

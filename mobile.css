@@ -278,9 +278,18 @@ html.m-ui .prop-summary-card {
 html.m-ui .prop-summary-label { font-size: .72rem; }
 html.m-ui .prop-summary-val { font-size: 1.05rem; font-weight: 800; }
 html.m-ui .prop-summary-sub { font-size: .66rem; }
-/* the dense payment-entry grid stays horizontally scrollable inside its card */
-html.m-ui .prop-table { min-width: 760px; }
-html.m-ui #screen-property .form-input, html.m-ui #screen-property select.form-input { font-size: 16px; }
+/* compact read cards for property payments (replaces the wide editable table) */
+html.m-ui .m-prop-pay {
+  background: var(--bg-surface); border: 1px solid rgba(255,255,255,.06); border-radius: 14px;
+  padding: .75rem .8rem; margin-bottom: .55rem; cursor: pointer;
+}
+html.m-ui .m-prop-pay:active { background: rgba(255,255,255,.03); }
+html.m-ui .m-prop-mismatch { border-color: rgba(244,63,94,.4); }
+html.m-ui .m-prop-pay-top { display: flex; align-items: center; gap: .5rem; }
+html.m-ui .m-prop-pay-type { flex: 1; font-weight: 600; font-size: .9rem; }
+html.m-ui .m-prop-pay-amt { font-weight: 800; font-size: 1rem; }
+html.m-ui .m-prop-pay-meta { color: var(--text-muted); font-size: .76rem; margin-top: .3rem; }
+html.m-ui .m-amt-2col { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; }
 
 /* Accordion */
 html.m-ui .m-acc {
