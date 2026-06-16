@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>מוקאפ · Material 3</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  :root{
+    --bg:#fef7ff; --surface:#f7f2fa; --surfvar:#e7e0ec; --text:#1d1b20; --muted:#49454f;
+    --primary:#00658e; --primcont:#c7e7ff; --onprimcont:#001e2e;
+    --income:#146c2e; --incomecont:#a6f4b6; --expense:#ba1a1a; --expcont:#ffdad6;
+  }
+  body{ font-family:'Roboto','Segoe UI',system-ui,Arial,sans-serif; background:#cfc9d4; color:var(--text);
+        display:flex; flex-wrap:wrap; gap:32px; justify-content:center; align-items:flex-start; padding:32px 16px; }
+  .label{ width:100%; text-align:center; color:#111; font-size:14px; letter-spacing:.5px; opacity:.6; }
+  .phone{ width:390px; max-width:94vw; height:800px; border-radius:44px; overflow:hidden; position:relative;
+          background:var(--bg); box-shadow:0 30px 80px rgba(0,0,0,.45), inset 0 0 0 8px #e9e3ee; }
+  .notch{ position:absolute; top:0; left:50%; transform:translateX(-50%); width:140px; height:28px; background:#000; border-radius:0 0 18px 18px; z-index:30; }
+  .status{ display:flex; justify-content:space-between; padding:14px 26px 4px; font-size:13px; color:#000; font-weight:600; }
+  .screen-scroll{ height:calc(800px - 38px - 80px); overflow:hidden; position:relative; }
+  /* top app bar */
+  .appbar{ display:flex; align-items:center; gap:16px; padding:14px 18px 10px; }
+  .appbar .t{ font-size:22px; font-weight:500; flex:1; }
+  .appbar .ab{ width:40px; height:40px; border-radius:50%; display:grid; place-items:center; font-size:18px; color:var(--muted); }
+  .chiprow{ display:flex; gap:8px; padding:4px 18px 14px; overflow-x:auto; }
+  .mchip{ flex:0 0 auto; border:1px solid #79747e; border-radius:8px; padding:7px 14px; font-size:13px; font-weight:500; color:var(--muted); }
+  .mchip.on{ background:var(--primcont); color:var(--onprimcont); border-color:transparent; }
+  .pad{ padding:0 16px; }
+  /* tonal hero */
+  .tonal{ background:var(--primcont); color:var(--onprimcont); border-radius:26px; padding:22px; margin:0 16px 14px; }
+  .tonal .k{ font-size:14px; font-weight:500; opacity:.8; }
+  .tonal .v{ font-size:40px; font-weight:600; letter-spacing:-1px; margin:4px 0 6px; }
+  .tonal .chg{ font-size:14px; font-weight:600; color:var(--income); }
+  /* elevated grid */
+  .grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; padding:0 16px 16px; }
+  .ecard{ background:var(--surface); border-radius:20px; padding:16px; box-shadow:0 1px 3px rgba(0,0,0,.18); }
+  .ecard .ck{ font-size:13px; color:var(--muted); font-weight:500; }
+  .ecard .cv{ font-size:24px; font-weight:600; margin-top:6px; }
+  .sect{ font-size:16px; font-weight:600; padding:6px 20px 8px; }
+  /* list */
+  .list{ background:var(--surface); border-radius:24px; margin:0 16px; overflow:hidden; }
+  .row{ display:flex; align-items:center; gap:14px; padding:14px 18px; }
+  .row + .row{ border-top:1px solid var(--surfvar); }
+  .av{ width:42px; height:42px; border-radius:50%; display:grid; place-items:center; font-size:18px; background:var(--primcont); color:var(--onprimcont); }
+  .row .m{ flex:1; }
+  .row .n{ font-size:16px; font-weight:500; }
+  .row .s{ color:var(--muted); font-size:13px; margin-top:1px; }
+  .row .a{ font-size:16px; font-weight:600; }
+  .pos{ color:var(--income); }
+  /* search bar (material) */
+  .msearch{ display:flex; align-items:center; gap:12px; background:var(--surfvar); border-radius:28px; padding:13px 18px; margin:4px 16px 16px; color:var(--muted); font-size:15px; }
+  /* fab */
+  .fab{ position:absolute; bottom:18px; left:18px; width:64px; height:64px; border-radius:20px; background:var(--primcont);
+    color:var(--onprimcont); display:grid; place-items:center; box-shadow:0 6px 16px rgba(0,0,0,.28); }
+  /* nav bar */
+  .bnav{ position:absolute; bottom:0; left:0; right:0; height:80px; display:flex; align-items:flex-start; justify-content:space-around;
+    background:#f3edf7; border-top:1px solid var(--surfvar); padding-top:12px; }
+  .bn{ display:flex; flex-direction:column; align-items:center; gap:5px; color:var(--muted); font-size:11px; font-weight:600; flex:1; }
+  .bn .pill{ width:60px; height:30px; border-radius:16px; display:grid; place-items:center; }
+  .bn.on .pill{ background:var(--primcont); color:var(--onprimcont); }
+  .bn svg{ width:22px; height:22px; }
+</style>
+</head>
+<body>
+<div style="width:100%"></div>
+
+<div>
+  <div class="label">③ Material 3 · לוח בקרה</div>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="status"><span>9:41</span><span>🔋 📶 ▮▮▮</span></div>
+    <div class="screen-scroll">
+      <div class="appbar"><div class="ab">☰</div><div class="t">כספים</div><div class="ab">🔍</div><div class="ab">⋮</div></div>
+      <div class="chiprow"><div class="mchip on">החודש</div><div class="mchip">קודם</div><div class="mchip">3 חודשים</div><div class="mchip">מותאם</div></div>
+      <div class="tonal">
+        <div class="k">יתרה נטו</div>
+        <div class="v">₪12,430</div>
+        <div class="chg">▲ 8% מהחודש שעבר</div>
+      </div>
+      <div class="grid">
+        <div class="ecard"><div class="ck">חיסכון חודשי</div><div class="cv" style="color:var(--income)">₪3,200</div></div>
+        <div class="ecard"><div class="ck">הוצאה קבועה</div><div class="cv">₪900</div></div>
+      </div>
+      <div class="sect">עסקאות אחרונות</div>
+      <div class="list">
+        <div class="row"><div class="av">🛒</div><div class="m"><div class="n">שופרסל דיל</div><div class="s">מזון · 14 ביוני</div></div><div class="a">−₪240</div></div>
+        <div class="row"><div class="av" style="background:var(--incomecont)">💰</div><div class="m"><div class="n">משכורת</div><div class="s">הכנסה · 10 ביוני</div></div><div class="a pos">+₪9,000</div></div>
+        <div class="row"><div class="av">⚡</div><div class="m"><div class="n">חברת חשמל</div><div class="s">חשבונות · 8 ביוני</div></div><div class="a">−₪310</div></div>
+      </div>
+    </div>
+    <div class="fab"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
+    <div class="bnav">
+      <div class="bn on"><div class="pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10l9-7 9 7v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div>בית</div>
+      <div class="bn"><div class="pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><line x1="8" y1="9" x2="16" y2="9"/></svg></div>עסקאות</div>
+      <div class="bn"><div class="pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>ניתוח</div>
+      <div class="bn"><div class="pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></div>עוד</div>
+    </div>
+  </div>
+</div>
+
+<div>
+  <div class="label">③ Material 3 · עסקאות</div>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="status"><span>9:41</span><span>🔋 📶 ▮▮▮</span></div>
+    <div class="screen-scroll">
+      <div class="appbar"><div class="ab">←</div><div class="t">עסקאות</div><div class="ab">⚙︎</div></div>
+      <div class="msearch">🔍 חיפוש ספק או תיאור</div>
+      <div class="chiprow"><div class="mchip on">הכל</div><div class="mchip">הוצאות</div><div class="mchip">הכנסות</div><div class="mchip">⚙︎ סינון</div></div>
+      <div class="list">
+        <div class="row"><div class="av">🛒</div><div class="m"><div class="n">שופרסל דיל</div><div class="s">מזון · עו״ש</div></div><div class="a">−₪240</div></div>
+        <div class="row"><div class="av" style="background:var(--incomecont)">💰</div><div class="m"><div class="n">משכורת</div><div class="s">הכנסה · עו״ש</div></div><div class="a pos">+₪9,000</div></div>
+        <div class="row"><div class="av">☕</div><div class="m"><div class="n">ארומה</div><div class="s">בתי קפה · אשראי</div></div><div class="a">−₪48</div></div>
+        <div class="row"><div class="av">⚡</div><div class="m"><div class="n">חברת חשמל</div><div class="s">חשבונות · עו״ש</div></div><div class="a">−₪310</div></div>
+        <div class="row"><div class="av">🏛️</div><div class="m"><div class="n">ביטוח לאומי</div><div class="s">ביטוח · עו״ש</div></div><div class="a">−₪520</div></div>
+        <div class="row"><div class="av">📱</div><div class="m"><div class="n">פלאפון</div><div class="s">תקשורת · אשראי</div></div><div class="a">−₪99</div></div>
+      </div>
+    </div>
+    <div class="fab"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
+    <div class="bnav">
+      <div class="bn"><div class="pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10l9-7 9 7v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div>בית</div>
+      <div class="bn on"><div class="pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><line x1="8" y1="9" x2="16" y2="9"/></svg></div>עסקאות</div>
+      <div class="bn"><div class="pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>ניתוח</div>
+      <div class="bn"><div class="pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></div>עוד</div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

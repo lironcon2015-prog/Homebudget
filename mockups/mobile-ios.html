@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>מוקאפ · iOS-like</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  :root{
+    --bg:#f2f2f7; --card:#ffffff; --text:#1c1c1e; --muted:#8e8e93; --sep:#e5e5ea;
+    --accent:#007aff; --income:#34c759; --expense:#ff3b30;
+  }
+  body{ font-family:-apple-system,'Segoe UI',system-ui,Arial,sans-serif; background:#c9c9d1; color:var(--text);
+        display:flex; flex-wrap:wrap; gap:32px; justify-content:center; align-items:flex-start; padding:32px 16px; }
+  .label{ width:100%; text-align:center; color:#111; font-size:14px; letter-spacing:.5px; opacity:.6; }
+  .phone{ width:390px; max-width:94vw; height:800px; border-radius:44px; overflow:hidden; position:relative;
+          background:var(--bg); box-shadow:0 30px 80px rgba(0,0,0,.45), inset 0 0 0 8px #e7e7ee; }
+  .notch{ position:absolute; top:0; left:50%; transform:translateX(-50%); width:140px; height:28px; background:#000; border-radius:0 0 18px 18px; z-index:30; }
+  .status{ display:flex; justify-content:space-between; padding:14px 26px 4px; font-size:13px; color:#000; font-weight:600; }
+  .screen-scroll{ height:calc(800px - 38px - 80px); overflow:hidden; padding:0 0 16px; }
+  .pad{ padding:0 20px; }
+  /* large title */
+  .ltitle{ font-size:34px; font-weight:800; letter-spacing:-.5px; padding:8px 20px 2px; }
+  .seg{ display:flex; background:#e3e3e8; border-radius:10px; padding:2px; margin:14px 20px 18px; }
+  .seg div{ flex:1; text-align:center; padding:7px; border-radius:8px; font-size:14px; color:#3a3a3c; font-weight:600; }
+  .seg div.on{ background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.15); }
+  /* big number block */
+  .bignum{ padding:2px 20px 6px; }
+  .bignum .k{ color:var(--muted); font-size:15px; font-weight:600; }
+  .bignum .v{ font-size:44px; font-weight:800; letter-spacing:-1.5px; }
+  .bignum .chg{ color:var(--income); font-weight:700; font-size:15px; }
+  /* grouped list */
+  .ghead{ color:var(--muted); font-size:13px; font-weight:600; text-transform:uppercase; letter-spacing:.4px; padding:22px 22px 8px; }
+  .group{ background:var(--card); border-radius:14px; margin:0 16px; overflow:hidden; }
+  .row{ display:flex; align-items:center; gap:12px; padding:13px 16px; border-bottom:1px solid var(--sep); }
+  .row:last-child{ border-bottom:none; }
+  .ic{ width:30px; height:30px; border-radius:8px; display:grid; place-items:center; font-size:16px; color:#fff; }
+  .row .m{ flex:1; }
+  .row .n{ font-size:16px; font-weight:500; }
+  .row .s{ color:var(--muted); font-size:13px; margin-top:1px; }
+  .row .a{ font-size:16px; font-weight:600; }
+  .chev{ color:#c7c7cc; font-size:18px; }
+  .pos{ color:var(--income); }
+  /* search */
+  .search{ display:flex; align-items:center; gap:8px; background:#e3e3e8; border-radius:11px; padding:10px 14px; margin:6px 20px 14px; color:#8a8a8e; font-size:15px; }
+  /* bottom nav */
+  .bnav{ position:absolute; bottom:0; left:0; right:0; height:80px; display:flex; align-items:flex-start; justify-content:space-around;
+    background:rgba(249,249,252,.92); backdrop-filter:blur(24px); border-top:1px solid #d8d8de; padding-top:9px; }
+  .bn{ display:flex; flex-direction:column; align-items:center; gap:4px; color:#9b9ba1; font-size:10px; font-weight:600; flex:1; }
+  .bn.on{ color:var(--accent); }
+  .bn svg{ width:24px; height:24px; }
+  .fab{ width:56px; height:56px; border-radius:50%; margin-top:-22px; background:var(--accent); display:grid; place-items:center;
+    box-shadow:0 8px 22px rgba(0,122,255,.45); color:#fff; }
+</style>
+</head>
+<body>
+<div style="width:100%"></div>
+
+<div>
+  <div class="label">② iOS-like · לוח בקרה</div>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="status"><span>9:41</span><span>🔋 📶 ▮▮▮</span></div>
+    <div class="screen-scroll">
+      <div class="ltitle">לוח בקרה</div>
+      <div class="seg"><div class="on">החודש</div><div>קודם</div><div>3 חודשים</div></div>
+      <div class="bignum">
+        <div class="k">יתרה נטו</div>
+        <div class="v">₪12,430</div>
+        <div class="chg">▲ 8% מהחודש שעבר</div>
+      </div>
+      <div class="ghead">סטטיסטיקה</div>
+      <div class="group">
+        <div class="row"><div class="ic" style="background:#34c759">↑</div><div class="m"><div class="n">חיסכון חודשי</div></div><div class="a">₪3,200</div><div class="chev">›</div></div>
+        <div class="row"><div class="ic" style="background:#ff9500">↻</div><div class="m"><div class="n">הוצאה קבועה</div></div><div class="a">₪900</div><div class="chev">›</div></div>
+        <div class="row"><div class="ic" style="background:#ff3b30">↓</div><div class="m"><div class="n">הוצאות החודש</div></div><div class="a">₪8,140</div><div class="chev">›</div></div>
+      </div>
+      <div class="ghead">עסקאות אחרונות</div>
+      <div class="group">
+        <div class="row"><div class="ic" style="background:#30b0c7">🛒</div><div class="m"><div class="n">שופרסל דיל</div><div class="s">מזון · 14 ביוני</div></div><div class="a">−₪240</div></div>
+        <div class="row"><div class="ic" style="background:#34c759">💰</div><div class="m"><div class="n">משכורת</div><div class="s">הכנסה · 10 ביוני</div></div><div class="a pos">+₪9,000</div></div>
+        <div class="row"><div class="ic" style="background:#ffcc00">⚡</div><div class="m"><div class="n">חברת חשמל</div><div class="s">חשבונות · 8 ביוני</div></div><div class="a">−₪310</div></div>
+      </div>
+    </div>
+    <div class="bnav">
+      <div class="bn on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10l9-7 9 7v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>בית</div>
+      <div class="bn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="14" y2="13"/></svg>עסקאות</div>
+      <div class="fab"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
+      <div class="bn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>ניתוח</div>
+      <div class="bn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>עוד</div>
+    </div>
+  </div>
+</div>
+
+<div>
+  <div class="label">② iOS-like · עסקאות</div>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="status"><span>9:41</span><span>🔋 📶 ▮▮▮</span></div>
+    <div class="screen-scroll">
+      <div class="ltitle">עסקאות</div>
+      <div class="search">🔍 חיפוש</div>
+      <div class="seg" style="margin-top:0"><div class="on">הכל</div><div>הוצאות</div><div>הכנסות</div></div>
+      <div class="ghead">יוני 2026</div>
+      <div class="group">
+        <div class="row"><div class="ic" style="background:#30b0c7">🛒</div><div class="m"><div class="n">שופרסל דיל</div><div class="s">מזון · עו״ש</div></div><div class="a">−₪240</div></div>
+        <div class="row"><div class="ic" style="background:#34c759">💰</div><div class="m"><div class="n">משכורת</div><div class="s">הכנסה · עו״ש</div></div><div class="a pos">+₪9,000</div></div>
+        <div class="row"><div class="ic" style="background:#a2845e">☕</div><div class="m"><div class="n">ארומה</div><div class="s">בתי קפה · אשראי</div></div><div class="a">−₪48</div></div>
+        <div class="row"><div class="ic" style="background:#ffcc00">⚡</div><div class="m"><div class="n">חברת חשמל</div><div class="s">חשבונות · עו״ש</div></div><div class="a">−₪310</div></div>
+        <div class="row"><div class="ic" style="background:#5856d6">🏛️</div><div class="m"><div class="n">ביטוח לאומי</div><div class="s">ביטוח · עו״ש</div></div><div class="a">−₪520</div></div>
+        <div class="row"><div class="ic" style="background:#ff2d55">📱</div><div class="m"><div class="n">פלאפון</div><div class="s">תקשורת · אשראי</div></div><div class="a">−₪99</div></div>
+      </div>
+    </div>
+    <div class="bnav">
+      <div class="bn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10l9-7 9 7v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>בית</div>
+      <div class="bn on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="14" y2="13"/></svg>עסקאות</div>
+      <div class="fab"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
+      <div class="bn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>ניתוח</div>
+      <div class="bn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>עוד</div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
