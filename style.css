@@ -71,6 +71,15 @@ html[data-privacy] .cur,
 html[data-privacy] .budget-input {
   filter: blur(9px); transition: filter .12s; cursor: pointer; user-select: none;
 }
+/* Charts reveal amounts via axes/bars/tooltips — blur them too (canvas isn't
+   wrapped in .cur). Covers desktop + mobile income/expense, trend, pie, YoY. */
+html[data-privacy] #monthlyChart,
+html[data-privacy] #mMonthlyChart,
+html[data-privacy] #trendChart,
+html[data-privacy] #expensePieChart,
+html[data-privacy] #yoyChart {
+  filter: blur(12px); transition: filter .12s;
+}
 html[data-privacy] .card:hover .cur,
 html[data-privacy] .cur:active,
 html[data-privacy] .budget-input:focus {
