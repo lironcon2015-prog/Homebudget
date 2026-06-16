@@ -139,16 +139,21 @@ function _getFiltered() {
   // categoryId points at a category that was deleted.
   const validCatIds = new Set(getCategories().map(c => c.id))
   const isUncat = t => !t.categoryId || !validCatIds.has(t.categoryId)
-  // Hide the bank-side aggregate CC payment when the card it pays has its own
-  // itemized transactions imported — otherwise both the lump AND the detail
-  // rows show, double-counting the same spend. Only CC cards that aren't
-  // scraped (no detail) keep their lump visible. Computed over ALL tx so a card
-  // scraped in any period suppresses its lump everywhere. Matches the analysis/
-  // budget scope (shouldDropCcLump / ccAccountsWithDetail in core.js).
+  // Hide the bank-side aggregate CC payment ONLY when it resolves to a SPECIFIC
+  // credit-card account that has its own itemized transactions imported (so the
+  // lump + detail rows aren't both counted). Matching uses that card's own
+  // identifiers (paymentVendorPatterns — set these to the card's 4-digit number
+  // for precise, per-card matching). Generic company-name keyword hits
+  // (_CC_LUMP_ANY) are NOT dropped, so charges for non-scraped cards stay visible
+  // and unrelated rows that merely mention a CC brand aren't removed.
   const _ccAccsWithDetail = ccAccountsWithDetail(getTransactions())
+  const _dropCcLump = t => {
+    const target = ccLumpTargetForTx(t)
+    return !!target && target !== _CC_LUMP_ANY && _ccAccsWithDetail.has(target)
+  }
   return filterByEffectivePeriod(getTransactions(), period)
     .filter(t => {
-      if (shouldDropCcLump(t, _ccAccsWithDetail)) return false
+      if (_dropCcLump(t)) return false
       // Tx that belong to a manual recurring group STAY in the tx list (the
       // user's bank still reflects them as separate operations) — they only
       // appear merged on the recurring screen. The row gets a 🔗 chip so it's

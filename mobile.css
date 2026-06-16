@@ -215,6 +215,11 @@ html.m-ui .m-more-status.pos { color: var(--income); background: rgba(16,185,129
 
 /* ===== Bottom nav (Dark Glass) + center FAB ===== */
 html.m-ui .bottom-nav {
+  /* Pin to the viewport bottom on ALL mobile widths — the position:fixed in
+     style.css only applies under @media(max-width:900px), so touch tablets in
+     the 901–1024px band (m-ui via pointer:coarse) would otherwise let the bar
+     scroll up into the page. */
+  position: fixed; inset-inline: 0; bottom: 0; z-index: 150;
   height: calc(var(--m-bnav-h) + env(safe-area-inset-bottom, 0px));
   padding-bottom: env(safe-area-inset-bottom, 0px);
   background: rgba(12,12,16,.82); backdrop-filter: blur(24px);
