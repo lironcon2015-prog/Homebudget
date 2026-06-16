@@ -9,6 +9,7 @@ function renderAnalysis() {
 }
 
 function _drawAnalysis() {
+  if (typeof IS_MOBILE_UI !== 'undefined' && IS_MOBILE_UI && typeof M_anDraw === 'function') return M_anDraw()
   const period = getActivePeriod()
   document.getElementById('analysisPeriodLabel').textContent = period.label || `${period.start} → ${period.end}`
 

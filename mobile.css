@@ -85,14 +85,12 @@ html.m-ui .m-hero.pos .m-hero-trend { background: rgba(16,185,129,.14); color: v
 html.m-ui .m-hero.neg .m-hero-trend { background: rgba(244,63,94,.14); color: var(--expense); }
 html.m-ui .m-hero-sub { color: var(--text-muted); font-size: .76rem; margin-top: .5rem; }
 
-/* ---- Stat chips ---- */
+/* ---- Stat chips (dashboard) — 2-col grid, all visible without scrolling ---- */
 html.m-ui .m-chips {
-  display: flex; gap: .6rem; overflow-x: auto; padding-bottom: .3rem; margin-bottom: 1rem;
-  -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; margin-bottom: 1rem;
 }
-html.m-ui .m-chips::-webkit-scrollbar { display: none; }
 html.m-ui .m-chip {
-  flex: 0 0 auto; min-width: 116px; padding: .75rem .85rem; border-radius: 16px;
+  padding: .75rem .85rem; border-radius: 16px;
   background: var(--bg-surface); border: 1px solid rgba(255,255,255,.06);
 }
 html.m-ui .m-chip-k { color: var(--text-muted); font-size: .72rem; font-weight: 600; }
@@ -174,8 +172,7 @@ html.m-ui .m-chip-btn {
 }
 html.m-ui .m-chip-btn.active { background: rgba(59,130,246,.18); color: #fff; border-color: rgba(59,130,246,.4); }
 
-html.m-ui .m-tx-summary { display: flex; gap: .5rem; overflow-x: auto; margin-bottom: .7rem; scrollbar-width: none; }
-html.m-ui .m-tx-summary::-webkit-scrollbar { display: none; }
+html.m-ui .m-tx-summary { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .7rem; }
 html.m-ui .m-sum-chip {
   flex: 0 0 auto; padding: .4rem .7rem; border-radius: 11px; font-size: .82rem; font-weight: 700;
   background: var(--bg-surface); border: 1px solid rgba(255,255,255,.05);
@@ -245,8 +242,23 @@ html.m-ui .page-subtitle { font-size: .78rem; display: block; margin-top: .15rem
 
 /* ===== Analysis ===== */
 html.m-ui .m-stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; margin-bottom: 1rem; }
-html.m-ui .m-stat-grid .stat-card { margin: 0; }
+html.m-ui .m-stat {
+  background: var(--bg-surface); border: 1px solid rgba(255,255,255,.06); border-radius: 16px; padding: .8rem .85rem;
+}
+html.m-ui .m-stat-label { color: var(--text-muted); font-size: .74rem; font-weight: 600; }
+html.m-ui .m-stat-val { font-size: 1.2rem; font-weight: 800; margin-top: .25rem; }
 html.m-ui .m-chart-tall { height: 300px; }
+
+/* YoY — native stacked rows */
+html.m-ui .m-yoy-head, html.m-ui .m-yoy-row {
+  display: grid; grid-template-columns: 1fr auto auto auto; gap: .5rem; align-items: center;
+}
+html.m-ui .m-yoy-head { font-size: .7rem; color: var(--text-muted); padding: 0 .15rem .4rem; }
+html.m-ui .m-yoy-row { padding: .55rem .15rem; font-size: .85rem; font-weight: 600; }
+html.m-ui .m-yoy-row + .m-yoy-row { border-top: 1px solid rgba(255,255,255,.05); }
+html.m-ui .m-yoy-label { font-weight: 700; }
+html.m-ui .m-yoy-prev { font-weight: 500; }
+html.m-ui .m-yoy-delta { text-align: end; }
 
 /* Accordion */
 html.m-ui .m-acc {
