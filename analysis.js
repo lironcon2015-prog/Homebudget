@@ -3,6 +3,7 @@ let _trendChart = null
 let _yoyChart = null
 
 function renderAnalysis() {
+  if (typeof IS_MOBILE_UI !== 'undefined' && IS_MOBILE_UI && typeof M_renderAnalysis === 'function') return M_renderAnalysis()
   renderPeriodSelector('analysisPeriodSelector', () => _drawAnalysis())
   _drawAnalysis()
 }
