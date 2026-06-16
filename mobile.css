@@ -248,10 +248,15 @@ html.m-ui .page-subtitle { font-size: .78rem; display: block; margin-top: .15rem
 /* ===== Analysis ===== */
 html.m-ui .m-stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; margin-bottom: 1rem; }
 html.m-ui .m-stat {
+  min-width: 0; overflow: hidden;
   background: var(--bg-surface); border: 1px solid rgba(255,255,255,.06); border-radius: 16px; padding: .8rem .85rem;
 }
-html.m-ui .m-stat-label { color: var(--text-muted); font-size: .74rem; font-weight: 600; }
-html.m-ui .m-stat-val { font-size: 1.2rem; font-weight: 800; margin-top: .25rem; }
+html.m-ui .m-stat-label { color: var(--text-muted); font-size: .74rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html.m-ui .m-stat-val { font-size: 1.2rem; font-weight: 800; margin-top: .25rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 3-up variant (recurring summary) — tighter so currency values fit 3 across */
+html.m-ui .m-stat-grid-3 { grid-template-columns: 1fr 1fr 1fr; gap: .5rem; }
+html.m-ui .m-stat-grid-3 .m-stat { padding: .65rem .55rem; }
+html.m-ui .m-stat-grid-3 .m-stat-val { font-size: .95rem; }
 html.m-ui .m-chart-tall { height: 300px; }
 
 /* YoY — native stacked rows */
@@ -319,13 +324,16 @@ html.m-ui .budget-month-nav {
 }
 html.m-ui .budget-month-nav .btn-ghost { padding: .5rem .6rem; font-size: .82rem; white-space: nowrap; }
 html.m-ui .budget-month-label { font-size: .95rem; font-weight: 700; text-align: center; }
-html.m-ui .budget-summary-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; margin-bottom: 1rem; }
+/* stacked full-width cards so the "actual / budget" values fit on one line and
+   every card aligns to the same edge (3-across was too narrow for currency) */
+html.m-ui .budget-summary-grid { display: flex; flex-direction: column; gap: .55rem; margin-bottom: 1rem; }
 html.m-ui .budget-summary-card {
-  background: var(--bg-surface); border: 1px solid rgba(255,255,255,.06); border-radius: 14px; padding: .7rem .6rem;
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: .2rem .6rem;
+  background: var(--bg-surface); border: 1px solid rgba(255,255,255,.06); border-radius: 14px; padding: .7rem .85rem;
 }
-html.m-ui .budget-summary-card .budget-label { font-size: .68rem; }
-html.m-ui .budget-summary-card .budget-val { font-size: .92rem; font-weight: 800; }
-html.m-ui .budget-summary-card .budget-sub { font-size: .66rem; }
+html.m-ui .budget-summary-card .budget-label { flex: 1 1 auto; font-size: .82rem; color: var(--text-muted); }
+html.m-ui .budget-summary-card .budget-val { flex: 0 0 auto; font-size: 1rem; font-weight: 800; }
+html.m-ui .budget-summary-card .budget-sub { flex: 1 1 100%; font-size: .72rem; color: var(--text-muted); }
 html.m-ui .budget-actions { display: flex; flex-direction: column; gap: .5rem; margin: 0 0 1.2rem; }
 html.m-ui .budget-actions button { width: 100%; }
 html.m-ui .budget-screen-heading { font-size: 1rem; font-weight: 700; margin: .4rem .15rem .6rem; }

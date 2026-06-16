@@ -27,7 +27,7 @@ function M_renderRecurring() {
 
   host.innerHTML = `
     ${M_topbar('קבועות')}
-    <div class="m-stat-grid" style="grid-template-columns:1fr 1fr 1fr">
+    <div class="m-stat-grid m-stat-grid-3">
       <div class="m-stat"><div class="m-stat-label">הוצאות</div><div class="m-stat-val neg">${formatCurrency(totals.expense)}</div></div>
       <div class="m-stat"><div class="m-stat-label">הכנסות</div><div class="m-stat-val pos">${formatCurrency(totals.income)}</div></div>
       <div class="m-stat"><div class="m-stat-label">נטו</div><div class="m-stat-val ${totals.net >= 0 ? 'pos' : 'neg'}">${formatCurrency(totals.net)}</div></div>
