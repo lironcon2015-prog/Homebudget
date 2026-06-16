@@ -22,7 +22,14 @@ function M_openMore() {
       <span class="m-more-label">${it.label}</span>
       <span class="m-more-chev">‹</span>
     </button>`).join('')
-  const content = `<div class="m-more-list">${rows}</div>`
+  const driveOn = (typeof _driveToken !== 'undefined' && _driveToken)
+  const driveRow = `
+    <button class="m-more-row" onclick="M_openDriveBackup()">
+      <span class="m-more-ic">☁️</span>
+      <span class="m-more-label">גיבוי וסנכרון (Google Drive)</span>
+      <span class="m-more-status ${driveOn ? 'pos' : ''}">${driveOn ? 'מחובר ✓' : 'התחבר'}</span>
+    </button>`
+  const content = `<div class="m-more-list">${rows}${driveRow}</div>`
   if (typeof UK_sheet === 'function') {
     MOBILE.moreSheet = UK_sheet({ title: 'עוד', content })
   } else {
@@ -33,6 +40,16 @@ function M_openMore() {
 function M_navMore(screen) {
   if (MOBILE.moreSheet) { MOBILE.moreSheet.close(); MOBILE.moreSheet = null }
   navigate(screen)
+}
+
+// Jump straight to Settings → Backup (Drive sign-in / sync) from the More sheet.
+function M_openDriveBackup() {
+  if (MOBILE.moreSheet) { MOBILE.moreSheet.close(); MOBILE.moreSheet = null }
+  navigate('settings')
+  const btn = document.querySelector('.tab-btn[onclick*="backup"]')
+  if (typeof switchTab === 'function' && btn) switchTab('backup', btn)
+  const panel = document.getElementById('tab-backup')
+  if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
 // Mark the active bottom-tab. "More" screens highlight the עוד tab.

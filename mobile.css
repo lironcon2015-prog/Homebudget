@@ -198,6 +198,11 @@ html.m-ui .m-more-row {
 html.m-ui .m-more-ic { font-size: 1.3rem; }
 html.m-ui .m-more-label { flex: 1; }
 html.m-ui .m-more-chev { color: var(--text-muted); font-size: 1.3rem; }
+html.m-ui .m-more-status {
+  font-size: .8rem; font-weight: 700; color: var(--accent);
+  padding: .15rem .55rem; border-radius: 9px; background: rgba(59,130,246,.14);
+}
+html.m-ui .m-more-status.pos { color: var(--income); background: rgba(16,185,129,.14); }
 
 /* ===== Bottom nav (Dark Glass) + center FAB ===== */
 html.m-ui .bottom-nav {
