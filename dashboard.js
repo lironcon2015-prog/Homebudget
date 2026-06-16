@@ -216,7 +216,7 @@ function _renderMonthlyChart(all, period) {
         { type: 'bar',  label: 'הכנסות', data: incomes, backgroundColor: CHART_COLORS.incomeBg,  borderRadius: 6, borderSkipped: false, yAxisID: 'y' },
         { type: 'bar',  label: 'הוצאות', data: exps,    backgroundColor: CHART_COLORS.expenseBg, borderRadius: 6, borderSkipped: false, yAxisID: 'y' },
         { type: 'line', label: 'נטו',    data: nets,    borderColor: CHART_COLORS.accent, backgroundColor: netGrad,
-          borderWidth: 2.5, tension: 0.45, fill: true, yAxisID: 'y',
+          borderWidth: 2.5, tension: 0.45, fill: true, yAxisID: 'y', hidden: true,
           pointRadius: 4, pointBackgroundColor: CHART_COLORS.accent, pointBorderColor: CHART_COLORS.surface, pointBorderWidth: 2 },
       ]
     },

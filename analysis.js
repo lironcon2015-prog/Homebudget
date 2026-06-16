@@ -270,7 +270,7 @@ function _renderTrendChart(all, period) {
         { type: 'bar',  label: 'הכנסות', data: incomes, backgroundColor: CHART_COLORS.incomeBg,  borderRadius: 6, borderSkipped: false },
         { type: 'bar',  label: 'הוצאות', data: exps,    backgroundColor: CHART_COLORS.expenseBg, borderRadius: 6, borderSkipped: false },
         { type: 'line', label: 'נטו',    data: nets,    borderColor: CHART_COLORS.accent, backgroundColor: trendNetGrad,
-          borderWidth: 2.5, tension: 0.45, fill: true,
+          borderWidth: 2.5, tension: 0.45, fill: true, hidden: true,
           pointRadius: 4, pointBackgroundColor: CHART_COLORS.accent, pointBorderColor: CHART_COLORS.surface, pointBorderWidth: 2 },
       ]
     },

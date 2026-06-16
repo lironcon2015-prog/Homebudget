@@ -112,7 +112,7 @@ function M_dashChart(all, period) {
       datasets: [
         { type: 'bar', label: 'הכנסות', data: incomes, backgroundColor: CHART_COLORS.incomeBg, borderRadius: 5, borderSkipped: false },
         { type: 'bar', label: 'הוצאות', data: exps, backgroundColor: CHART_COLORS.expenseBg, borderRadius: 5, borderSkipped: false },
-        { type: 'line', label: 'נטו', data: nets, borderColor: CHART_COLORS.accent, backgroundColor: netGrad, borderWidth: 2.5, tension: 0.45, fill: true, pointRadius: 3, pointBackgroundColor: CHART_COLORS.accent },
+        { type: 'line', label: 'נטו', data: nets, borderColor: CHART_COLORS.accent, backgroundColor: netGrad, borderWidth: 2.5, tension: 0.45, fill: true, hidden: true, pointRadius: 3, pointBackgroundColor: CHART_COLORS.accent },
       ]
     },
     options: {
