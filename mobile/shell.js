@@ -66,11 +66,24 @@ function M_syncTabs(screen) {
 }
 
 // ===== SHARED MARKUP HELPERS =====
-// Sticky top bar for a mobile screen: title + optional right-side action buttons.
+// Drive sync indicator — same .sync-status element the desktop navbar used, so
+// _setSyncStatus() (which targets ALL .sync-status) updates it automatically and
+// makes it clickable to connect when signed-out. Clicking otherwise jumps to
+// Settings → Backup.
+function M_syncBadge() {
+  return `<span class="sync-status m-sync" style="display:none" onclick="if(this.classList.contains('sync-warn'))driveSignIn();else M_openDriveBackup()"></span>`
+}
+
+// Repaint a freshly-rendered badge from the last known sync state.
+function M_repaintSync() {
+  if (typeof _setSyncStatus === 'function' && typeof _syncState !== 'undefined') _setSyncStatus(_syncState)
+}
+
+// Sticky top bar for a mobile screen: title + sync badge + right-side actions.
 function M_topbar(title, actionsHTML = '') {
   return `<header class="m-topbar">
     <h1 class="m-topbar-title">${title}</h1>
-    <div class="m-topbar-actions">${actionsHTML}</div>
+    <div class="m-topbar-actions">${M_syncBadge()}${actionsHTML}</div>
   </header>`
 }
 

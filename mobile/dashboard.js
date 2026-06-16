@@ -72,6 +72,7 @@ function M_renderDashboard() {
   M_dashNonLiquid(period)
   M_dashRecent(all)
   if (typeof M_syncTabs === 'function') M_syncTabs('dashboard')
+  if (typeof M_repaintSync === 'function') M_repaintSync()
 }
 
 function M_dashLastImport(all) {

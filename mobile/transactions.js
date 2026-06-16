@@ -68,6 +68,7 @@ function M_renderTransactions() {
   M_syncTypeChips()
   _drawTxTable()
   if (typeof M_syncTabs === 'function') M_syncTabs('transactions')
+  if (typeof M_repaintSync === 'function') M_repaintSync()
 }
 
 function M_txReset() {

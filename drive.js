@@ -6,6 +6,7 @@ let _pendingDriveAction = null
 let _driveToken = null
 let _driveTokenClient = null
 let _silentSignInResolve = null
+let _syncState = 'off'   // last status — lets a freshly-rendered badge repaint itself
 
 function _initDriveClient() {
   if (_driveTokenClient) return
@@ -224,6 +225,7 @@ function _setSyncStatus(s) {
     'offline':    { txt: '📴 לא מקוון',        cls: 'sync-warn',     title: 'אין חיבור — נסנכרן כשיחזור' },
     'error':      { txt: '⚠ שגיאת סנכרון',    cls: 'sync-err',      title: '' },
   }
+  _syncState = (map[s] ? s : 'off')
   const m = map[s] || map.off
   document.querySelectorAll('.sync-status').forEach(el => {
     el.className = 'sync-status ' + m.cls
