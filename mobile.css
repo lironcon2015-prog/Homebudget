@@ -43,16 +43,22 @@ html.m-ui .m-iconbtn {
 }
 html.m-ui .m-iconbtn:active { transform: scale(.92); }
 
-/* ---- Period bar (3 quick presets + "עוד" sheet) ---- */
+/* ---- Period bar — one segmented container, raised lighter active pill ---- */
 html.m-ui .m-period { margin: 0 0 .9rem; }
-html.m-ui .m-period-bar { display: flex; gap: .4rem; }
-html.m-ui .m-period-chip {
-  flex: 1 1 0; min-width: 0; padding: .55rem .4rem; border-radius: 12px; font-size: .82rem; font-weight: 600;
-  border: 1px solid rgba(255,255,255,.06); background: var(--bg-surface); color: var(--text-secondary);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+html.m-ui .m-period-bar {
+  display: flex; gap: .25rem; padding: .28rem; border-radius: 15px;
+  background: var(--bg-surface); border: 1px solid rgba(255,255,255,.06);
 }
-html.m-ui .m-period-chip.active { background: var(--accent); color: #fff; border-color: transparent; }
-html.m-ui .m-period-more { flex: 0 0 auto; padding-inline: .8rem; }
+html.m-ui .m-period-chip {
+  flex: 1 1 0; min-width: 0; padding: .55rem .3rem; border-radius: 11px;
+  font-size: .85rem; font-weight: 600; border: none; background: transparent;
+  color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+html.m-ui .m-period-chip.active {
+  background: var(--bg-elevated); color: var(--text-primary);
+  box-shadow: 0 2px 8px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.06);
+}
+html.m-ui .m-period-more { flex: 0 0 auto; padding-inline: .75rem; color: var(--text-muted); }
 html.m-ui .m-period-custom { margin-top: 1rem; }
 
 /* ---- Hero ---- */
