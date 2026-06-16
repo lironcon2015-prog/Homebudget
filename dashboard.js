@@ -52,7 +52,7 @@ function renderDashboard() {
       color: netHidden >= 0 ? 'var(--income)' : 'var(--expense)',
       icon: '🪙',
       bg: netHidden >= 0 ? 'var(--income-bg)' : 'var(--expense-bg)',
-      tooltip: `חסכונות חבויים פחות הכנסה הונית:\n${parts.join('\n')}\n\nחיובי = נטו הכנסת כסף לחיסכון. שלילי = נטו שבירת חיסכון.`
+      tooltip: 'חסכונות חבויים פחות הכנסה הונית'
     })
   }
   // Recurring monthly-equivalent — only show when there's at least one
@@ -67,7 +67,7 @@ function renderDashboard() {
         color: rt.net >= 0 ? 'var(--income)' : 'var(--expense)',
         icon: '🔁',
         bg: rt.net >= 0 ? 'var(--income-bg)' : 'var(--expense-bg)',
-        tooltip: `${rt.count} פעולות קבועות (לא־מוסתרות)\nהכנסות: +${formatCurrencyPlain(rt.income)}\nהוצאות: -${formatCurrencyPlain(rt.expense)}\n\nחישוב חודשי שקול: דו-חודשי /2, רבעוני /3.`
+        tooltip: `${rt.count} פעולות קבועות · חודשי שקול`
       })
     }
   }
@@ -94,7 +94,6 @@ function renderDashboard() {
             <div class="bento-stat-icon" style="background:${s.bg}">${s.icon}</div>
             <div class="bento-stat-label">${s.label}</div>
             <div class="bento-stat-value" style="color:${s.color}">${formatCurrency(s.value)}</div>
-            ${s.tooltip?`<div class="bento-stat-hint">${s.tooltip.split('\n')[0]}</div>`:''}
           </div>`).join('')}
       </div>
     </div>`

@@ -53,7 +53,7 @@ function _drawAnalysis() {
       value: savingsPct,
       color: savingsPct>=0?'var(--income)':'var(--expense)', icon: '🪙',
       bg: savingsPct>=0?'var(--income-bg)':'var(--expense-bg)', pct: true,
-      tooltip: `(נטו ${parts.join(' ')}) / (הכנסות − הכנסה הונית)\n\nמוסיף בחזרה הוצאות שסומנו כחיסכון, ומנטרל הכנסות שהן למעשה שבירת חיסכון/דיבידנד.`
+      tooltip: 'מוסיף בחזרה הוצאות שסומנו כחיסכון ומנטרל הכנסה הונית'
     })
   }
   // Recurring monthly-equivalent — surfaces the "fixed slice" alongside
@@ -67,7 +67,7 @@ function _drawAnalysis() {
         color: rt.net >= 0 ? 'var(--income)' : 'var(--expense)',
         icon: '🔁',
         bg: rt.net >= 0 ? 'var(--income-bg)' : 'var(--expense-bg)',
-        tooltip: `${rt.count} פעולות קבועות (לא־מוסתרות)\nהכנסות: +${formatCurrencyPlain(rt.income)}\nהוצאות: -${formatCurrencyPlain(rt.expense)}\n\nחודשי שקול: דו-חודשי /2, רבעוני /3.`
+        tooltip: `${rt.count} פעולות קבועות · חודשי שקול`
       })
     }
   }
