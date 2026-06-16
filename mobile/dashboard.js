@@ -50,7 +50,7 @@ function M_renderDashboard() {
     </div>
 
     ${M_sectionHead('הכנסות מול הוצאות')}
-    <div class="m-card"><div class="m-chart-wrap"><canvas id="mMonthlyChart"></canvas></div></div>
+    <div class="m-card m-card-chart"><div class="m-chart-wrap"><canvas id="mMonthlyChart"></canvas></div></div>
 
     ${M_sectionHead('פירוט לפי קטגוריה')}
     <div class="m-card" id="mDashCats"></div>
@@ -64,7 +64,7 @@ function M_renderDashboard() {
     <div class="m-card m-tx-card" id="mDashRecent"></div>
   `
 
-  if (typeof renderPeriodSelector === 'function') renderPeriodSelector('mDashPeriod', () => M_renderDashboard())
+  M_renderPeriodBar('mDashPeriod', () => M_renderDashboard())
   M_dashLastImport(all)
   M_dashChart(all, period)
   M_dashCats(periodTx)
@@ -121,6 +121,9 @@ function M_dashChart(all, period) {
       }
     }
   })
+  // Force a layout-correct resize on the next frame — the canvas can otherwise
+  // measure the container before it has its final width, leaving blank space.
+  requestAnimationFrame(() => { if (_mMonthlyChart) _mMonthlyChart.resize() })
 }
 
 function M_dashCats(periodTx) {

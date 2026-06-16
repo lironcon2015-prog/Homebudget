@@ -42,22 +42,17 @@ html.m-ui .m-iconbtn {
 }
 html.m-ui .m-iconbtn:active { transform: scale(.92); }
 
-/* ---- Period bar (reuses renderPeriodSelector markup) ---- */
-html.m-ui .m-period { margin: 0 -0.15rem .9rem; }
-html.m-ui .m-period .period-selector { display: block; }
-html.m-ui .m-period .period-presets {
-  display: flex; gap: .4rem; overflow-x: auto; padding: .15rem .15rem .3rem;
-  -webkit-overflow-scrolling: touch; scrollbar-width: none;
-}
-html.m-ui .m-period .period-presets::-webkit-scrollbar { display: none; }
-html.m-ui .m-period .period-btn {
-  flex: 0 0 auto; padding: .5rem .85rem; border-radius: 11px; font-size: .82rem; font-weight: 600;
+/* ---- Period bar (3 quick presets + "עוד" sheet) ---- */
+html.m-ui .m-period { margin: 0 0 .9rem; }
+html.m-ui .m-period-bar { display: flex; gap: .4rem; }
+html.m-ui .m-period-chip {
+  flex: 1 1 0; min-width: 0; padding: .55rem .4rem; border-radius: 12px; font-size: .82rem; font-weight: 600;
   border: 1px solid rgba(255,255,255,.06); background: var(--bg-surface); color: var(--text-secondary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-html.m-ui .m-period .period-btn.active {
-  background: var(--accent); color: #fff; border-color: transparent;
-}
-html.m-ui .m-period .period-custom { padding: .5rem .15rem 0; flex-wrap: wrap; gap: .4rem; }
+html.m-ui .m-period-chip.active { background: var(--accent); color: #fff; border-color: transparent; }
+html.m-ui .m-period-more { flex: 0 0 auto; padding-inline: .8rem; }
+html.m-ui .m-period-custom { margin-top: 1rem; }
 
 /* ---- Hero ---- */
 html.m-ui .m-hero {
@@ -113,7 +108,9 @@ html.m-ui .neg { color: var(--expense); }
 html.m-ui .m-empty-line { color: var(--text-muted); font-size: .85rem; text-align: center; padding: 1rem; }
 
 /* ---- Chart ---- */
-html.m-ui .m-chart-wrap { height: 200px; }
+html.m-ui .m-card-chart { padding: .6rem .5rem .4rem; }
+html.m-ui .m-chart-wrap { height: 250px; width: 100%; }
+html.m-ui .m-chart-wrap canvas { width: 100% !important; }
 
 /* ---- Category bars ---- */
 html.m-ui .m-catbar + .m-catbar { margin-top: .7rem; }
@@ -218,16 +215,13 @@ html.m-ui .bottom-nav .bnav-item.active { color: var(--accent); }
 html.m-ui .bottom-nav .bnav-item.active::before { content: none; }
 html.m-ui .bnav-spacer { flex: 1; }
 
+/* Raised center FAB: straddles the top edge of the bar, above it (nav z=150). */
 html.m-ui .fab {
-  display: grid; place-items: center; position: fixed; z-index: 60;
-  bottom: calc(var(--m-bnav-h) / 2 + env(safe-area-inset-bottom, 0px) - 4px);
-  inset-inline-start: 50%; transform: translateX(50%);
-  width: 58px; height: 58px; border-radius: 20px; border: none; color: #fff; font-size: 1.7rem;
+  display: grid; place-items: center; position: fixed; z-index: 200;
+  bottom: calc(var(--m-bnav-h) + env(safe-area-inset-bottom, 0px) - 26px);
+  inset-inline-start: 0; inset-inline-end: 0; margin-inline: auto;
+  width: 56px; height: 56px; border-radius: 50%; border: none; color: #fff; font-size: 1.85rem; line-height: 1;
   background: linear-gradient(135deg, var(--accent), #8b5cf6);
-  box-shadow: 0 10px 26px rgba(59,130,246,.5);
+  box-shadow: 0 8px 22px rgba(59,130,246,.5), 0 0 0 5px var(--bg-base);
 }
-html.m-ui .fab:active { transform: translateX(50%) scale(.93); }
-
-/* RTL: translateX direction flips, keep centered */
-html[dir="rtl"].m-ui .fab { inset-inline-start: auto; inset-inline-end: 50%; transform: translateX(-50%); }
-html[dir="rtl"].m-ui .fab:active { transform: translateX(-50%) scale(.93); }
+html.m-ui .fab:active { transform: scale(.92); }

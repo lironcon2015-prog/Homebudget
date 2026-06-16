@@ -61,7 +61,7 @@ function M_renderTransactions() {
     </div>
   `
 
-  if (typeof renderPeriodSelector === 'function') renderPeriodSelector('mtxPeriod', () => M_txReset())
+  M_renderPeriodBar('mtxPeriod', () => M_txReset())
   _buildTxAccountFilter()
   _buildTxCategoryFilter()
   _buildTxFlowFilter()
