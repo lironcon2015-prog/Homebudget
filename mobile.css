@@ -265,6 +265,23 @@ html.m-ui .m-yoy-label { font-weight: 700; }
 html.m-ui .m-yoy-prev { font-weight: 500; }
 html.m-ui .m-yoy-delta { text-align: end; }
 
+/* hidden recurring rows look dimmed */
+html.m-ui .m-tx-row.m-rec-hidden { opacity: .5; }
+
+/* ===== Property (native styling of shared markup) ===== */
+html.m-ui #screen-property .card { padding: 1rem; border-radius: 16px; margin-bottom: 1rem; }
+html.m-ui .prop-setup-grid { display: flex; flex-direction: column; gap: .7rem; }
+html.m-ui .prop-summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; }
+html.m-ui .prop-summary-card {
+  background: var(--bg-surface); border: 1px solid rgba(255,255,255,.06); border-radius: 14px; padding: .75rem .7rem;
+}
+html.m-ui .prop-summary-label { font-size: .72rem; }
+html.m-ui .prop-summary-val { font-size: 1.05rem; font-weight: 800; }
+html.m-ui .prop-summary-sub { font-size: .66rem; }
+/* the dense payment-entry grid stays horizontally scrollable inside its card */
+html.m-ui .prop-table { min-width: 760px; }
+html.m-ui #screen-property .form-input, html.m-ui #screen-property select.form-input { font-size: 16px; }
+
 /* Accordion */
 html.m-ui .m-acc {
   background: var(--bg-surface); border: 1px solid rgba(255,255,255,.06); border-radius: 16px;

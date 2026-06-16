@@ -860,6 +860,7 @@ let _recKeyMap = {}
 
 // ===== RECURRING SCREEN =====
 function renderRecurring() {
+  if (typeof IS_MOBILE_UI !== 'undefined' && IS_MOBILE_UI && typeof M_renderRecurring === 'function') return M_renderRecurring()
   const items = getAllRecurring()
   const container = document.getElementById('recurringList')
   if (!container) return
