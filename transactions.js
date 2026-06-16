@@ -139,8 +139,16 @@ function _getFiltered() {
   // categoryId points at a category that was deleted.
   const validCatIds = new Set(getCategories().map(c => c.id))
   const isUncat = t => !t.categoryId || !validCatIds.has(t.categoryId)
+  // Hide the bank-side aggregate CC payment when the card it pays has its own
+  // itemized transactions imported — otherwise both the lump AND the detail
+  // rows show, double-counting the same spend. Only CC cards that aren't
+  // scraped (no detail) keep their lump visible. Computed over ALL tx so a card
+  // scraped in any period suppresses its lump everywhere. Matches the analysis/
+  // budget scope (shouldDropCcLump / ccAccountsWithDetail in core.js).
+  const _ccAccsWithDetail = ccAccountsWithDetail(getTransactions())
   return filterByEffectivePeriod(getTransactions(), period)
     .filter(t => {
+      if (shouldDropCcLump(t, _ccAccsWithDetail)) return false
       // Tx that belong to a manual recurring group STAY in the tx list (the
       // user's bank still reflects them as separate operations) — they only
       // appear merged on the recurring screen. The row gets a 🔗 chip so it's
