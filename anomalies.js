@@ -302,11 +302,41 @@ let ANOM_rowMap = {}
 
 function ANOM_actIdx(idx) {
   const a = ANOM_rowMap[idx]; if (!a) return
-  if (a.txId && typeof openEditModal === 'function') openEditModal(a.txId)
-  else if (a.navCat && typeof goToTransactionsByCategory === 'function') goToTransactionsByCategory(a.navCat)
-  else if (a.nav && typeof navigate === 'function') navigate(a.nav)
+  if (ANOM_reviewSheet) { ANOM_reviewSheet.close(); ANOM_reviewSheet = null }
+  if (a.rule === 'category-spike') { ANOM_goToTxCategory(a.navCat, a.date); return }
+  if (a.nav === 'recurring') { if (typeof navigate === 'function') navigate('recurring'); return }
+  // vendor-based rules → show that vendor's transactions in the relevant month
+  // (so duplicates / the flagged charge appear together in context).
+  ANOM_goToTxVendor(a.vendor, a.date)
 }
 function ANOM_dismissIdx(idx) { const a = ANOM_rowMap[idx]; if (a) ANOM_dismiss(a.key) }
+
+// Set the active period to the calendar month of `dateIso`.
+function _anomSetMonth(dateIso) {
+  if (!dateIso || typeof setActivePeriod !== 'function') return
+  const [y, m] = dateIso.split('-').map(Number)
+  if (!y || !m) return
+  const pad = n => String(n).padStart(2, '0')
+  const last = new Date(y, m, 0).getDate()
+  setActivePeriod({ key: 'custom', label: `${pad(m)}/${y}`, start: `${y}-${pad(m)}-01`, end: `${y}-${pad(m)}-${pad(last)}` })
+}
+
+function ANOM_goToTxVendor(vendor, dateIso) {
+  _anomSetMonth(dateIso)
+  if (typeof navigate === 'function') navigate('transactions')
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v }
+  set('txSearch', vendor || '')
+  set('txTypeFilter', 'all')
+  ;['txAccountFilter', 'txCategoryFilter', 'txFlowFilter', 'txAmountMin', 'txAmountMax'].forEach(id => set(id, ''))
+  if (typeof _txPage !== 'undefined') _txPage = 0
+  if (typeof _drawTxTable === 'function') _drawTxTable()
+}
+
+function ANOM_goToTxCategory(catId, dateIso) {
+  _anomSetMonth(dateIso)
+  if (typeof goToTransactionsByCategory === 'function') goToTransactionsByCategory(catId || '__none__')
+  else if (typeof navigate === 'function') navigate('transactions')
+}
 
 function _anomRowHTML(a, idx) {
   return `<div class="ins-anom-row" onclick="ANOM_actIdx('${idx}')">
@@ -326,8 +356,7 @@ function ANOM_cardHTML() {
   let list
   try { list = ANOM_detect() } catch (e) { return '' }
   if (!list.length) return ''
-  ANOM_rowMap = {}
-  list.forEach((a, i) => { ANOM_rowMap['r' + i] = a })   // full map (review may reference all)
+  list.forEach((a, i) => { ANOM_rowMap['c' + i] = a })   // 'c' prefix so it won't clobber the review map
   const n = list.length
   const more = n - ANOM_CONFIG.cardPreview
   const preview = list.slice(0, ANOM_CONFIG.cardPreview)
@@ -336,10 +365,21 @@ function ANOM_cardHTML() {
       <span>⚠ עסקאות לבדיקה · ${n}</span>
       ${n > ANOM_CONFIG.cardPreview ? '<span class="ins-anom-expand">הצג הכל ›</span>' : ''}
     </div>
-    ${preview.map((a, i) => _anomRowHTML(a, 'r' + i)).join('')}
+    ${preview.map((a, i) => _anomRowHTML(a, 'c' + i)).join('')}
     ${more > 0 ? `<button class="ins-anom-all" onclick="ANOM_openReview()">הצג עוד ${more} ›</button>` : ''}
   </div>`
 }
+
+// Rule → group, for the review filter.
+const _ANOM_GROUPS = {
+  'dup-month': 'dup', 'dup-near': 'dup',
+  'new-vendor': 'new', 'new-recurring': 'new', 'dormant': 'new',
+  'recurring-spike': 'spike', 'price-creep': 'spike', 'vendor-spike': 'spike', 'large-expense': 'spike',
+  'category-spike': 'period', 'freq': 'period', 'missing-recurring': 'period',
+}
+const _ANOM_GROUP_LABELS = { all: 'הכל', dup: 'כפילויות', new: 'חדש', spike: 'קפיצות', period: 'תקופתי' }
+let ANOM_reviewFilter = 'all'
+function ANOM_setReviewFilter(g) { ANOM_reviewFilter = g; ANOM_renderReviewBody() }
 
 function ANOM_renderInto(id) {
   const el = document.getElementById(id)
@@ -349,6 +389,7 @@ function ANOM_renderInto(id) {
 // ===== review sheet (full list + bulk dismiss) =====
 function ANOM_openReview() {
   if (typeof UK_sheet !== 'function') { return }
+  ANOM_reviewFilter = 'all'
   ANOM_reviewSheet = UK_sheet({
     title: 'עסקאות לבדיקה',
     content: '<div id="anomReviewBody"></div>',
@@ -360,15 +401,23 @@ function ANOM_openReview() {
 function ANOM_renderReviewBody() {
   const body = document.getElementById('anomReviewBody')
   if (!body) return
-  const list = ANOM_detect()
+  const full = ANOM_detect()
+  if (!full.length) { body.innerHTML = '<div class="ins-inbox-done">🎉 אין עסקאות חשודות</div>'; return }
+  // counts per group, for the filter chips
+  const counts = { all: full.length }
+  full.forEach(a => { const g = _ANOM_GROUPS[a.rule] || 'period'; counts[g] = (counts[g] || 0) + 1 })
+  const chips = ['all', 'dup', 'new', 'spike', 'period']
+    .filter(g => g === 'all' || counts[g])
+    .map(g => `<button class="ins-anom-fchip ${ANOM_reviewFilter === g ? 'active' : ''}" onclick="ANOM_setReviewFilter('${g}')">${_ANOM_GROUP_LABELS[g]} ${counts[g] || 0}</button>`).join('')
+
+  const list = ANOM_reviewFilter === 'all' ? full : full.filter(a => (_ANOM_GROUPS[a.rule] || 'period') === ANOM_reviewFilter)
   ANOM_reviewKeys = list.map(a => a.key)
-  if (!list.length) { body.innerHTML = '<div class="ins-inbox-done">🎉 אין עסקאות חשודות</div>'; return }
-  ANOM_rowMap = {}
-  list.forEach((a, i) => { ANOM_rowMap['r' + i] = a })
+  list.forEach((a, i) => { ANOM_rowMap['v' + i] = a })   // 'v' prefix — separate from the card map
   body.innerHTML = `
+    <div class="ins-anom-fchips">${chips}</div>
     <div class="ins-anom-reviewtop">
       <span>${list.length} התראות</span>
       <button class="btn-ghost" onclick="ANOM_dismissAllReview()">סמן הכל כתקין</button>
     </div>
-    ${list.map((a, i) => _anomRowHTML(a, 'r' + i)).join('')}`
+    ${list.map((a, i) => _anomRowHTML(a, 'v' + i)).join('')}`
 }

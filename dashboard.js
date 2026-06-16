@@ -119,6 +119,8 @@ function renderDashboard() {
 
   // Dashboard insights (Inbox / MoM chips / upcoming bills) — Phase 5
   if (typeof INS_renderDashboard === 'function') INS_renderDashboard()
+  // Suspicious-transactions card — below account balances
+  if (typeof ANOM_renderInto === 'function') ANOM_renderInto('dashAnomalies')
 }
 
 function _renderAccountBalances() {

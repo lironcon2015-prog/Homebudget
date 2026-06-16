@@ -34,7 +34,6 @@ function M_renderDashboard() {
       <button class="m-iconbtn" onclick="navigate('settings')" aria-label="הגדרות">⚙️</button>
     `)}
     <div id="mDashPeriod" class="m-period"></div>
-    <div id="mDashAnomalies"></div>
 
     <section class="m-hero ${trendPos ? 'pos' : 'neg'}">
       <div class="m-hero-ring"></div>
@@ -60,6 +59,8 @@ function M_renderDashboard() {
 
     ${M_sectionHead('יתרות חשבונות')}
     <div class="m-card" id="mDashAccounts"></div>
+
+    <div id="mDashAnomalies"></div>
 
     <div id="mDashNonLiquid"></div>
 

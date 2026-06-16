@@ -12,8 +12,7 @@ function INS_uncategorizedCount() {
 function INS_renderDashboard() {
   const host = document.getElementById('dashInsights')
   if (!host) return
-  const anom = (typeof ANOM_cardHTML === 'function') ? ANOM_cardHTML() : ''
-  host.innerHTML = anom + _insInboxCard() + _insMoMChips() + _insUpcomingCard()
+  host.innerHTML = _insInboxCard() + _insMoMChips() + _insUpcomingCard()
 }
 
 // ===== Inbox card + quick-categorize flow =====
