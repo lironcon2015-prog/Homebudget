@@ -80,7 +80,8 @@ function M_anStats(periodTx) {
     { label: 'רווח / הפסד', val: formatCurrency(net), cls: net >= 0 ? 'pos' : 'neg' },
     { label: 'אחוז חיסכון', val: savingsPct.toFixed(1) + '%', cls: savingsPct >= 0 ? 'pos' : 'neg' },
   ]
-  if (hidden > 0) cards.push({ label: 'חיסכון חבוי', val: formatCurrency(hidden), cls: 'pos' })
+  const netHidden = hidden - capital
+  if (hidden > 0 || capital > 0) cards.push({ label: 'חיסכון חבוי נטו', val: formatCurrency(netHidden), cls: netHidden >= 0 ? 'pos' : 'neg' })
   if (recur.count > 0) cards.push({ label: 'קבוע חודשי', val: formatCurrency(recur.net), cls: recur.net >= 0 ? 'pos' : 'neg' })
 
   el.innerHTML = cards.map(c => `

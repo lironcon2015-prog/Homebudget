@@ -184,13 +184,18 @@ html.m-ui .m-loadmore {
   background: var(--bg-surface); border: 1px solid rgba(255,255,255,.07); color: var(--accent);
 }
 
-/* hidden filter stash; becomes visible inside the filter sheet */
+/* hidden filter stash — pure state holder for _getFiltered(); never shown */
 html.m-ui .m-stash { display: none; }
-html.m-ui .m-stash-open { display: block; }
-html.m-ui .m-stash-open select, html.m-ui .m-stash-open input { width: 100%; margin-bottom: .25rem; }
 html.m-ui .m-amt-range { display: flex; gap: .5rem; }
-html.m-ui .m-check { display: flex; align-items: center; gap: .5rem; margin: .5rem 0; font-size: .9rem; }
-html.m-ui .m-filter-clear { margin-top: 1rem; text-align: center; }
+html.m-ui .m-check { display: flex; align-items: center; gap: .5rem; margin: .6rem 0 0; font-size: .92rem; }
+
+/* filter sheet form */
+html.m-ui .m-filter-form { display: flex; flex-direction: column; }
+html.m-ui .m-filter-label { font-size: .8rem; color: var(--text-muted); font-weight: 600; margin: .7rem 0 .3rem; }
+html.m-ui .m-filter-select {
+  width: 100%; padding: .7rem .8rem; border-radius: 12px; font-size: 16px;
+  border: 1px solid rgba(255,255,255,.1); background: var(--bg-elevated); color: var(--text-primary);
+}
 
 /* ---- "More" launcher sheet ---- */
 html.m-ui .m-more-list { display: flex; flex-direction: column; gap: .35rem; }

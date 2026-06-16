@@ -16,6 +16,8 @@ function M_renderDashboard() {
   const expenses      = sumExpenses(periodTx)
   const net           = income - expenses
   const hiddenSavings = sumHiddenSavings(periodTx)
+  const capitalIncome = (typeof sumCapitalIncome === 'function') ? sumCapitalIncome(periodTx) : 0
+  const netHidden     = hiddenSavings - capitalIncome
   const recur         = (typeof recurringMonthlyTotals === 'function') ? recurringMonthlyTotals() : { count: 0, net: 0 }
 
   const trendPos = net >= 0
@@ -23,7 +25,7 @@ function M_renderDashboard() {
     { label: 'הכנסות', value: income,   cls: 'pos' },
     { label: 'הוצאות', value: expenses, cls: 'neg' },
   ]
-  if (hiddenSavings > 0) chips.push({ label: 'חיסכון חבוי', value: hiddenSavings, cls: 'pos' })
+  if (hiddenSavings > 0 || capitalIncome > 0) chips.push({ label: 'חיסכון חבוי נטו', value: netHidden, cls: netHidden >= 0 ? 'pos' : 'neg' })
   if (recur.count > 0)   chips.push({ label: 'קבוע חודשי', value: recur.net, cls: recur.net >= 0 ? 'pos' : 'neg' })
 
   host.innerHTML = `

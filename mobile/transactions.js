@@ -172,30 +172,44 @@ function M_wireTxCardSwipe() {
   })
 }
 
-// Filter sheet — relocates the live stash node into the sheet, returns it on close.
+// Filter sheet — self-contained UI built fresh from the hidden stash's current
+// values; changes write back to the stash inputs so _getFiltered() keeps working.
 function M_openTxFilters() {
   if (typeof UK_sheet !== 'function') return
-  const stash = document.getElementById('mTxStash')
-  if (!stash) return
-  const placeholder = document.createComment('mTxStash')
-  stash.parentNode.insertBefore(placeholder, stash)
-  stash.classList.add('m-stash-open')
-  const footer = document.createElement('div')
-  footer.className = 'm-filter-clear'
-  footer.innerHTML = `<button class="btn-ghost" onclick="M_clearTxFilters()">נקה סינון</button>`
+  const val = id => (document.getElementById(id)?.value || '')
+  const chk = id => !!document.getElementById(id)?.checked
+  const accSel = document.getElementById('txAccountFilter')
+  const catSel = document.getElementById('txCategoryFilter')
+  const flowSel = document.getElementById('txFlowFilter')
+  const hasFlow = flowSel && flowSel.options.length > 1
+  const html = `
+    <div class="m-filter-form">
+      <label class="m-filter-label">חשבון</label>
+      <select class="m-filter-select" onchange="M_filterSet('txAccountFilter',this.value)">${accSel ? accSel.innerHTML : ''}</select>
+      <label class="m-filter-label">קטגוריה</label>
+      <select class="m-filter-select" onchange="M_filterSet('txCategoryFilter',this.value)">${catSel ? catSel.innerHTML : ''}</select>
+      ${hasFlow ? `<label class="m-filter-label">תזרים חיסכון/השקעות</label>
+      <select class="m-filter-select" onchange="M_filterSet('txFlowFilter',this.value)">${flowSel.innerHTML}</select>` : ''}
+      <label class="m-filter-label">טווח סכום (₪)</label>
+      <div class="m-amt-range">
+        <input class="m-filter-select" inputmode="decimal" placeholder="מ-" value="${val('txAmountMin')}" oninput="M_filterSet('txAmountMin',this.value)">
+        <input class="m-filter-select" inputmode="decimal" placeholder="עד" value="${val('txAmountMax')}" oninput="M_filterSet('txAmountMax',this.value)">
+      </div>
+      <label class="m-check"><input type="checkbox" ${chk('txInstallmentFilter') ? 'checked' : ''} onchange="M_filterChk('txInstallmentFilter',this.checked)"> תשלומים בלבד</label>
+      <label class="m-check"><input type="checkbox" ${chk('txStandingOrderFilter') ? 'checked' : ''} onchange="M_filterChk('txStandingOrderFilter',this.checked)"> הוראות קבע בלבד</label>
+    </div>`
   M_txFilterSheet = UK_sheet({
     title: 'סינון',
-    content: stash,
-    onClose: () => {
-      footer.remove()
-      stash.classList.remove('m-stash-open')
-      placeholder.parentNode.insertBefore(stash, placeholder)
-      placeholder.remove()
-      M_txReset()
-    },
+    content: html,
+    actions: [
+      { label: 'נקה הכל', onClick: () => { M_clearTxFilters() } },
+      { label: 'הצג תוצאות', primary: true },
+    ],
   })
-  M_txFilterSheet.body.appendChild(footer)
 }
+
+function M_filterSet(id, v) { const el = document.getElementById(id); if (el) el.value = v; M_txReset() }
+function M_filterChk(id, c) { const el = document.getElementById(id); if (el) el.checked = c; M_txReset() }
 
 function M_clearTxFilters() {
   ;['txAccountFilter', 'txCategoryFilter', 'txFlowFilter', 'txAmountMin', 'txAmountMax'].forEach(id => {
@@ -205,5 +219,5 @@ function M_clearTxFilters() {
     const el = document.getElementById(id); if (el) el.checked = false
   })
   const t = document.getElementById('txTypeFilter'); if (t) t.value = 'all'
-  if (M_txFilterSheet) { M_txFilterSheet.close(); M_txFilterSheet = null }
+  M_txReset()
 }

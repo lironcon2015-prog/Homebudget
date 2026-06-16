@@ -8,14 +8,14 @@
 // The flag is FIXED for the session: on resize we only PROMPT a reload rather than
 // hot-swapping shells mid-session (which would force Chart.js/DOM teardown).
 const IS_MOBILE_UI = matchMedia('(max-width: 900px)').matches
-  || ('ontouchstart' in window && matchMedia('(max-width: 1024px)').matches)
+  || (matchMedia('(pointer: coarse)').matches && matchMedia('(max-width: 1024px)').matches)
 
 if (IS_MOBILE_UI) document.documentElement.classList.add('m-ui')
 
 ;(function () {
   let warned = false
   const flagNow = () => matchMedia('(max-width: 900px)').matches
-    || ('ontouchstart' in window && matchMedia('(max-width: 1024px)').matches)
+    || (matchMedia('(pointer: coarse)').matches && matchMedia('(max-width: 1024px)').matches)
   window.addEventListener('resize', () => {
     if (flagNow() === IS_MOBILE_UI || warned) return
     warned = true
