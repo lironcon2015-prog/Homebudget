@@ -13,8 +13,10 @@ function M_renderTransactions() {
   const host = document.getElementById('screen-transactions')
   if (!host) return
   M_txLimit = 30
+  if (typeof _txConsumeBack === 'function') _txConsumeBack()
 
   host.innerHTML = `
+    ${(typeof _txBackBarHTML === 'function') ? _txBackBarHTML() : ''}
     ${M_topbar('עסקאות', `
       <button class="m-iconbtn" onclick="runAutoCategorize()" title="סווג אוטומטית">🔁</button>
       <button class="m-iconbtn m-iconbtn-ai" onclick="runGeminiCategorize()" title="סווג עם AI">🤖</button>

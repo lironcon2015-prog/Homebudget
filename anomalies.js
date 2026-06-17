@@ -323,6 +323,7 @@ function _anomSetMonth(dateIso) {
 
 function ANOM_goToTxVendor(vendor, dateIso) {
   _anomSetMonth(dateIso)
+  if (typeof txSetReturnContext === 'function') txSetReturnContext({ screen: 'dashboard', fromLabel: 'מעסקאות לבדיקה', label: vendor || '' })
   if (typeof navigate === 'function') navigate('transactions')
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v }
   set('txSearch', vendor || '')
@@ -334,6 +335,7 @@ function ANOM_goToTxVendor(vendor, dateIso) {
 
 function ANOM_goToTxCategory(catId, dateIso) {
   _anomSetMonth(dateIso)
+  if (typeof txSetReturnContext === 'function') txSetReturnContext({ screen: 'dashboard', fromLabel: 'מעסקאות לבדיקה' })
   if (typeof goToTransactionsByCategory === 'function') goToTransactionsByCategory(catId || '__none__')
   else if (typeof navigate === 'function') navigate('transactions')
 }

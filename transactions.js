@@ -34,8 +34,31 @@ function _txViewAmount(t, accountId) {
 // so it resets on reload but survives screen navigation in a single session.
 let _txAdvOpen = false
 
+// Contextual "back" bar shown when the transactions screen was opened by drilling
+// in from another screen (e.g. the suspicious-transactions card). `_txPendingBack`
+// is set by the caller right before navigate('transactions'); the next full render
+// consumes it into `_txBackContext` (so it survives in-screen redraws but clears
+// when the user enters transactions normally via a tab).
+let _txPendingBack = null
+let _txBackContext = null
+function txSetReturnContext(ctx) { _txPendingBack = ctx }
+function _txConsumeBack() { _txBackContext = _txPendingBack; _txPendingBack = null }
+function _txBackBarHTML() {
+  if (!_txBackContext) return ''
+  const lbl = _txBackContext.label ? ` · ${_insEscSafe(_txBackContext.label)}` : ''
+  return `<div class="tx-back-bar"><button class="tx-back-btn" onclick="txBack()">→ חזרה</button><span class="tx-back-lbl">${_txBackContext.fromLabel || 'חזרה'}${lbl}</span></div>`
+}
+function _insEscSafe(s) { return (typeof _insEsc === 'function') ? _insEsc(s) : String(s == null ? '' : s) }
+function txBack() {
+  const c = _txBackContext; _txBackContext = null
+  const s = document.getElementById('txSearch'); if (s) s.value = ''
+  if (typeof navigate === 'function') navigate(c && c.screen ? c.screen : 'dashboard')
+}
+
 function renderTransactions() {
   if (typeof IS_MOBILE_UI !== 'undefined' && IS_MOBILE_UI && typeof M_renderTransactions === 'function') return M_renderTransactions()
+  _txConsumeBack()
+  const bb = document.getElementById('txBackBar'); if (bb) bb.innerHTML = _txBackBarHTML()
   _txPage = 0
   renderPeriodSelector('txPeriodSelector', () => { _txPage = 0; _drawTxTable() })
   _buildTxAccountFilter()

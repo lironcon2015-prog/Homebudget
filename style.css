@@ -190,6 +190,13 @@ html[data-privacy] .budget-input:focus {
 .ins-anom-fchips::-webkit-scrollbar { display: none; }
 .ins-anom-fchip { flex: 0 0 auto; padding: .4rem .8rem; border-radius: var(--r-pill); font-size: .8rem; font-weight: 600; border: 1px solid var(--border); background: var(--bg-surface); color: var(--text-secondary); cursor: pointer; white-space: nowrap; }
 .ins-anom-fchip.active { background: var(--accent); color: #fff; border-color: transparent; }
+
+/* contextual back bar (transactions opened by drilling in from another screen) */
+.tx-back-bar { display: flex; align-items: center; gap: .6rem; margin-bottom: 1rem; }
+.tx-back-bar:empty { display: none; }
+.tx-back-btn { padding: .4rem .9rem; border-radius: var(--r-pill); border: 1px solid var(--border); background: var(--bg-surface); color: var(--text-primary); font-weight: 600; cursor: pointer; }
+.tx-back-btn:hover { background: var(--bg-hover); }
+.tx-back-lbl { font-size: .85rem; color: var(--text-muted); }
 .ins-inbox-done { text-align: center; padding: 2rem; font-size: 1rem; }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
