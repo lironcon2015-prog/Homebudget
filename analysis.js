@@ -147,6 +147,14 @@ function _renderExpensePie(periodTx) {
 
 // Navigate to transactions filtered by a category. catId may be '__none__'.
 function goToTransactionsByCategory(catId) {
+  // If we were drilling from the "all categories" expand modal, close it so the
+  // filtered transactions are actually visible (it otherwise covers the screen).
+  if (typeof closeExpenseBreakdownModal === 'function') closeExpenseBreakdownModal()
+  // Remember where we came from so the transactions screen can offer a back bar.
+  if (typeof txSetReturnContext === 'function' && typeof _currentScreen === 'string' && _currentScreen && _currentScreen !== 'transactions') {
+    const cat = (typeof getCategoryById === 'function') ? getCategoryById(catId) : null
+    txSetReturnContext({ screen: _currentScreen, fromLabel: 'חזרה', label: cat ? cat.name : '' })
+  }
   navigate('transactions')
   // navigate() synchronously calls renderTransactions() which builds the
   // filter dropdown; we can safely set the value immediately after.

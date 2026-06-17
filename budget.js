@@ -510,6 +510,10 @@ function navigateBudgetCatToTx(catId, monthKey) {
   // 'custom' so the period selector reflects the chosen range and the user can
   // see/edit it, instead of an unrecognised key that highlights nothing.
   setActivePeriod({ key: 'custom', label: _budgetFormatMonth(monthKey), start, end })
+  if (typeof txSetReturnContext === 'function' && typeof _currentScreen === 'string' && _currentScreen && _currentScreen !== 'transactions') {
+    const cat = (typeof _budgetCategoryProxy === 'function') ? _budgetCategoryProxy(catId) : null
+    txSetReturnContext({ screen: _currentScreen, fromLabel: 'חזרה', label: cat ? cat.name : '' })
+  }
   navigate('transactions')
   // After navigate, the filter elements exist. Reset orthogonal filters that
   // would hide rows the budget tile counted (account / flow / search), then
