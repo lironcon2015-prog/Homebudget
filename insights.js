@@ -122,7 +122,7 @@ function _insMoMChips() {
   return `<div class="ins-chips">${expChip}${incChip}<span class="ins-chips-note">מול התקופה הקודמת</span></div>`
 }
 
-// ===== Upcoming recurring bills this month =====
+// ===== Upcoming recurring bills this month (not yet charged) =====
 function _insUpcomingCard() {
   if (typeof getAllRecurring !== 'function') return ''
   let items
@@ -131,17 +131,25 @@ function _insUpcomingCard() {
   const now = new Date()
   const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   const todayDay = now.getDate()
+  // Only expenses expected THIS month that haven't been charged yet (due day >=
+  // today). Always show all of them, and make the headline total their exact sum
+  // so the number matches the rows. Full list lives on the recurring screen.
   const up = items
-    .filter(r => !hidden.has(r.key) && r.nextExpected && r.nextExpected.slice(0, 7) === ym && r.smoothedMonthly < 0)
-    .map(r => ({ vendor: r.vendor, date: r.nextExpected, amount: Math.abs(r.avgAmount || r.smoothedMonthly), day: Number(r.nextExpected.slice(8, 10)) }))
+    .filter(r => !hidden.has(r.key) && r.smoothedMonthly < 0 && r.nextExpected
+      && r.nextExpected.slice(0, 7) === ym && Number(r.nextExpected.slice(8, 10)) >= todayDay)
+    .map(r => ({ vendor: r.vendor, date: r.nextExpected, amount: Math.abs(r.avgAmount || r.smoothedMonthly) }))
     .sort((a, b) => a.date.localeCompare(b.date))
   if (!up.length) return ''
   const total = up.reduce((s, u) => s + u.amount, 0)
-  const rows = up.slice(0, 8).map(u => `
-    <div class="ins-bill ${u.day < todayDay ? 'ins-bill-past' : ''}">
+  const rows = up.map(u => `
+    <div class="ins-bill">
       ${(typeof UK_vendorAvatar === 'function') ? UK_vendorAvatar(u.vendor, { size: 30 }) : ''}
-      <div class="ins-bill-main"><div>${_insEsc(u.vendor)}</div><div class="ins-bill-date">${formatDate(u.date)}${u.day < todayDay ? ' · חויב' : ''}</div></div>
+      <div class="ins-bill-main"><div>${_insEsc(u.vendor)}</div><div class="ins-bill-date">${formatDate(u.date)}</div></div>
       <div class="ins-bill-amt">${formatCurrency(u.amount)}</div>
     </div>`).join('')
-  return `<div class="card ins-upcoming"><div class="card-title">📅 חיובים קבועים החודש · ${formatCurrency(total)}</div>${rows}</div>`
+  return `<div class="card ins-upcoming">
+    <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;gap:.5rem">
+      <span>📅 חיובים קבועים שטרם ירדו · ${formatCurrency(total)}</span>
+      <button class="card-link" onclick="navigate('recurring')">כל הקבועות ›</button>
+    </div>${rows}</div>`
 }
