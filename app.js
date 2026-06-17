@@ -1,4 +1,4 @@
-const APP_VERSION = '1.30.7'
+const APP_VERSION = '1.30.8'
 
 // ===== STORAGE =====
 const DB = {
@@ -268,6 +268,7 @@ function collectBackupData() {
     propertyManualMortgage: DB.get('finPropertyManualMortgage', []),
     feedback:            DB.get('finFeedback', []),
     reconciliation:      DB.getObj('finReconciliation', {}),
+    dismissedAnomalies:  DB.get('finDismissedAnomalies', []),
     exportedAt:          new Date().toISOString(),
   }
 }
@@ -292,6 +293,7 @@ function applyBackupData(data) {
   if (data.propertyManualMortgage) DB.set('finPropertyManualMortgage', data.propertyManualMortgage)
   if (data.feedback)           DB.set('finFeedback',                data.feedback)
   if (data.reconciliation)     DB.set('finReconciliation',          data.reconciliation)
+  if (data.dismissedAnomalies) DB.set('finDismissedAnomalies',      data.dismissedAnomalies)
   if (typeof invalidatePLCache === 'function')            invalidatePLCache()
   if (typeof invalidateSavingsCache === 'function')       invalidateSavingsCache()
   if (typeof invalidateCapitalIncomeCache === 'function') invalidateCapitalIncomeCache()
