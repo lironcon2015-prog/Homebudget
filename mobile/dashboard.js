@@ -51,7 +51,7 @@ function M_renderDashboard() {
         </div>`).join('')}
     </div>
 
-    ${M_sectionHead('הכנסות מול הוצאות')}
+    ${M_sectionHead('הכנסות מול הוצאות', `<a onclick="navigate('budget')">תקציב ›</a>`)}
     <div class="m-card m-card-chart"><div class="m-chart-wrap"><canvas id="mMonthlyChart"></canvas></div></div>
 
     ${M_sectionHead('פירוט לפי קטגוריה')}

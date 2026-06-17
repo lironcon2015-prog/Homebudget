@@ -197,6 +197,21 @@ html[data-privacy] .budget-input:focus {
 .tx-back-btn { padding: .4rem .9rem; border-radius: var(--r-pill); border: 1px solid var(--border); background: var(--bg-surface); color: var(--text-primary); font-weight: 600; cursor: pointer; }
 .tx-back-btn:hover { background: var(--bg-hover); }
 .tx-back-lbl { font-size: .85rem; color: var(--text-muted); }
+
+/* small inline "go to budget" link on the income-vs-expenses card */
+.card-link { background: none; border: none; color: var(--accent); font-weight: 600; font-size: .82rem; cursor: pointer; padding: 0; white-space: nowrap; }
+.card-link:hover { text-decoration: underline; }
+
+/* budget filter buttons + the under/over review sheet */
+.budget-filterbar { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.bf-list { display: flex; flex-direction: column; gap: .4rem; }
+.bf-row { display: flex; align-items: center; justify-content: space-between; gap: .75rem; width: 100%; text-align: start;
+  padding: .7rem .85rem; border-radius: var(--r-md); border: 1px solid var(--border); background: var(--bg-surface); color: var(--text-primary); cursor: pointer; }
+.bf-row:hover { background: var(--bg-hover); }
+.bf-cat { font-weight: 600; font-size: .92rem; min-width: 0; }
+.bf-side { display: flex; flex-direction: column; align-items: flex-end; flex: 0 0 auto; }
+.bf-nums { font-weight: 700; font-size: .88rem; white-space: nowrap; }
+.bf-sub { font-size: .72rem; }
 .ins-inbox-done { text-align: center; padding: 2rem; font-size: 1rem; }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }

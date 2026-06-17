@@ -401,7 +401,58 @@ function renderBudgetScreen() {
       <button class="btn-ghost" onclick="clearBudgetForMonth()">🗑️ נקה חודש זה</button>
     </div>`
 
-  container.innerHTML = monthNav + summary + actions + _renderBudgetScreenTable(monthKey, isPast)
+  const filterBar = `
+    <div class="budget-filterbar">
+      <button class="btn-ghost" onclick="openBudgetUnder('${monthKey}')">💤 טרם מומשו</button>
+      <button class="btn-ghost" onclick="openBudgetOver('${monthKey}')">🚨 חריגות תקציב</button>
+    </div>`
+
+  container.innerHTML = monthNav + summary + filterBar + actions + _renderBudgetScreenTable(monthKey, isPast)
+}
+
+// Budget sub-views: under-utilized (actual < 50% of budget) and overruns
+// (actual > budget +30% AND the overage is material, ≥ ₪300). Both open a sheet
+// listing the matching expense rows; tapping a row drills into its transactions.
+const BUDGET_UNDER_PCT = 0.5
+const BUDGET_OVER_PCT = 1.3
+const BUDGET_OVER_MIN_DELTA = 300
+let _budgetFilterSheet = null
+
+function openBudgetUnder(monthKey) { _openBudgetFilterSheet(monthKey || getBudgetScreenMonth(), 'under') }
+function openBudgetOver(monthKey) { _openBudgetFilterSheet(monthKey || getBudgetScreenMonth(), 'over') }
+
+function _openBudgetFilterSheet(monthKey, mode) {
+  if (typeof UK_sheet !== 'function') return
+  const rows = computeBudgetStatus(monthKey).filter(r =>
+    r.type !== 'income' && !r.isResidual && r.budget > 0 && (
+      mode === 'under'
+        ? r.actual < r.budget * BUDGET_UNDER_PCT
+        : (r.actual > r.budget * BUDGET_OVER_PCT && (r.actual - r.budget) >= BUDGET_OVER_MIN_DELTA)
+    ))
+  rows.sort((a, b) => mode === 'under' ? a.pct - b.pct : (b.actual - b.budget) - (a.actual - a.budget))
+  const title = mode === 'under' ? `סעיפים שטרם מומשו · ${_budgetFormatMonth(monthKey)}` : `חריגות תקציב · ${_budgetFormatMonth(monthKey)}`
+  const empty = mode === 'under' ? 'אין סעיפים מתחת ל-50% מהתקציב' : 'אין חריגות מהותיות (מעל 30% ולפחות ₪300)'
+  const body = rows.length === 0
+    ? `<p style="color:var(--text-muted);text-align:center;padding:2rem">${empty}</p>`
+    : rows.map(r => {
+        const delta = r.actual - r.budget
+        const sub = mode === 'under'
+          ? `נותר ${formatCurrency(r.budget - r.actual)}`
+          : `חריגה ${formatCurrency(delta)}`
+        return `<button class="bf-row" onclick="_budgetFilterGo('${r.categoryId}','${monthKey}')">
+          <span class="bf-cat">${catIconHTML(r.cat) || '📋'} ${r.cat.name}</span>
+          <div class="bf-side">
+            <span class="bf-nums"><span class="${mode === 'over' ? 'expense-color' : ''}">${formatCurrency(r.actual)}</span> / ${formatCurrency(r.budget)}</span>
+            <span class="bf-sub ${mode === 'over' ? 'expense-color' : 'income-color'}">${Math.round(r.pct)}% · ${sub}</span>
+          </div>
+        </button>`
+      }).join('')
+  _budgetFilterSheet = UK_sheet({ title, content: `<div class="bf-list">${body}</div>` })
+}
+
+function _budgetFilterGo(catId, monthKey) {
+  if (_budgetFilterSheet) { _budgetFilterSheet.close(); _budgetFilterSheet = null }
+  if (typeof navigateBudgetCatToTx === 'function') navigateBudgetCatToTx(catId, monthKey)
 }
 
 function _renderBudgetScreenTable(monthKey, readOnly) {
