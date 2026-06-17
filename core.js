@@ -171,7 +171,14 @@ function shouldDropCcLump(t, ccAccsWithDetail) {
   if (!ccAccsWithDetail) return false
   const target = ccLumpTargetForTx(t)
   if (!target) return false
-  if (target === _CC_LUMP_ANY) return ccAccsWithDetail.size > 0
+  // Generic CC payment (matched a brand keyword but not a SPECIFIC card): we
+  // can't tie it to a scraped card, and it's most likely a non-scraped card
+  // whose lump is the only record of that spend — so KEEP it (counts as a
+  // general credit-card expense in analysis/budget). Only a lump tied to a
+  // specific card that has itemized detail is dropped (its detail rows count
+  // instead). To neutralize a scraped card's lump, give that card identifying
+  // paymentVendorPatterns (e.g. its 4-digit number) so it matches specifically.
+  if (target === _CC_LUMP_ANY) return false
   return ccAccsWithDetail.has(target)
 }
 
