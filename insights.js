@@ -122,21 +122,34 @@ function _insMoMChips() {
   return `<div class="ins-chips">${expChip}${incChip}<span class="ins-chips-note">מול התקופה הקודמת</span></div>`
 }
 
-// ===== Upcoming recurring bills this month (not yet charged) =====
+// ===== Upcoming recurring bills (due this billing cycle, not yet charged) =====
+// "Not yet charged" is decided by the EFFECTIVE billing month, not the calendar
+// day: getTxEffectiveMonth() already maps both bank charges and credit-card
+// purchases to the month they actually hit (CC billing-day rollover / chargeDate).
+// So an entry is still pending iff it has NO transaction whose effective month is
+// the current month — i.e. it didn't appear in this month's bank cycle or in the
+// CC charge billed this month. We also require it to be due (nextExpected ≤ now)
+// so non-monthly items that aren't due yet don't show.
 function _insUpcomingCard() {
   if (typeof getAllRecurring !== 'function') return ''
   let items
   try { items = getAllRecurring() } catch (e) { return '' }
   const hidden = (typeof getHiddenRecurring === 'function') ? getHiddenRecurring() : new Set()
   const now = new Date()
-  const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-  const todayDay = now.getDate()
-  // Only expenses expected THIS month that haven't been charged yet (due day >=
-  // today). Always show all of them, and make the headline total their exact sum
-  // so the number matches the rows. Full list lives on the recurring screen.
+  const curYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  const allTx = (typeof getTransactions === 'function') ? getTransactions() : []
+  const entryTxs = r => {
+    if (typeof r.key === 'string' && r.key.startsWith('mgroup:')) return allTx.filter(t => t.recurringGroupId === r.groupId)
+    const vk = (typeof r.key === 'string' && r.key.startsWith('mflag:')) ? r.key.slice(6) : (r.sourceKey || r.key)
+    return allTx.filter(t => !t.recurringGroupId && typeof _txVendorKey === 'function' && _txVendorKey(t) === vk)
+  }
   const up = items
-    .filter(r => !hidden.has(r.key) && r.smoothedMonthly < 0 && r.nextExpected
-      && r.nextExpected.slice(0, 7) === ym && Number(r.nextExpected.slice(8, 10)) >= todayDay)
+    .filter(r => {
+      if (hidden.has(r.key) || r.smoothedMonthly >= 0) return false           // expenses only
+      if (!r.nextExpected || r.nextExpected.slice(0, 7) > curYm) return false  // not due yet
+      const charged = entryTxs(r).some(t => getTxEffectiveMonth(t) === curYm)  // already in this billing cycle?
+      return !charged
+    })
     .map(r => ({ vendor: r.vendor, date: r.nextExpected, amount: Math.abs(r.avgAmount || r.smoothedMonthly) }))
     .sort((a, b) => a.date.localeCompare(b.date))
   if (!up.length) return ''
