@@ -162,6 +162,8 @@ html[data-privacy] .budget-input:focus {
 .ins-bill-date { font-size: .72rem; color: var(--text-muted); }
 .ins-bill-amt { font-weight: 600; color: var(--expense); }
 .ins-bill-past { opacity: .55; }
+.ins-bill-hide { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: .85rem; line-height: 1; padding: .25rem .4rem; border-radius: 6px; opacity: .55; flex: 0 0 auto; }
+.ins-bill-hide:hover { opacity: 1; color: var(--expense); background: var(--bg-hover); }
 .ins-inbox-head { display: flex; align-items: center; gap: .7rem; margin-bottom: 1rem; }
 .ins-inbox-headtxt { flex: 1; }
 .ins-inbox-vendor { font-weight: 700; font-size: 1rem; }

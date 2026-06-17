@@ -150,19 +150,34 @@ function _insUpcomingCard() {
       const charged = entryTxs(r).some(t => getTxEffectiveMonth(t) === curYm)  // already in this billing cycle?
       return !charged
     })
-    .map(r => ({ vendor: r.vendor, date: r.nextExpected, amount: Math.abs(r.avgAmount || r.smoothedMonthly) }))
+    .map(r => ({ key: r.key, vendor: r.vendor, date: r.nextExpected, amount: Math.abs(r.avgAmount || r.smoothedMonthly) }))
     .sort((a, b) => a.date.localeCompare(b.date))
   if (!up.length) return ''
   const total = up.reduce((s, u) => s + u.amount, 0)
-  const rows = up.map(u => `
-    <div class="ins-bill">
+  _insUpKeyMap = {}
+  const rows = up.map((u, i) => {
+    _insUpKeyMap['u' + i] = u.key
+    return `<div class="ins-bill">
       ${(typeof UK_vendorAvatar === 'function') ? UK_vendorAvatar(u.vendor, { size: 30 }) : ''}
       <div class="ins-bill-main"><div>${_insEsc(u.vendor)}</div><div class="ins-bill-date">${formatDate(u.date)}</div></div>
       <div class="ins-bill-amt">${formatCurrency(u.amount)}</div>
-    </div>`).join('')
+      <button class="ins-bill-hide" title="הסתר מהקבועות" onclick="_insHideUpcoming('u${i}')">✕</button>
+    </div>`
+  }).join('')
   return `<div class="card ins-upcoming">
     <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;gap:.5rem">
       <span>📅 חיובים קבועים שטרם ירדו · ${formatCurrency(total)}</span>
       <button class="card-link" onclick="navigate('recurring')">כל הקבועות ›</button>
     </div>${rows}</div>`
+}
+
+// idx→recurring-key map for the hide buttons (keys hold Hebrew/punctuation that
+// would break an inline onclick string).
+let _insUpKeyMap = {}
+function _insHideUpcoming(idx) {
+  const k = _insUpKeyMap[idx]
+  if (!k || typeof getHiddenRecurring !== 'function') return
+  const s = getHiddenRecurring(); s.add(k); setHiddenRecurring(s)
+  if (typeof UK_haptic === 'function') UK_haptic('tap')
+  if (typeof renderDashboard === 'function') renderDashboard()
 }

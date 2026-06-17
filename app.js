@@ -1,4 +1,4 @@
-const APP_VERSION = '1.31.0'
+const APP_VERSION = '1.31.1'
 
 // ===== STORAGE =====
 const DB = {
@@ -293,7 +293,14 @@ function applyBackupData(data) {
   if (data.propertyManualMortgage) DB.set('finPropertyManualMortgage', data.propertyManualMortgage)
   if (data.feedback)           DB.set('finFeedback',                data.feedback)
   if (data.reconciliation)     DB.set('finReconciliation',          data.reconciliation)
-  if (data.dismissedAnomalies) DB.set('finDismissedAnomalies',      data.dismissedAnomalies)
+  // Dismissed anomalies are monotonic (once marked OK, stays OK) — UNION with
+  // local instead of replacing, so a sync from a device that hadn't marked them
+  // (dismissedAnomalies: []) can't wipe marks made here. Fixes "review items keep
+  // coming back after refresh/sync".
+  if (Array.isArray(data.dismissedAnomalies)) {
+    const merged = new Set([...DB.get('finDismissedAnomalies', []), ...data.dismissedAnomalies])
+    DB.set('finDismissedAnomalies', [...merged])
+  }
   if (typeof invalidatePLCache === 'function')            invalidatePLCache()
   if (typeof invalidateSavingsCache === 'function')       invalidateSavingsCache()
   if (typeof invalidateCapitalIncomeCache === 'function') invalidateCapitalIncomeCache()
