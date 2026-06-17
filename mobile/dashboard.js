@@ -86,9 +86,8 @@ function M_dashLastImport(all) {
   let latest = 0, file = ''
   for (const t of all) if (t.importedAt && t.importedAt > latest) { latest = t.importedAt; file = t.sourceFile || '' }
   if (!latest) { el.textContent = ''; return }
-  const d = new Date(latest)
-  const days = Math.floor((Date.now() - latest) / 86400000)
-  const rel = days === 0 ? 'היום' : days === 1 ? 'אתמול' : `לפני ${days} ימים`
+  const days = (typeof _daysAgoLocal === 'function') ? _daysAgoLocal(latest) : Math.floor((Date.now() - latest) / 86400000)
+  const rel = days <= 0 ? 'היום' : days === 1 ? 'אתמול' : `לפני ${days} ימים`
   el.textContent = `📥 עדכון אחרון ${rel}`
   if (file) el.title = `קובץ אחרון: ${file}`
 }

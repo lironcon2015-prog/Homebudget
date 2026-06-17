@@ -21,9 +21,8 @@ function renderDashboard() {
     if (!latest) { el.textContent = ''; el.removeAttribute('title'); return }
     const d = new Date(latest)
     const dmy = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`
-    const diff = Date.now() - latest
-    const days = Math.floor(diff / 86400000)
-    const rel = days === 0 ? 'היום' : days === 1 ? 'אתמול' : `לפני ${days} ימים`
+    const days = (typeof _daysAgoLocal === 'function') ? _daysAgoLocal(latest) : Math.floor((Date.now() - latest) / 86400000)
+    const rel = days <= 0 ? 'היום' : days === 1 ? 'אתמול' : `לפני ${days} ימים`
     el.textContent = `📥 עדכון אחרון: ${dmy} (${rel})`
     el.title = file ? `קובץ אחרון: ${file}` : ''
   })()

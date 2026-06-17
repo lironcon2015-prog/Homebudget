@@ -211,6 +211,16 @@ function analysisExpenseSavingsInvestIds() {
 function _ym(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}` }
 function _iso(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` }
 
+// Whole CALENDAR days (local time) between a past timestamp and today — so an
+// import from "yesterday evening" reads as 1 day ago, not 0 (a rolling-24h diff
+// would call last night "today"). Uses the device's local timezone.
+function _daysAgoLocal(ts) {
+  const a = new Date(ts), b = new Date()
+  const am = new Date(a.getFullYear(), a.getMonth(), a.getDate())
+  const bm = new Date(b.getFullYear(), b.getMonth(), b.getDate())
+  return Math.round((bm - am) / 86400000)
+}
+
 // ===== Native <input type=date> is locale-flaky and rejects typed input
 // reliably only via the browser's native picker. We use a masked text input
 // instead so users can type dd/mm/yyyy directly. Helpers here convert
