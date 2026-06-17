@@ -212,6 +212,7 @@ html[data-privacy] .budget-input:focus {
 .bf-side { display: flex; flex-direction: column; align-items: flex-end; flex: 0 0 auto; }
 .bf-nums { font-weight: 700; font-size: .88rem; white-space: nowrap; }
 .bf-sub { font-size: .72rem; }
+.bf-badge { font-size: .65rem; font-weight: 700; padding: .05rem .35rem; border-radius: var(--r-pill); background: var(--income-bg); color: var(--income); }
 .ins-inbox-done { text-align: center; padding: 2rem; font-size: 1rem; }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
