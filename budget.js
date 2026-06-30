@@ -1,22 +1,20 @@
 // ===== BUDGETS (v1.12) =====
-// Budget record: { id, categoryId, monthKey, amount, type, carryOver, createdAt, updatedAt }
+// Budget record: { id, categoryId, monthKey, amount, type, createdAt, updatedAt }
 // monthKey ('YYYY-MM') added in v1.12 — every budget is per month. Legacy records
 // (no monthKey) get migrated to the CURRENT month via migrateBudgetMonthly_v2,
 // so the previous user's single-record-per-category still tracks this month.
 //
-// Two virtual "residual" categories catch txs that aren't covered by another
-// budget row: UNFORESEEN_ID for expenses (בלת״ם), OTHER_INCOME_ID for income
-// (הכנסות אחרות). Every budget row — residual or normal — can be opened in a
-// modal that lists the contributing txs with a per-tx exclude toggle.
-// t.excludeFromBudget=true drops a tx from EVERY budget row it would feed
-// (its category row and the residual fallback).
+// Virtual categories:
+//   UNFORESEEN_ID     — expense residual (בלת״ם): auto-sum of un-budgeted expenses.
+//   OTHER_INCOME_ID   — income  residual (הכנסות אחרות): auto-sum of un-budgeted income.
+//   CARRYOVER_INCOME_ID  — manual planning row: surplus carried in from previous month,
+//                          entered by the user on the income side of the budget.
+//   CARRYOVER_EXPENSE_ID — manual planning row: deficit/debt from previous month,
+//                          entered by the user on the expense side of the budget.
 //
-// carryOver: when true on a row, that row's leftover (own budget - actual,
-// can be negative) rolls into next month's EFFECTIVE budget for the same
-// category (see _budgetCarryIn). This only changes the planning target shown
-// in the budget screen — it never touches a transaction's own month, so P&L
-// in the dashboard/analysis still attributes income/expense to the month the
-// transaction actually happened in.
+// Carryover rows only affect the PLANNING totals (incBudget / expBudget) — actual
+// income/expense stay attributed to the month the transaction happened in, so P&L
+// in the dashboard/analysis is never touched.
 
 const UNFORESEEN_ID = '__unforeseen__'
 const UNFORESEEN_NAME = 'בלת״ם'
@@ -28,9 +26,13 @@ const OTHER_INCOME_NAME = 'הכנסות אחרות'
 const OTHER_INCOME_ICON = '💵'
 const OTHER_INCOME_COLOR = '#22d3ee'
 
+const CARRYOVER_INCOME_ID  = '__carryover_income__'
+const CARRYOVER_EXPENSE_ID = '__carryover_expense__'
+
 function _isUnforeseen(catId)  { return catId === UNFORESEEN_ID }
 function _isOtherIncome(catId) { return catId === OTHER_INCOME_ID }
 function _isResidual(catId)    { return _isUnforeseen(catId) || _isOtherIncome(catId) }
+function _isCarryover(catId)   { return catId === CARRYOVER_INCOME_ID || catId === CARRYOVER_EXPENSE_ID }
 
 function getBudgets() { return DB.get('finBudgets', []) }
 function saveBudgets(b) { DB.set('finBudgets', b) }
@@ -59,16 +61,16 @@ function migrateBudgetMonthly_v2() {
 }
 
 // Upsert by (categoryId, monthKey). If monthKey omitted, defaults to current month.
-function setBudget(categoryId, monthKey, amount, type = 'expense', carryOver = false) {
+function setBudget(categoryId, monthKey, amount, type = 'expense') {
   if (!monthKey) monthKey = _ym(new Date())
   const all = getBudgets()
   const idx = all.findIndex(b => b.categoryId === categoryId && b.monthKey === monthKey)
   const amt = parseFloat(amount) || 0
   const now = Date.now()
   if (idx >= 0) {
-    all[idx] = { ...all[idx], amount: amt, type, carryOver: !!carryOver, updatedAt: now }
+    all[idx] = { ...all[idx], amount: amt, type, updatedAt: now }
   } else {
-    all.push({ id: genId(), categoryId, monthKey, amount: amt, type, carryOver: !!carryOver, createdAt: now, updatedAt: now })
+    all.push({ id: genId(), categoryId, monthKey, amount: amt, type, createdAt: now, updatedAt: now })
   }
   saveBudgets(all)
 }
@@ -137,7 +139,7 @@ function budgetIncomeAmount(t) {
   return t.amount
 }
 
-// Synthesizes a "category" object for residual slots so UI code can stay
+// Synthesizes a "category" object for residual/virtual slots so UI code stays
 // uniform. Real categories go through getCategoryById.
 function _budgetCategoryProxy(catId) {
   if (_isUnforeseen(catId)) {
@@ -145,6 +147,12 @@ function _budgetCategoryProxy(catId) {
   }
   if (_isOtherIncome(catId)) {
     return { id: OTHER_INCOME_ID, name: OTHER_INCOME_NAME, icon: OTHER_INCOME_ICON, color: OTHER_INCOME_COLOR, type: 'income', _virtual: true }
+  }
+  if (catId === CARRYOVER_INCOME_ID) {
+    return { id: CARRYOVER_INCOME_ID, name: 'יתרה מחודש קודם', icon: '💰', color: '#22c55e', type: 'income', _virtual: true }
+  }
+  if (catId === CARRYOVER_EXPENSE_ID) {
+    return { id: CARRYOVER_EXPENSE_ID, name: 'גירעון מחודש קודם', icon: '📊', color: '#f97316', type: 'expense', _virtual: true }
   }
   return getCategoryById(catId)
 }
@@ -198,12 +206,10 @@ function computeBudgetStatus(monthKey) {
         ? catTxs.reduce((s,t)=>s+budgetIncomeAmount(t),0)
         : catTxs.reduce((s,t)=>s+budgetExpenseAmount(t, ctx),0)
     }
-    const ownBudget = b.amount
-    const carryIn = _isResidual(b.categoryId) ? 0 : _budgetCarryIn(b.categoryId, type, monthKey)
-    const budget = ownBudget + carryIn
+    const budget = b.amount
     const remaining = budget - actual
     const pct = budget > 0 ? (actual / budget) * 100 : 0
-    return { ...b, type, cat, ownBudget, carryIn, budget, actual, remaining, pct, isResidual: _isResidual(b.categoryId) }
+    return { ...b, type, cat, budget, actual, remaining, pct, isResidual: _isResidual(b.categoryId) }
   }).sort((a,b) => b.pct - a.pct)
 }
 
@@ -213,38 +219,11 @@ function _prevMonthKey(monthKey) {
   return _ym(new Date(y, m - 2, 1))
 }
 
-// Actual for a single category in a month, independent of computeBudgetStatus
-// (which shares one ctx/tx-scan across all rows of ONE month). Used by
-// _budgetCarryIn to look at a *different* month than the one being rendered.
-function _budgetCategoryActual(categoryId, type, monthKey) {
-  const monthTxs = getTransactions().filter(t => getTxEffectiveMonth(t) === monthKey)
-  const catTxs = monthTxs.filter(t => t.categoryId === categoryId)
-  if (type === 'income') return catTxs.reduce((s, t) => s + budgetIncomeAmount(t), 0)
-  const ctx = _budgetMonthContext(monthTxs)
-  return catTxs.reduce((s, t) => s + budgetExpenseAmount(t, ctx), 0)
-}
-
-// Surplus/deficit rolled into `monthKey` from the previous month's row for the
-// same category, only when that previous row opted in via carryOver=true.
-// Recurses backward so a chain of carryOver months compounds (e.g. money set
-// aside across several months toward one big future expense). Depth-capped
-// against malformed data rather than relying on natural termination alone.
-function _budgetCarryIn(categoryId, type, monthKey, _depth = 0) {
-  if (_depth > 24) return 0
-  const prevKey = _prevMonthKey(monthKey)
-  const prevRow = getBudgetsForMonth(prevKey).find(b => b.categoryId === categoryId && (b.type || 'expense') === type)
-  if (!prevRow || !prevRow.carryOver) return 0
-  const prevCarryIn = _budgetCarryIn(categoryId, type, prevKey, _depth + 1)
-  const prevEffectiveBudget = prevRow.amount + prevCarryIn
-  const prevActual = _budgetCategoryActual(categoryId, type, prevKey)
-  return prevEffectiveBudget - prevActual
-}
-
 function _coveredCatSets(budgets) {
   const expense = new Set()
   const income = new Set()
   budgets.forEach(b => {
-    if (_isResidual(b.categoryId)) return
+    if (_isResidual(b.categoryId) || _isCarryover(b.categoryId)) return
     const t = b.type || 'expense'
     if (t === 'expense') expense.add(b.categoryId)
     else if (t === 'income') income.add(b.categoryId)
@@ -440,6 +419,7 @@ function renderBudgetScreen() {
     <div class="budget-actions">
       <button class="btn-primary" onclick="openBudgetGenModalForMonth('${monthKey}')">✨ הצע תקציב ל${_budgetFormatMonth(monthKey)}</button>
       <button class="btn-ghost" onclick="copyBudgetFromPrevMonth()">📋 העתק מחודש קודם</button>
+      <button class="btn-ghost" onclick="importCarryoverFromPrevMonth()">💰 ייבא יתרת חודש קודם</button>
       <button class="btn-ghost" onclick="clearBudgetForMonth()">🗑️ נקה חודש זה</button>
     </div>`
 
@@ -469,7 +449,7 @@ function _openBudgetFilterSheet(monthKey, mode) {
   //  under → expense under-spent / income under-earned (actual < 50% of plan)
   //  over  → expense overspent / income above target (actual > +30%, material)
   const rows = computeBudgetStatus(monthKey).filter(r =>
-    !r.isResidual && r.budget > 0 && (
+    !r.isResidual && !_isCarryover(r.categoryId) && r.budget > 0 && (
       mode === 'under'
         ? r.actual < r.budget * BUDGET_UNDER_PCT
         : (r.actual > r.budget * BUDGET_OVER_PCT && (r.actual - r.budget) >= BUDGET_OVER_MIN_DELTA)
@@ -516,13 +496,12 @@ function _renderBudgetScreenTable(monthKey, readOnly) {
   statusRows.forEach(r => { rowByKey[r.categoryId + '|' + r.type] = r })
 
   const row = (c, type, opts = {}) => {
-    const { residual = false, residualTag = '', residualRowCls = '', residualTitle = '' } = opts
+    const { residual = false, residualTag = '', residualRowCls = '', residualTitle = '', noClick = false } = opts
     const key = c.id + '|' + type
     const b = byKey[key]
     const status = rowByKey[key]
     const actual = status?.actual ?? 0
-    const carryIn = status?.carryIn || 0
-    const budget = status?.budget ?? (b?.amount ?? 0)
+    const budget = b?.amount ?? 0
     const rawPct = budget > 0 ? (actual / budget) * 100 : 0
     const pct = Math.min(100, rawPct)
     const isIncome = type === 'income'
@@ -533,36 +512,26 @@ function _renderBudgetScreenTable(monthKey, readOnly) {
     const actualCell = budget > 0 || actual > 0
       ? `<span class="budget-screen-actual ${actualCls}">${formatCurrency(actual)}</span>`
       : '<span class="budget-screen-actual" style="color:var(--text-muted)">—</span>'
-    const carryToggle = (!residual && !readOnly && b && b.amount > 0)
-      ? `<button type="button" class="budget-carry-toggle ${b.carryOver ? 'active' : ''}"
-           title="${b.carryOver ? 'יתרת חודש זה (אם תיוותר) תועבר לחודש הבא' : 'העבר יתרה לחודש הבא'}"
-           onclick="toggleBudgetCarryOver('${c.id}','${monthKey}','${type}')">↪</button>`
-      : ''
     const input = readOnly
       ? `<span class="budget-screen-budget">${budget > 0 ? formatCurrency(budget) : '—'}</span>`
-      : `<div class="budget-input-cell">
-           ${carryToggle}
-           <div class="budget-input-wrap">
-             <span class="budget-currency">₪</span>
-             <input type="number" min="0" step="10" value="${b?.amount || ''}" placeholder="0"
-               data-cat="${c.id}" data-type="${type}" data-month="${monthKey}"
-               class="budget-input" onchange="onBudgetScreenChange(this)">
-           </div>
+      : `<div class="budget-input-wrap">
+           <span class="budget-currency">₪</span>
+           <input type="number" min="0" step="10" value="${b?.amount || ''}" placeholder="0"
+             data-cat="${c.id}" data-type="${type}" data-month="${monthKey}"
+             class="budget-input" onchange="onBudgetScreenChange(this)">
          </div>`
-    const onClick = `openBudgetRowModal('${c.id}','${monthKey}','${type}')`
+    const onClick = noClick ? '' : `openBudgetRowModal('${c.id}','${monthKey}','${type}')`
+    const catAttrs = noClick
+      ? `class="budget-screen-cat"`
+      : `class="budget-screen-cat budget-screen-cat-link" role="link" tabindex="0" onclick="${onClick}"`
     const tag = residualTag ? ` <span class="budget-unforeseen-tag" title="${residualTitle}">${residualTag}</span>` : ''
-    const linkTitle = residual ? residualTitle : 'ערוך אילו עסקאות נכללות בשורה זו'
-    const carryNote = carryIn !== 0
-      ? `<div class="budget-carry-note">${carryIn > 0 ? '+' : ''}${formatCurrency(carryIn)} מועבר מהחודש הקודם · סה״כ ${formatCurrency(budget)}</div>`
-      : ''
+    const linkTitle = noClick ? '' : (residual ? residualTitle : 'ערוך אילו עסקאות נכללות בשורה זו')
     return `
       <div class="budget-screen-row ${residualRowCls} ${cls}">
-        <span class="budget-screen-cat budget-screen-cat-link" role="link" tabindex="0"
-              onclick="${onClick}" title="${linkTitle}">${catIconHTML(c) || '📋'} ${c.name}${tag}</span>
-        <span class="budget-screen-actual-wrap" onclick="${onClick}" style="cursor:pointer">${actualCell}</span>
+        <span ${catAttrs}${linkTitle ? ` title="${linkTitle}"` : ''}>${catIconHTML(c) || '📋'} ${c.name}${tag}</span>
+        <span class="budget-screen-actual-wrap"${onClick ? ` onclick="${onClick}" style="cursor:pointer"` : ''}>${actualCell}</span>
         ${input}
         <div class="budget-screen-bar-track"><div class="budget-screen-bar-fill" style="width:${pct}%"></div></div>
-        ${carryNote}
       </div>`
   }
 
@@ -586,6 +555,16 @@ function _renderBudgetScreenTable(monthKey, readOnly) {
       residualTitle: 'סוכמת כל הכנסה ללא יעד תקציב משלה. לחיצה פותחת עורך כדי להוציא ידנית הכנסות שלא צריכות להיכלל',
     }
   )
+  const coIncRow = row(
+    _budgetCategoryProxy(CARRYOVER_INCOME_ID),
+    'income',
+    { residualRowCls: 'budget-carryover-row budget-carryover-income-row', noClick: true }
+  )
+  const coExpRow = row(
+    _budgetCategoryProxy(CARRYOVER_EXPENSE_ID),
+    'expense',
+    { residualRowCls: 'budget-carryover-row budget-carryover-expense-row', noClick: true }
+  )
 
   return `
     <div class="budget-screen-section">
@@ -595,6 +574,7 @@ function _renderBudgetScreenTable(monthKey, readOnly) {
       </div>
       <div class="budget-screen-table">
         ${expCats.map(c => row(c, 'expense')).join('')}
+        ${coExpRow}
         ${uRow}
       </div>
     </div>
@@ -605,6 +585,7 @@ function _renderBudgetScreenTable(monthKey, readOnly) {
       </div>
       <div class="budget-screen-table">
         ${incCats.map(c => row(c, 'income')).join('')}
+        ${coIncRow}
         ${oiRow}
       </div>
     </div>`
@@ -649,20 +630,8 @@ function onBudgetScreenChange(input) {
   if (!val || val <= 0) {
     deleteBudget(catId, monthKey)
   } else {
-    const existing = getBudgetsForMonth(monthKey).find(b => b.categoryId === catId && (b.type || 'expense') === type)
-    setBudget(catId, monthKey, val, type, existing ? existing.carryOver : false)
+    setBudget(catId, monthKey, val, type)
   }
-  renderBudgetScreen()
-}
-
-// Flip whether THIS month's leftover (budget - actual, can be negative) for a
-// category rolls into next month's effective budget for the same category.
-// Only meaningful once a budget amount is set — there's nothing to carry from
-// an unset row.
-function toggleBudgetCarryOver(catId, monthKey, type) {
-  const existing = getBudgetsForMonth(monthKey).find(b => b.categoryId === catId && (b.type || 'expense') === type)
-  if (!existing || !(existing.amount > 0)) return
-  setBudget(catId, monthKey, existing.amount, type, !existing.carryOver)
   renderBudgetScreen()
 }
 
@@ -670,10 +639,36 @@ async function copyBudgetFromPrevMonth() {
   const monthKey = getBudgetScreenMonth()
   const [y, m] = monthKey.split('-').map(Number)
   const prev = _ym(new Date(y, m - 2, 1))
-  const source = getBudgetsForMonth(prev)
+  // Exclude carryover rows — they are month-specific and shouldn't be blindly copied.
+  const source = getBudgetsForMonth(prev).filter(b => !_isCarryover(b.categoryId))
   if (source.length === 0) { toast(`אין תקציב ב-${_budgetFormatMonth(prev)}`, { type: 'error' }); return }
   if (!await confirmDialog(`להעתיק ${source.length} ערכי תקציב מ-${_budgetFormatMonth(prev)} ל-${_budgetFormatMonth(monthKey)}? (דריסת ערכים קיימים)`, { confirmText: 'העתק' })) return
-  source.forEach(b => setBudget(b.categoryId, monthKey, b.amount, b.type || 'expense', !!b.carryOver))
+  source.forEach(b => setBudget(b.categoryId, monthKey, b.amount, b.type || 'expense'))
+  renderBudgetScreen()
+}
+
+// Computes the previous month's actual net (real income minus real expenses,
+// excluding carryover rows whose actual is always 0) and offers to fill it in
+// as a carryover planning row for the current budget month.
+async function importCarryoverFromPrevMonth() {
+  const monthKey = getBudgetScreenMonth()
+  const prev = _prevMonthKey(monthKey)
+  const { incActual, expActual } = computeBudgetTotals(prev)
+  // incActual / expActual from computeBudgetTotals exclude carryover rows (their actual=0).
+  const net = incActual - expActual
+  if (Math.abs(net) < 1) { toast(`אין יתרה מהותית ב-${_budgetFormatMonth(prev)}`, { type: 'info' }); return }
+  const sign = net > 0 ? 'חיובית' : 'שלילית'
+  const desc = net > 0
+    ? `יתרה חיובית של ${formatCurrencyPlain(net)} — תועבר כהכנסה מועברת.`
+    : `גירעון של ${formatCurrencyPlain(Math.abs(net))} — יועבר כגירעון מחודש קודם בהוצאות.`
+  if (!await confirmDialog(`${_budgetFormatMonth(prev)}: ${desc}`, { confirmText: 'העבר' })) return
+  if (net > 0) {
+    setBudget(CARRYOVER_INCOME_ID,  monthKey, net,          'income',  false)
+    deleteBudget(CARRYOVER_EXPENSE_ID, monthKey)
+  } else {
+    setBudget(CARRYOVER_EXPENSE_ID, monthKey, Math.abs(net), 'expense', false)
+    deleteBudget(CARRYOVER_INCOME_ID, monthKey)
+  }
   renderBudgetScreen()
 }
 
