@@ -10,6 +10,13 @@
 // modal that lists the contributing txs with a per-tx exclude toggle.
 // t.excludeFromBudget=true drops a tx from EVERY budget row it would feed
 // (its category row and the residual fallback).
+//
+// carryOver: when true on a row, that row's leftover (own budget - actual,
+// can be negative) rolls into next month's EFFECTIVE budget for the same
+// category (see _budgetCarryIn). This only changes the planning target shown
+// in the budget screen — it never touches a transaction's own month, so P&L
+// in the dashboard/analysis still attributes income/expense to the month the
+// transaction actually happened in.
 
 const UNFORESEEN_ID = '__unforeseen__'
 const UNFORESEEN_NAME = 'בלת״ם'
@@ -191,11 +198,46 @@ function computeBudgetStatus(monthKey) {
         ? catTxs.reduce((s,t)=>s+budgetIncomeAmount(t),0)
         : catTxs.reduce((s,t)=>s+budgetExpenseAmount(t, ctx),0)
     }
-    const budget = b.amount
+    const ownBudget = b.amount
+    const carryIn = _isResidual(b.categoryId) ? 0 : _budgetCarryIn(b.categoryId, type, monthKey)
+    const budget = ownBudget + carryIn
     const remaining = budget - actual
     const pct = budget > 0 ? (actual / budget) * 100 : 0
-    return { ...b, type, cat, budget, actual, remaining, pct, isResidual: _isResidual(b.categoryId) }
+    return { ...b, type, cat, ownBudget, carryIn, budget, actual, remaining, pct, isResidual: _isResidual(b.categoryId) }
   }).sort((a,b) => b.pct - a.pct)
+}
+
+// Previous calendar month's key, e.g. '2026-01' for '2026-02'.
+function _prevMonthKey(monthKey) {
+  const [y, m] = monthKey.split('-').map(Number)
+  return _ym(new Date(y, m - 2, 1))
+}
+
+// Actual for a single category in a month, independent of computeBudgetStatus
+// (which shares one ctx/tx-scan across all rows of ONE month). Used by
+// _budgetCarryIn to look at a *different* month than the one being rendered.
+function _budgetCategoryActual(categoryId, type, monthKey) {
+  const monthTxs = getTransactions().filter(t => getTxEffectiveMonth(t) === monthKey)
+  const catTxs = monthTxs.filter(t => t.categoryId === categoryId)
+  if (type === 'income') return catTxs.reduce((s, t) => s + budgetIncomeAmount(t), 0)
+  const ctx = _budgetMonthContext(monthTxs)
+  return catTxs.reduce((s, t) => s + budgetExpenseAmount(t, ctx), 0)
+}
+
+// Surplus/deficit rolled into `monthKey` from the previous month's row for the
+// same category, only when that previous row opted in via carryOver=true.
+// Recurses backward so a chain of carryOver months compounds (e.g. money set
+// aside across several months toward one big future expense). Depth-capped
+// against malformed data rather than relying on natural termination alone.
+function _budgetCarryIn(categoryId, type, monthKey, _depth = 0) {
+  if (_depth > 24) return 0
+  const prevKey = _prevMonthKey(monthKey)
+  const prevRow = getBudgetsForMonth(prevKey).find(b => b.categoryId === categoryId && (b.type || 'expense') === type)
+  if (!prevRow || !prevRow.carryOver) return 0
+  const prevCarryIn = _budgetCarryIn(categoryId, type, prevKey, _depth + 1)
+  const prevEffectiveBudget = prevRow.amount + prevCarryIn
+  const prevActual = _budgetCategoryActual(categoryId, type, prevKey)
+  return prevEffectiveBudget - prevActual
 }
 
 function _coveredCatSets(budgets) {
@@ -479,7 +521,8 @@ function _renderBudgetScreenTable(monthKey, readOnly) {
     const b = byKey[key]
     const status = rowByKey[key]
     const actual = status?.actual ?? 0
-    const budget = b?.amount ?? 0
+    const carryIn = status?.carryIn || 0
+    const budget = status?.budget ?? (b?.amount ?? 0)
     const rawPct = budget > 0 ? (actual / budget) * 100 : 0
     const pct = Math.min(100, rawPct)
     const isIncome = type === 'income'
@@ -490,17 +533,28 @@ function _renderBudgetScreenTable(monthKey, readOnly) {
     const actualCell = budget > 0 || actual > 0
       ? `<span class="budget-screen-actual ${actualCls}">${formatCurrency(actual)}</span>`
       : '<span class="budget-screen-actual" style="color:var(--text-muted)">—</span>'
+    const carryToggle = (!residual && !readOnly && b && b.amount > 0)
+      ? `<button type="button" class="budget-carry-toggle ${b.carryOver ? 'active' : ''}"
+           title="${b.carryOver ? 'יתרת חודש זה (אם תיוותר) תועבר לחודש הבא' : 'העבר יתרה לחודש הבא'}"
+           onclick="toggleBudgetCarryOver('${c.id}','${monthKey}','${type}')">↪</button>`
+      : ''
     const input = readOnly
       ? `<span class="budget-screen-budget">${budget > 0 ? formatCurrency(budget) : '—'}</span>`
-      : `<div class="budget-input-wrap">
-           <span class="budget-currency">₪</span>
-           <input type="number" min="0" step="10" value="${b?.amount || ''}" placeholder="0"
-             data-cat="${c.id}" data-type="${type}" data-month="${monthKey}"
-             class="budget-input" onchange="onBudgetScreenChange(this)">
+      : `<div class="budget-input-cell">
+           ${carryToggle}
+           <div class="budget-input-wrap">
+             <span class="budget-currency">₪</span>
+             <input type="number" min="0" step="10" value="${b?.amount || ''}" placeholder="0"
+               data-cat="${c.id}" data-type="${type}" data-month="${monthKey}"
+               class="budget-input" onchange="onBudgetScreenChange(this)">
+           </div>
          </div>`
     const onClick = `openBudgetRowModal('${c.id}','${monthKey}','${type}')`
     const tag = residualTag ? ` <span class="budget-unforeseen-tag" title="${residualTitle}">${residualTag}</span>` : ''
     const linkTitle = residual ? residualTitle : 'ערוך אילו עסקאות נכללות בשורה זו'
+    const carryNote = carryIn !== 0
+      ? `<div class="budget-carry-note">${carryIn > 0 ? '+' : ''}${formatCurrency(carryIn)} מועבר מהחודש הקודם · סה״כ ${formatCurrency(budget)}</div>`
+      : ''
     return `
       <div class="budget-screen-row ${residualRowCls} ${cls}">
         <span class="budget-screen-cat budget-screen-cat-link" role="link" tabindex="0"
@@ -508,6 +562,7 @@ function _renderBudgetScreenTable(monthKey, readOnly) {
         <span class="budget-screen-actual-wrap" onclick="${onClick}" style="cursor:pointer">${actualCell}</span>
         ${input}
         <div class="budget-screen-bar-track"><div class="budget-screen-bar-fill" style="width:${pct}%"></div></div>
+        ${carryNote}
       </div>`
   }
 
@@ -594,8 +649,20 @@ function onBudgetScreenChange(input) {
   if (!val || val <= 0) {
     deleteBudget(catId, monthKey)
   } else {
-    setBudget(catId, monthKey, val, type)
+    const existing = getBudgetsForMonth(monthKey).find(b => b.categoryId === catId && (b.type || 'expense') === type)
+    setBudget(catId, monthKey, val, type, existing ? existing.carryOver : false)
   }
+  renderBudgetScreen()
+}
+
+// Flip whether THIS month's leftover (budget - actual, can be negative) for a
+// category rolls into next month's effective budget for the same category.
+// Only meaningful once a budget amount is set — there's nothing to carry from
+// an unset row.
+function toggleBudgetCarryOver(catId, monthKey, type) {
+  const existing = getBudgetsForMonth(monthKey).find(b => b.categoryId === catId && (b.type || 'expense') === type)
+  if (!existing || !(existing.amount > 0)) return
+  setBudget(catId, monthKey, existing.amount, type, !existing.carryOver)
   renderBudgetScreen()
 }
 

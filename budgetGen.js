@@ -355,7 +355,8 @@ function applyBudgetProposals() {
   for (const p of _budgetGenProposals) {
     if (!p.include) continue
     if (!p.suggested || p.suggested <= 0) { deleteBudget(p.categoryId, target); continue }
-    setBudget(p.categoryId, target, p.suggested, p.type)
+    const existing = getBudgetsForMonth(target).find(b => b.categoryId === p.categoryId && (b.type || 'expense') === p.type)
+    setBudget(p.categoryId, target, p.suggested, p.type, existing ? existing.carryOver : false)
     applied++
   }
   closeBudgetGenModal()

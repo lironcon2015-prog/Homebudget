@@ -803,6 +803,11 @@ select option { background-color: #141417; color: var(--text-primary); }
 .budget-input-wrap { position: relative; width: 150px; }
 .budget-currency { position: absolute; right: .75rem; top: 50%; transform: translateY(-50%); color: var(--text-muted); pointer-events: none; font-size: .85rem; }
 .budget-input { padding-right: 1.75rem; text-align: left; direction: ltr; }
+.budget-input-cell { display: flex; align-items: center; gap: .35rem; justify-content: flex-end; }
+.budget-carry-toggle { flex: 0 0 auto; width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--border); background: none; color: var(--text-secondary); opacity: .45; cursor: pointer; font-size: .9rem; display: flex; align-items: center; justify-content: center; transition: opacity .15s, background .15s, border-color .15s; }
+.budget-carry-toggle:hover { opacity: .8; }
+.budget-carry-toggle.active { opacity: 1; background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+.budget-carry-note { grid-column: 1 / -1; font-size: .72rem; color: var(--text-muted); margin-top: -.25rem; }
 
 /* ===== CASH FLOW STATEMENT ===== */
 .cf-row { display: flex; justify-content: space-between; padding: .65rem .25rem; border-bottom: 1px solid var(--border); font-size: .92rem; }
@@ -1092,6 +1097,8 @@ select option { background-color: #141417; color: var(--text-primary); }
   .budget-screen-list-head, .budget-screen-row { grid-template-columns: 1fr 1fr; gap: .5rem; }
   .budget-screen-list-head span:nth-child(3), .budget-screen-list-head span:nth-child(4) { display: none; }
   .budget-screen-row .budget-input-wrap { grid-column: 1 / -1; width: 100%; }
+  .budget-screen-row .budget-input-cell { grid-column: 1 / -1; width: 100%; }
+  .budget-screen-row .budget-input-cell .budget-input-wrap { flex: 1; }
   .budget-screen-row .budget-screen-bar-track { grid-column: 1 / -1; }
 }
 
@@ -1422,6 +1429,7 @@ select option { background-color: #141417; color: var(--text-primary); }
   .budget-screen-row > .budget-screen-cat { grid-area: name; }
   .budget-screen-row > .budget-screen-bar-track { grid-area: bar; }
   .budget-screen-row > .budget-input-wrap { grid-area: input; width: 100%; }
+  .budget-screen-row > .budget-input-cell { grid-area: input; width: 100%; }
   .budget-actions { gap: .4rem; }
   .budget-actions .btn-primary,
   .budget-actions .btn-ghost,
