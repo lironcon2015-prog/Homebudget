@@ -1,5 +1,6 @@
 let _parsedTx = []
 let _importFileName = ''
+let _importAccountId = ''
 
 function initImport() {
   resetImport()
@@ -12,6 +13,7 @@ function initImport() {
 
 function resetImport() {
   _parsedTx = []
+  _importAccountId = ''
   ;['importStep2','importStep3','importStep4','importStepError'].forEach(id => {
     const el = document.getElementById(id)
     if (el) el.style.display = 'none'
@@ -165,6 +167,7 @@ async function parseWithGemini(file, accountId, apiKey) {
 }
 
 function _finalizeParsedTransactions(parsed, accountId) {
+  _importAccountId = accountId
   const cats = getCategories()
   const matchCategory = (t) => {
     const catName = (t.category || '').trim()
@@ -383,6 +386,14 @@ function _finalizeParsedTransactions(parsed, accountId) {
   showImportReview()
 }
 
+function _overrideBillingMonth(i, monthVal) {
+  if (!monthVal || !_parsedTx[i]) return
+  const acc = getAccounts().find(a => a.id === _parsedTx[i]._accountId)
+  const billingDay = acc?.billingDay || 10
+  _parsedTx[i].chargeDate = `${monthVal}-${String(billingDay).padStart(2, '0')}`
+  showImportReview()
+}
+
 function showImportReview() {
   const toImport = _parsedTx.filter(t => t._keep).length
   const dups = _parsedTx.filter(t => t._duplicate).length
@@ -406,6 +417,8 @@ function showImportReview() {
   const typeLabel = tp => ({ income:'הכנסה', expense:'הוצאה', transfer:'העברה', refund:'החזר' }[tp] || tp)
   const typeCls = tp => ({ income:'type-income', expense:'type-expense', transfer:'type-transfer', refund:'type-refund' }[tp] || 'type-expense')
   const accs = getAccounts()
+  const importAcc = accs.find(a => a.id === _importAccountId)
+  const showBillingMonth = importAcc?.type === 'credit_card'
   const rows = _parsedTx.map((t, i) => {
     const cat = cats.find(c => c.id === t._categoryId)
     const ccNote = t._matchAccountName ? `<div style="font-size:.72rem;color:var(--accent);margin-top:.15rem">→ ${t._matchAccountName}</div>` : ''
@@ -423,6 +436,18 @@ function showImportReview() {
         ? '<span style="color:#f59e0b">ייתכן כפיל</span>'
         : typeLabel(t.type)
     const badgeCls = (t._duplicate || t._maybeDuplicate) ? '' : typeCls(t.type)
+    let billingMonthCell = ''
+    if (showBillingMonth) {
+      const effMonth = (typeof getTxEffectiveMonth === 'function')
+        ? getTxEffectiveMonth({ date: t.date, chargeDate: t.chargeDate, accountId: t._accountId })
+        : (t.date || '').slice(0, 7)
+      const isOverridden = !!t.chargeDate
+      billingMonthCell = `<td>
+        <input type="month" value="${effMonth}" title="חודש חיוב${isOverridden ? ' (עודכן ידנית)' : ''}"
+          class="import-billing-month-input${isOverridden ? ' import-billing-month-overridden' : ''}"
+          onchange="_overrideBillingMonth(${i},this.value)">
+      </td>`
+    }
     return `
     <tr style="opacity:${rowOpacity};${rowBg}">
       <td><input type="checkbox" ${t._keep?'checked':''}
@@ -434,10 +459,11 @@ function showImportReview() {
       <td style="font-weight:700;color:${t.amount>0?'var(--income)':'var(--expense)'}">${t.amount>0?'+':''}${formatCurrency(t.amount)}</td>
       <td>${cat ? `<span style="font-size:.8rem">${catIconHTML(cat)} ${cat.name}</span>` : '<span style="color:var(--text-muted);font-size:.8rem">—</span>'}</td>
       <td><span class="${badgeCls?`type-badge ${badgeCls}`:''}">${badge}</span></td>
+      ${billingMonthCell}
     </tr>`}).join('')
 
   document.getElementById('importTable').innerHTML = `
-    <thead><tr><th>ייבא</th><th>תאריך</th><th>ספק</th><th>סכום</th><th>קטגוריה</th><th>סוג</th></tr></thead>
+    <thead><tr><th>ייבא</th><th>תאריך</th><th>ספק</th><th>סכום</th><th>קטגוריה</th><th>סוג</th>${showBillingMonth ? '<th>חודש חיוב</th>' : ''}</tr></thead>
     <tbody>${rows}</tbody>`
 
   document.getElementById('importStep3').style.display = 'block'

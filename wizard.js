@@ -56,7 +56,7 @@ function _guessColumnMapping(rows, headerRowIndex) {
   }
   // Charge date FIRST so a header literally named "תאריך חיוב" doesn't get
   // greedily eaten by the generic "תאריך" matcher below.
-  matchOne(['תאריך חיוב', 'מועד חיוב', 'charge date', 'billing date'], 'chargeDate')
+  matchOne(['תאריך חיוב', 'מועד חיוב', 'יום חיוב', 'charge date', 'billing date'], 'chargeDate')
   matchOne(['תאריך'], 'date')
   matchOne(['חובה', 'debit'], 'debit')
   matchOne(['זכות', 'credit'], 'credit')

@@ -637,6 +637,8 @@ select option { background-color: #141417; color: var(--text-primary); }
 .import-chip { background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: .65rem 1.1rem; }
 .import-chip .chip-label { font-size: .74rem; color: var(--text-muted); }
 .import-chip .chip-value { font-size: 1.3rem; font-weight: 700; margin-top: .1rem; }
+.import-billing-month-input { font-size: .78rem; padding: .15rem .3rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-surface); color: var(--text); width: 7.5rem; }
+.import-billing-month-overridden { border-color: var(--accent); background: rgba(var(--accent-rgb, 99,102,241),.08); }
 
 /* ===== SPINNER ===== */
 .spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; }

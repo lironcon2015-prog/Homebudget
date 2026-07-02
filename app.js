@@ -1,4 +1,4 @@
-const APP_VERSION = '1.32.1'
+const APP_VERSION = '1.32.2'
 
 // ===== STORAGE =====
 const DB = {
@@ -151,7 +151,7 @@ function getApiKey()      { return localStorage.getItem('geminiApiKey') || '' }
 const DEFAULT_PROMPT = `אתה מנתח דוחות בנק ישראלים. נתח את הקובץ והחזר JSON בלבד – ללא טקסט נוסף, ללא backticks.
 
 מערך עסקאות בפורמט:
-[{"date":"YYYY-MM-DD","amount":250.00,"vendor":"שם הספק","description":"תיאור מלא","type":"expense","category":"שם הקטגוריה"}]
+[{"date":"YYYY-MM-DD","amount":250.00,"vendor":"שם הספק","description":"תיאור מלא","type":"expense","category":"שם הקטגוריה","chargeDate":"YYYY-MM-DD"}]
 
 חוקים:
 - date: תאריך בפורמט YYYY-MM-DD
@@ -159,6 +159,7 @@ const DEFAULT_PROMPT = `אתה מנתח דוחות בנק ישראלים. נתח
 - type: income | expense | transfer | refund
 - vendor: שם נקי ללא מספרים מיותרים
 - description: העתק את שדה "פירוט" / "תיאור" מהקובץ במלואו (כולל ציוני "תשלום X מתוך Y", "הוראת קבע", ושמות נמענים בעסקאות ביט/פייבוקס)
+- chargeDate: אם בקובץ יש עמודה "תאריך חיוב" / "יום חיוב" / "מועד חיוב" – מלא אותה כאן בפורמט YYYY-MM-DD. אחרת – השמט את השדה לחלוטין
 - אל תכלול יתרות חשבון כעסקאות
 - חיובי כרטיס אשראי מרוכזים (ויזה, מסטרקארד, ישראכרט, כאל, אמקס, דיינרס, לאומי קארד, מקס) – סמן כ-transfer
 - מיין לפי תאריך עולה
