@@ -255,8 +255,19 @@ function _remapColumnsToHeader(baseColumns, headerRow, labels) {
 }
 
 function parseWithTemplate(rows, template) {
-  const { columns, headerRowIndex = 0, skipFooterRows = 0 } = template
+  let { columns, headerRowIndex = 0, skipFooterRows = 0 } = template
   const dataRows = rows.slice(headerRowIndex + 1, rows.length - (skipFooterRows || 0))
+
+  // If the saved template predates chargeDate support (or the user never mapped
+  // the column), auto-detect it from the header now so immediate-charge rows
+  // (where יום חיוב = purchase date) land in the right billing month without
+  // requiring the user to recreate or edit their template.
+  if (!columns.chargeDate) {
+    const _CD_PATS = ['תאריך חיוב', 'מועד חיוב', 'יום חיוב', 'charge date', 'billing date']
+    const hdr = rows[headerRowIndex] || []
+    const cdIdx = hdr.findIndex(c => _CD_PATS.some(p => _normHeaderCell(c).includes(p)))
+    if (cdIdx >= 0) columns = { ...columns, chargeDate: { index: cdIdx } }
+  }
 
   const labels = _templateFieldLabels(columns, rows[headerRowIndex] || [])
   let cur = columns  // active mapping; switches when a new section header appears
