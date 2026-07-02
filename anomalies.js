@@ -200,10 +200,28 @@ function ANOM_detect() {
   }
 
   // ---- NEW vendor (med) — first ever charge, within window ----
+  // Build a word-set from historical (pre-recent) raw vendor strings so we can
+  // catch alias-key-mismatch false positives: if Gemini parsed the vendor name
+  // slightly differently on an old import, the _txVendorKey differs but the raw
+  // name is similar — shared words in the raw string reveal the prior history.
+  const _histWords = new Set()
+  expenses.filter(x => x.date < recentCut).forEach(x => {
+    const norm = typeof normalizeVendorForAutocat === 'function'
+      ? normalizeVendorForAutocat(x.t.vendor)
+      : String(x.t.vendor || '').toLowerCase()
+    norm.split(' ').filter(w => w.length >= 3).forEach(w => _histWords.add(w))
+  })
+  const _vendorHasHistory = (rawVendor) => {
+    const norm = typeof normalizeVendorForAutocat === 'function'
+      ? normalizeVendorForAutocat(rawVendor)
+      : String(rawVendor || '').toLowerCase()
+    return norm.split(' ').filter(w => w.length >= 3).some(w => _histWords.has(w))
+  }
   for (const k of Object.keys(groups)) {
     const list = groups[k]
     const first = list[0]
     if (list.length >= 1 && first.date >= recentCut) {
+      if (_vendorHasHistory(first.t.vendor)) continue  // found prior history by raw name
       add({
         key: `new-vendor:${first.t.id}`, rule: 'new-vendor', severity: 'med', txId: first.t.id,
         vendor: vendorOf(first.t), amount: first.t.amount, date: first.date,
@@ -293,6 +311,44 @@ function ANOM_detect() {
     .slice(0, ANOM_CONFIG.maxShow)
 }
 
+// ===== AI double-check =====
+async function ANOM_askAI() {
+  const apiKey = (typeof getApiKey === 'function') ? getApiKey() : null
+  if (!apiKey) { if (typeof toast === 'function') toast('חסר מפתח Gemini API – הזן בהגדרות', { type: 'error' }); return }
+  const resultEl = document.getElementById('anomAIResult')
+  if (resultEl) resultEl.innerHTML = '<div class="anom-ai-loading">⏳ בודק עם AI…</div>'
+  const list = ANOM_detect()
+  if (!list.length) { if (resultEl) resultEl.innerHTML = ''; return }
+  const allTx = (typeof getTransactions === 'function') ? getTransactions() : []
+  // For each anomaly, collect the vendor's past transactions as context
+  const lines = list.slice(0, 20).map(a => {
+    const rawVendor = String(a.vendor || '').toLowerCase()
+    const history = allTx
+      .filter(t => t.date < a.date && String(t.vendor || '').toLowerCase().includes(rawVendor.split(' ')[0]))
+      .sort((x, y) => y.date.localeCompare(x.date))
+      .slice(0, 4)
+      .map(t => `    ${t.date}: ${t.amount > 0 ? '+' : ''}${t.amount} ₪`)
+      .join('\n')
+    return `• ${a.vendor} | ${a.date} | ${a.amount > 0 ? '+' : ''}${a.amount} ₪\n  חשד: ${a.title} — ${a.detail}${history ? '\n  היסטוריה:\n' + history : ' (אין היסטוריה)'}`
+  }).join('\n\n')
+  const prompt = `אתה מומחה לאבטחה פיננסית. להלן ${list.length > 20 ? 20 : list.length} עסקאות שסומנו כחשודות, עם היסטוריית הספק.
+בדוק כל עסקה ואמור: ✅ מוצדק / ⚠️ ייתכן / ❌ לא מוצדק — ופסקה קצרה מדוע.
+ענה בעברית, תמציתי.
+
+${lines}`
+  try {
+    const body = { contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.2, maxOutputTokens: 8192 } }
+    const data = await (typeof callGemini === 'function' ? callGemini(apiKey, body) : Promise.reject(new Error('callGemini not available')))
+    const allParts = data.candidates?.[0]?.content?.parts || []
+    let text = ''
+    for (const p of allParts) { if (!p.thought && p.text) { text = p.text; break } }
+    if (!text) text = allParts.filter(p => !p.thought).map(p => p.text || '').join('')
+    if (resultEl) resultEl.innerHTML = `<div class="anom-ai-result">${(typeof _insEsc === 'function' ? _insEsc(text) : text).replace(/\n/g, '<br>').replace(/✅|⚠️|❌/g, '<b>$&</b>')}</div>`
+  } catch (err) {
+    if (resultEl) resultEl.innerHTML = `<div class="anom-ai-error">שגיאת AI: ${err.message}</div>`
+  }
+}
+
 // ===== rendering =====
 // Anomaly keys/vendors can contain Hebrew/quotes that break inline onclick
 // strings, so render-time we map a safe idx ('r0','r1'…) → anomaly and the
@@ -323,7 +379,10 @@ function _anomSetMonth(dateIso) {
 
 function ANOM_goToTxVendor(vendor, dateIso) {
   _anomSetMonth(dateIso)
-  if (typeof txSetReturnContext === 'function') txSetReturnContext({ screen: 'dashboard', fromLabel: 'מעסקאות לבדיקה', label: vendor || '' })
+  if (typeof txSetReturnContext === 'function') txSetReturnContext({
+    fromLabel: 'עסקאות לבדיקה', label: vendor || '',
+    onBack: () => { if (typeof navigate === 'function') navigate('dashboard'); ANOM_openReview() },
+  })
   if (typeof navigate === 'function') navigate('transactions')
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v }
   set('txSearch', vendor || '')
@@ -335,7 +394,10 @@ function ANOM_goToTxVendor(vendor, dateIso) {
 
 function ANOM_goToTxCategory(catId, dateIso) {
   _anomSetMonth(dateIso)
-  if (typeof txSetReturnContext === 'function') txSetReturnContext({ screen: 'dashboard', fromLabel: 'מעסקאות לבדיקה' })
+  if (typeof txSetReturnContext === 'function') txSetReturnContext({
+    fromLabel: 'עסקאות לבדיקה',
+    onBack: () => { if (typeof navigate === 'function') navigate('dashboard'); ANOM_openReview() },
+  })
   if (typeof goToTransactionsByCategory === 'function') goToTransactionsByCategory(catId || '__none__')
   else if (typeof navigate === 'function') navigate('transactions')
 }
@@ -419,7 +481,11 @@ function ANOM_renderReviewBody() {
     <div class="ins-anom-fchips">${chips}</div>
     <div class="ins-anom-reviewtop">
       <span>${list.length} התראות</span>
-      <button class="btn-ghost" onclick="ANOM_dismissAllReview()">סמן הכל כתקין</button>
+      <div style="display:flex;gap:.5rem">
+        <button class="btn-ghost" onclick="ANOM_askAI()">🤖 בדוק עם AI</button>
+        <button class="btn-ghost" onclick="ANOM_dismissAllReview()">סמן הכל כתקין</button>
+      </div>
     </div>
+    <div id="anomAIResult"></div>
     ${list.map((a, i) => _anomRowHTML(a, 'v' + i)).join('')}`
 }

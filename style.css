@@ -216,6 +216,9 @@ html[data-privacy] .budget-input:focus {
 .bf-sub { font-size: .72rem; }
 .bf-badge { font-size: .65rem; font-weight: 700; padding: .05rem .35rem; border-radius: var(--r-pill); background: var(--income-bg); color: var(--income); }
 .ins-inbox-done { text-align: center; padding: 2rem; font-size: 1rem; }
+.anom-ai-loading { padding: .75rem 1rem; font-size: .88rem; color: var(--text-muted); }
+.anom-ai-result { margin: .5rem 0 1rem; padding: .85rem 1rem; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius); font-size: .85rem; line-height: 1.6; }
+.anom-ai-error { padding: .5rem 1rem; color: var(--expense); font-size: .83rem; }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { direction: rtl; font-size: 16px; }

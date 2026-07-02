@@ -52,6 +52,7 @@ function _insEscSafe(s) { return (typeof _insEsc === 'function') ? _insEsc(s) : 
 function txBack() {
   const c = _txBackContext; _txBackContext = null
   const s = document.getElementById('txSearch'); if (s) s.value = ''
+  if (c && typeof c.onBack === 'function') { c.onBack(); return }
   if (typeof navigate === 'function') navigate(c && c.screen ? c.screen : 'dashboard')
 }
 
