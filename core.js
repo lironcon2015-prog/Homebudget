@@ -239,7 +239,10 @@ function _dmyToIso(s) {
   let [_, dd, mm, yy] = m
   if (yy.length === 2) yy = (parseInt(yy, 10) >= 70 ? '19' : '20') + yy
   dd = dd.padStart(2, '0'); mm = mm.padStart(2, '0')
-  if (parseInt(mm, 10) > 12 || parseInt(dd, 10) > 31) return ''
+  const mN = parseInt(mm, 10), dN = parseInt(dd, 10)
+  if (mN < 1 || mN > 12 || dN < 1) return ''
+  // Reject day overflow for the actual month (e.g. 31/02, 31/04).
+  if (dN > new Date(parseInt(yy, 10), mN, 0).getDate()) return ''
   return `${yy}-${mm}-${dd}`
 }
 
@@ -804,6 +807,12 @@ function deleteVendorAlias(id) {
 function parseAliasAmountRange(str) {
   const s = String(str || '').trim()
   if (!s) return { amountMin: null, amountMax: null }
+  // Leading '-' with no further dash = open-ended max ("-200" → up to 200).
+  // Amounts are matched by absolute value, so a negative bound is meaningless.
+  if (s[0] === '-' && s.indexOf('-', 1) < 0) {
+    const b = _normalizeAliasAmount(s.slice(1))
+    return { amountMin: null, amountMax: b }
+  }
   if (s.includes('-')) {
     // Don't split on a leading minus (negative bound) — we only want range
     // separators. Find the first '-' that ISN'T at position 0.

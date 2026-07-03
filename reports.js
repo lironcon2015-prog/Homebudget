@@ -24,16 +24,25 @@ function _reportData() {
   const hiddenSavings = sumHiddenSavings(tx)
   const capitalIncome = sumCapitalIncome(tx)
 
+  // Category breakdown uses the canonical analysis scope (analysisExpenseAmount):
+  // CC detail rows count under their categories, and a card's lump payment is
+  // dropped only when that card has itemized detail in the period. The old
+  // countedExpenseAmount + drop-every-linked-lump combination silently lost
+  // lump amounts for cards without detail from the breakdown.
+  const savingsInvestIds = analysisExpenseSavingsInvestIds()
+  const ccAccsWithDetail = ccAccountsWithDetail(tx)
+  let expBreakdownTotal = 0
   const expByCat = {}
   const incByCat = {}
   for (const t of tx) {
-    const ce = countedExpenseAmount(t)
-    if (ce > 0 && !t.ccPaymentForAccountId) {
+    const ce = analysisExpenseAmount(t, savingsInvestIds, ccAccsWithDetail)
+    if (ce > 0) {
       const c = getCategoryById(t.categoryId)
       const k = c ? c.id : '__none__'
       if (!expByCat[k]) expByCat[k] = { id: k, name: c ? c.name : 'לא מסווג', total: 0, count: 0 }
       expByCat[k].total += ce
       expByCat[k].count++
+      expBreakdownTotal += ce
     }
     if (isCountedIncome(t)) {
       const c = getCategoryById(t.categoryId)
@@ -55,6 +64,7 @@ function _reportData() {
   return {
     period, tx,
     income, expenses, net: income - expenses, hiddenSavings, capitalIncome,
+    expBreakdownTotal,
     expRows: Object.values(expByCat).sort((a, b) => b.total - a.total),
     incRows: Object.values(incByCat).sort((a, b) => b.total - a.total),
     monthly,
@@ -113,7 +123,7 @@ function printReport() {
   const generated = new Date().toLocaleDateString('he-IL')
 
   const expRowsHTML = d.expRows.map(r =>
-    `<tr><td>${r.name}</td><td class="num">${f(r.total)}</td><td class="num">${pct(r.total, d.expenses)}</td><td class="num">${r.count}</td></tr>`).join('')
+    `<tr><td>${r.name}</td><td class="num">${f(r.total)}</td><td class="num">${pct(r.total, d.expBreakdownTotal)}</td><td class="num">${r.count}</td></tr>`).join('')
   const incRowsHTML = d.incRows.map(r =>
     `<tr><td>${r.name}</td><td class="num">${f(r.total)}</td><td class="num">${pct(r.total, d.income)}</td><td class="num">${r.count}</td></tr>`).join('')
   const plRowsHTML = d.monthly.map(m =>

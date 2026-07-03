@@ -132,7 +132,7 @@ function _renderWizard() {
   const nameRow = `
     <div class="form-row">
       <label class="form-label">שם התבנית</label>
-      <input type="text" id="tplName" value="${name}" oninput="_wizardState.name=this.value">
+      <input type="text" id="tplName" value="${(typeof escAttr === 'function' ? escAttr(name) : name)}" oninput="_wizardState.name=this.value">
     </div>
     <div class="form-row">
       <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer">

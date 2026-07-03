@@ -11,9 +11,9 @@ function _richAmount(dispAmt) {
 }
 
 // Bulk-select mode: when on, each row gets a checkbox and a toolbar lets
-// the user merge them into a manual recurring group. Tx that already
-// belong to a manual group (`recurringGroupId`) are HIDDEN from the list
-// — they live only in the recurring screen as part of that group.
+// the user merge them into a manual recurring group. Tx that belong to a
+// manual group (`recurringGroupId`) STAY in the list (with a 🔗 chip) —
+// they only appear merged on the recurring screen.
 let _txSelectMode = false
 let _txSelected   = new Set()
 
@@ -197,9 +197,12 @@ function _getFiltered() {
         else if (t.categoryId !== category) return false
       }
       if (flowAcc) {
-        // Match either side of a transfer involving the selected non-liquid account
+        // Match either side of a flow involving the selected non-liquid account.
+        // Linked rows keep type='expense' (autoLinkTransfersByPattern), so the
+        // link fields must match regardless of type.
         const touches = t.accountId === flowAcc
-          || (t.type === 'transfer' && (t.transferAccountId === flowAcc || t.ccPaymentForAccountId === flowAcc))
+          || t.transferAccountId === flowAcc
+          || t.ccPaymentForAccountId === flowAcc
         if (!touches) return false
       }
       if (search) {

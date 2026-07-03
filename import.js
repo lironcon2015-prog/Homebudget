@@ -54,8 +54,7 @@ async function handleStructuredFile(file, accountId) {
     const maxTry = Math.min(rows.length, 15)
     let matched = null
     for (let i = 0; i < maxTry; i++) {
-      const sig = computeHeaderSignature(rows[i] || [])
-      const tpl = findTemplateForSignature(sig)
+      const tpl = findTemplateForHeaderRow(rows[i] || [])
       if (tpl) {
         // Template saved with a specific header row? Respect it.
         matched = { ...tpl, headerRowIndex: tpl.headerRowIndex ?? i }
@@ -376,9 +375,6 @@ function _finalizeParsedTransactions(parsed, accountId) {
       _maybeDuplicate: isMaybeDuplicate,
       _keep:           !isDuplicate && !isMaybeDuplicate,
       _accountId:      accountId,
-      _matchAccountId:   '',
-      _matchAccountName: '',
-      _matchAccountType: '',
     }
   })
 
@@ -421,7 +417,6 @@ function showImportReview() {
   const showBillingMonth = importAcc?.type === 'credit_card'
   const rows = _parsedTx.map((t, i) => {
     const cat = cats.find(c => c.id === t._categoryId)
-    const ccNote = t._matchAccountName ? `<div style="font-size:.72rem;color:var(--accent);margin-top:.15rem">→ ${t._matchAccountName}</div>` : ''
     const acc = accs.find(a => a.id === t._accountId)
     const txDay = t.date ? Number(t.date.split('-')[2]) : null
     const suspicious = acc && acc.type === 'credit_card' && txDay !== null && txDay === (acc.billingDay || 10)
@@ -455,7 +450,7 @@ function showImportReview() {
         ${t._duplicate?'title="עסקה שזוהתה ככפילות. סמן וי כדי לייבא בכל זאת"':''}
         style="width:auto;cursor:pointer"></td>
       <td>${formatDate(t.date)}${billingWarn}</td>
-      <td style="font-weight:500">${t.vendor}${ccNote}</td>
+      <td style="font-weight:500">${t.vendor}</td>
       <td style="font-weight:700;color:${t.amount>0?'var(--income)':'var(--expense)'}">${t.amount>0?'+':''}${formatCurrency(t.amount)}</td>
       <td>${cat ? `<span style="font-size:.8rem">${catIconHTML(cat)} ${cat.name}</span>` : '<span style="color:var(--text-muted);font-size:.8rem">—</span>'}</td>
       <td><span class="${badgeCls?`type-badge ${badgeCls}`:''}">${badge}</span></td>
@@ -538,12 +533,8 @@ function saveImport() {
     importBatch:      batchId,
     importedAt:       importedAt,
     createdAt:        importedAt,
-    transferAccountId: t._matchAccountId || undefined,
-    ccPaymentForAccountId: t._matchAccountType === 'credit_card' ? t._matchAccountId : undefined,
   }))
   DB.set('finTransactions', [...existing, ...newTx])
-  // New rows invalidate the recurring-pattern cache (TTL 24h otherwise).
-  localStorage.removeItem('finRecurring')
   document.getElementById('importStep3').style.display = 'none'
   document.getElementById('importStep4').style.display = 'block'
   document.getElementById('importDoneMsg').textContent = `${newTx.length} עסקאות נשמרו בהצלחה`

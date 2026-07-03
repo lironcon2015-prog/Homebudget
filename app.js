@@ -1,4 +1,4 @@
-const APP_VERSION = '1.32.4'
+const APP_VERSION = '1.32.5'
 
 // ===== STORAGE =====
 const DB = {
@@ -33,6 +33,12 @@ function formatDate(str) {
   return `${d}/${m}/${y}`
 }
 function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6) }
+
+// Escape a string for use inside a double-quoted HTML attribute. Without this,
+// vendors like 'חברה בע"מ' truncate the input value and corrupt data on save.
+function escAttr(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')
+}
 
 function _rawHash(str) {
   let h = 0
@@ -208,10 +214,12 @@ async function callGemini(apiKey, body) {
       `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
       { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
     )
-    const data = await res.json()
-    if (res.ok) return data
-    lastError = data.error?.message || 'שגיאת API'
-    const status = data.error?.status || ''
+    // Non-JSON error bodies (proxy/HTML 5xx) must not abort the cascade.
+    let data = null
+    try { data = await res.json() } catch {}
+    if (res.ok && data) return data
+    lastError = data?.error?.message || `שגיאת API (HTTP ${res.status})`
+    const status = data?.error?.status || ''
     const shouldFallback = res.status === 429 || res.status === 503
       || status === 'RESOURCE_EXHAUSTED' || status === 'UNAVAILABLE'
     if (!shouldFallback) throw new Error(lastError)
@@ -363,7 +371,7 @@ function openEditModal(id) {
   document.getElementById('editDeleteBtn').style.display = _editIsNew ? 'none' : 'inline-flex'
   document.getElementById('editModalBody').innerHTML = `
     <div class="modal-row"><label class="form-label">חשבון</label><select id="editAccount">${accOptions}</select></div>
-    <div class="modal-row"><label class="form-label">ספק</label><input id="editVendor" value="${tx.vendor || ''}"></div>
+    <div class="modal-row"><label class="form-label">ספק</label><input id="editVendor" value="${escAttr(tx.vendor || '')}"></div>
     <div class="modal-row"><label class="form-label">תאריך</label><input id="editDate" type="text" inputmode="numeric" maxlength="10" placeholder="dd/mm/yyyy" value="${_isoToDmy(tx.date)}" oninput="_onDateMaskInput(this)"></div>
     <div class="modal-row"><label class="form-label">סכום (חיובי=הכנסה)</label><input id="editAmount" type="number" step="0.01" value="${tx.amount}"></div>
     <div class="modal-row"><label class="form-label">סוג</label><select id="editType" onchange="_onEditTypeChange()">${typeOptions}</select></div>
@@ -400,7 +408,7 @@ function openEditModal(id) {
       </select>
       <div style="font-size:.72rem;color:var(--text-muted);margin-top:.3rem">סימון מעלה את העסקה (ואת שאר העסקאות מאותו ספק) למסך ההוצאות/הכנסות הקבועות גם כשהזיהוי האוטומטי לא תופס אותן.</div>
     </div>`}
-    <div class="modal-row"><label class="form-label">הערות</label><input id="editNotes" value="${tx.notes || ''}"></div>
+    <div class="modal-row"><label class="form-label">הערות</label><input id="editNotes" value="${escAttr(tx.notes || '')}"></div>
   `
   document.getElementById('editModal').classList.add('open')
 }
@@ -534,10 +542,11 @@ function saveEditModal() {
     else delete txs[idx].recurringFlag
     if (newType === 'transfer') {
       txs[idx].transferAccountId = destId || undefined
-      // keep existing ccPaymentForAccountId if destination matches
+      // ccPaymentForAccountId follows the destination: set when it's a CC,
+      // cleared otherwise (including when no destination was chosen).
       if (destId && getAccounts().find(a => a.id === destId)?.type === 'credit_card') {
         txs[idx].ccPaymentForAccountId = destId
-      } else if (destId) {
+      } else {
         txs[idx].ccPaymentForAccountId = undefined
       }
     } else {

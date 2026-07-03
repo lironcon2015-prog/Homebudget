@@ -394,3 +394,8 @@ html.m-ui .budget-screen-actual-wrap { flex: 0 0 auto; font-weight: 700; font-si
 html.m-ui .budget-input-wrap { flex: 0 0 auto; }
 html.m-ui .budget-input { width: 84px; }
 html.m-ui .budget-screen-bar-track { flex: 1 1 100%; height: 7px; border-radius: 5px; margin-top: .15rem; }
+
+/* Feedback dock inside the mobile topbar: neutralize the desktop absolute
+   positioning and collapse to icon-only buttons. */
+html.m-ui .m-topbar-actions .feedback-dock { position: static; }
+html.m-ui .m-topbar-actions .fb-label { display: none; }

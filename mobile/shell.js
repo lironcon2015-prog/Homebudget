@@ -80,10 +80,14 @@ function M_repaintSync() {
 }
 
 // Sticky top bar for a mobile screen: title + sync badge + right-side actions.
+// The באג/רעיון feedback dock rides here too — the M_* renderers replace each
+// screen's markup (no .page-header), so without this mobile users would have
+// no way to file feedback.
 function M_topbar(title, actionsHTML = '') {
+  const fbDock = (typeof FEEDBACK_DOCK_HTML !== 'undefined') ? FEEDBACK_DOCK_HTML : ''
   return `<header class="m-topbar">
     <h1 class="m-topbar-title">${title}</h1>
-    <div class="m-topbar-actions">${M_syncBadge()}${actionsHTML}</div>
+    <div class="m-topbar-actions">${fbDock}${M_syncBadge()}${actionsHTML}</div>
   </header>`
 }
 

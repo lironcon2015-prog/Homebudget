@@ -356,7 +356,10 @@ function _renderYoY(all, period) {
 
 function _renderCashFlowStatement(all, period) {
   const periodTx = filterByEffectivePeriod(all, period)
-  const dayBefore = _iso(new Date(new Date(period.start).getTime() - 86400000))
+  // Local-time date math — new Date('YYYY-MM-DD') parses as UTC midnight and
+  // can land on the wrong calendar day in negative-offset timezones.
+  const [psY, psM, psD] = period.start.split('-').map(Number)
+  const dayBefore = _iso(new Date(psY, psM - 1, psD - 1))
   // Use checking+cash balance only (reliable, mirrors imported bank data).
   const startBal = getCheckingCashBalance(dayBefore)
   const endBal   = getCheckingCashBalance(period.end)

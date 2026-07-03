@@ -663,10 +663,10 @@ async function importCarryoverFromPrevMonth() {
     : `גירעון של ${formatCurrencyPlain(Math.abs(net))} — יועבר כגירעון מחודש קודם בהוצאות.`
   if (!await confirmDialog(`${_budgetFormatMonth(prev)}: ${desc}`, { confirmText: 'העבר' })) return
   if (net > 0) {
-    setBudget(CARRYOVER_INCOME_ID,  monthKey, net,          'income',  false)
+    setBudget(CARRYOVER_INCOME_ID,  monthKey, net,          'income')
     deleteBudget(CARRYOVER_EXPENSE_ID, monthKey)
   } else {
-    setBudget(CARRYOVER_EXPENSE_ID, monthKey, Math.abs(net), 'expense', false)
+    setBudget(CARRYOVER_EXPENSE_ID, monthKey, Math.abs(net), 'expense')
     deleteBudget(CARRYOVER_INCOME_ID, monthKey)
   }
   renderBudgetScreen()

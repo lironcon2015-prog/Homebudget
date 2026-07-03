@@ -246,6 +246,7 @@ function _getManualFlagRecurring() {
       !t.recurringExcludeFromAuto &&
       t.type !== 'transfer' &&
       !t.ccPaymentForAccountId &&
+      !t.transferAccountId &&
       _txVendorKey(t) === key
     )
     if (same.length === 0) continue
@@ -502,6 +503,17 @@ function unmergeManualRecurringGroup(groupId) {
     if (t.recurringGroupId === groupId) { delete t.recurringGroupId; n++ }
   })
   if (n > 0) DB.set('finTransactions', txs)
+  // Scrub per-entry state keyed by the now-dead group key so it doesn't
+  // linger in storage (hidden flag, overrides, outlier toggle).
+  const gKey = 'mgroup:' + groupId
+  const hidden = getHiddenRecurring()
+  if (hidden.has(gKey)) { hidden.delete(gKey); setHiddenRecurring(hidden) }
+  const amtOv = getRecurringAmountOverrides()
+  if (gKey in amtOv) { delete amtOv[gKey]; setRecurringAmountOverrides(amtOv) }
+  const cadOv = getRecurringCadenceOverrides()
+  if (gKey in cadOv) { delete cadOv[gKey]; DB.set('finRecurringCadenceOverride', cadOv) }
+  const ign = getIgnoreOutliersSet()
+  if (ign.has(gKey)) { ign.delete(gKey); DB.set('finRecurringIgnoreOutliers', [...ign]) }
   return n
 }
 

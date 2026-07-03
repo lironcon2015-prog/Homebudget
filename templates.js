@@ -41,11 +41,28 @@ function _normHeaderCell(s) {
     .trim()
 }
 
-function computeHeaderSignature(headerRow) {
-  const joined = (headerRow || []).map(_normHeaderCell).join('|')
+function _hashHeaderJoined(joined) {
   let h = 0
   for (let i = 0; i < joined.length; i++) h = (Math.imul(31, h) + joined.charCodeAt(i)) | 0
   return Math.abs(h).toString(36)
+}
+
+function computeHeaderSignature(headerRow) {
+  return _hashHeaderJoined((headerRow || []).map(_normHeaderCell).join('|'))
+}
+
+// Legacy signature: versions where _normHeaderCell was accidentally shadowed by
+// the label normalizer (whitespace-collapse only, no lowercase/strip) hashed
+// headers with that weaker normalization. Templates saved then carry these
+// signatures, so matching tries both.
+function computeHeaderSignatureLegacy(headerRow) {
+  return _hashHeaderJoined((headerRow || []).map(_normHeaderLabel).join('|'))
+}
+
+// Match a template by header row, accepting either signature era.
+function findTemplateForHeaderRow(headerRow) {
+  return findTemplateForSignature(computeHeaderSignature(headerRow))
+    || findTemplateForSignature(computeHeaderSignatureLegacy(headerRow))
 }
 
 // ===== FILE → 2D array =====
@@ -206,12 +223,14 @@ function parseAmountValue(raw, opts = {}) {
 // the first. To stay robust we re-resolve column indices by matching each
 // section's header LABELS (taken from the primary header) whenever a new
 // header row appears mid-sheet.
-function _normHeaderCell(s) { return String(s ?? '').replace(/\s+/g, ' ').trim() }
+// NOTE: distinct from _normHeaderCell above — this one preserves case and
+// punctuation because section-header labels are matched by exact cell text.
+function _normHeaderLabel(s) { return String(s ?? '').replace(/\s+/g, ' ').trim() }
 
 // Build { field: label } from the template's mapped indices applied to the
 // primary header row — the labels we'll hunt for in later section headers.
 function _templateFieldLabels(columns, headerRow) {
-  const at = idx => (idx == null ? null : _normHeaderCell(headerRow[idx]) || null)
+  const at = idx => (idx == null ? null : _normHeaderLabel(headerRow[idx]) || null)
   return {
     date:        at(columns.date?.index),
     vendor:      at(columns.vendor?.index),
@@ -228,7 +247,7 @@ function _templateFieldLabels(columns, headerRow) {
 // date label — data rows hold a date VALUE there, never the label text.
 function _isSectionHeaderRow(row, labels) {
   if (!labels.date) return false
-  return row.some(c => _normHeaderCell(c) === labels.date)
+  return row.some(c => _normHeaderLabel(c) === labels.date)
 }
 
 // Re-resolve indices for this section by locating each field's label in its
@@ -236,7 +255,7 @@ function _isSectionHeaderRow(row, labels) {
 function _remapColumnsToHeader(baseColumns, headerRow, labels) {
   const find = label => {
     if (!label) return null
-    const i = headerRow.findIndex(c => _normHeaderCell(c) === label)
+    const i = headerRow.findIndex(c => _normHeaderLabel(c) === label)
     return i >= 0 ? i : null
   }
   const c = JSON.parse(JSON.stringify(baseColumns))
