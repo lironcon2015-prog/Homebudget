@@ -1,0 +1,29 @@
+{
+  "income": 8000,
+  "expenses": 1520,
+  "hiddenSavings": 500,
+  "balChk": 7480,
+  "balSav": 500,
+  "balCc": -75,
+  "balChkUpto": 380,
+  "flowSav": {
+    "deposited": 500,
+    "withdrawn": 0,
+    "net": 500
+  },
+  "byCat": {
+    "cat_food": 120,
+    "cat_invest_out": 500,
+    "cat_rest": 75
+  },
+  "liquidTrend": [
+    {
+      "month": "2026-06",
+      "balance": -595
+    },
+    {
+      "month": "2026-07",
+      "balance": 7405
+    }
+  ]
+}

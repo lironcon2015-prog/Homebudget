@@ -49,3 +49,10 @@ finance-app/
 - Gemini 2.5 Pro API – פרסינג ו-AI
 - Chart.js – גרפים
 - PWA – ניתן להתקנה על מובייל
+
+## בדיקות
+
+- **יחידה** (ללא תלויות, `node:test`): `node --test tests/*.test.mjs` — מכסה את ליבת החישובים (core/detect/templates).
+- **Smoke בדפדפן** (דורש `playwright-core` ו-Chromium): שרת מקומי על 8000 ואז `node tests/smoke.mjs`. הקובץ `tests/smoke-baseline.json` הוא snapshot התנהגותי — אם ערכי P&L/יתרות משתנים בכוונה, מחקו אותו כדי לחדש baseline.
+- CI מריץ את בדיקות היחידה על כל push‏ (`.github/workflows/tests.yml`).
+
