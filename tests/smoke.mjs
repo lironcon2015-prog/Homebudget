@@ -156,6 +156,45 @@ async function main() {
   })
   check('categorySource=manual after picker + shown in edit modal', prov.source === 'manual' && prov.shown, JSON.stringify(prov))
 
+  // ===== account basics edit reflects in balances/UI =====
+  const acctEdit = await page.evaluate(() => {
+    const accs = getAccounts()
+    const a = accs.find(x => x.id === 'acc1')
+    a.name = 'עו"ש חדש'
+    a.openingBalance = 2000
+    DB.set('finAccounts', accs)
+    invalidatePLCache(); invalidateAccountCache()
+    navigate('dashboard')
+    return { bal: getAccountBalance('acc1'), html: document.getElementById('dashAccounts').innerHTML }
+  })
+  check('account edit: opening balance shifts computed balance', acctEdit.bal === 2000 - 120 - 500 + 8000 - 900, String(acctEdit.bal))
+  check('account edit: new name rendered', acctEdit.html.includes('עו"ש חדש') || acctEdit.html.includes('עו&quot;ש חדש'))
+  await page.evaluate(() => {
+    const accs = getAccounts()
+    const a = accs.find(x => x.id === 'acc1')
+    a.name = 'עו"ש'; a.openingBalance = 1000
+    DB.set('finAccounts', accs); invalidatePLCache(); invalidateAccountCache()
+  })
+
+  // ===== orphaned-state cleanup =====
+  const cleanup = await page.evaluate(() => {
+    DB.set('finDismissedAnomalies', ['dup-month:GONE', 'dup-month:t1', 'category-spike:cat_food:2026-06'])
+    DB.set('finRecurringHidden', ['mgroup:deadgroup', 'somevendorkey'])
+    DB.set('finRecurringAmountOverride', { 'mgroup:deadgroup': { mode: 'manual', amount: -5 }, 'livekey': { mode: 'manual', amount: -9 } })
+    cleanupOrphanedStateKeys()
+    return {
+      dismissed: DB.get('finDismissedAnomalies', []),
+      hidden: DB.get('finRecurringHidden', []),
+      ov: Object.keys(DB.get('finRecurringAmountOverride', {})),
+    }
+  })
+  check('cleanup drops orphaned keys, keeps live ones',
+    JSON.stringify(cleanup.dismissed) === JSON.stringify(['dup-month:t1', 'category-spike:cat_food:2026-06'])
+    && JSON.stringify(cleanup.hidden) === JSON.stringify(['somevendorkey'])
+    && JSON.stringify(cleanup.ov) === JSON.stringify(['livekey']),
+    JSON.stringify(cleanup))
+  await page.evaluate(() => { DB.set('finDismissedAnomalies', []); DB.set('finRecurringHidden', []); DB.set('finRecurringAmountOverride', {}) })
+
   // ===== local snapshots: write → tamper → restore payload equals original =====
   const snapRes = await page.evaluate(async () => {
     const before = JSON.stringify(getTransactions())

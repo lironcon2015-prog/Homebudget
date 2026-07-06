@@ -104,9 +104,13 @@ function M_syncTypeChips() {
 // Mobile redraw — replaces desktop _drawTxTable via the mobile guard.
 function M_drawTxList() {
   const filtered = _getFiltered()
+  // Mirror-side rows flip sign when a single account is filtered — same
+  // perspective as the desktop summary (_txViewAmount).
+  const accountId = document.getElementById('txAccountFilter')?.value || ''
+  const viewAmt = t => (typeof _txViewAmount === 'function') ? _txViewAmount(t, accountId) : t.amount
   const nonTransfer = filtered.filter(t => t.type !== 'transfer')
-  const totalInc = nonTransfer.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0)
-  const totalExp = nonTransfer.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0)
+  const totalInc = nonTransfer.filter(t => viewAmt(t) > 0).reduce((s, t) => s + viewAmt(t), 0)
+  const totalExp = nonTransfer.filter(t => viewAmt(t) < 0).reduce((s, t) => s + Math.abs(viewAmt(t)), 0)
   const net = totalInc - totalExp
 
   const sum = document.getElementById('txSummary')

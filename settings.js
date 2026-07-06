@@ -534,6 +534,32 @@ async function editAccountBillingDay(id) {
   renderSettings()
 }
 
+// Edit the basics of an existing account. Type is deliberately NOT editable —
+// switching an account's type changes its P&L scope and would silently rewrite
+// history; that stays a delete-and-recreate decision.
+async function editAccountBasics(id) {
+  const accs = getAccounts()
+  const acc = accs.find(a => a.id === id)
+  if (!acc) return
+  const name = await promptDialog('שם החשבון:', { defaultValue: acc.name, title: 'עריכת חשבון' })
+  if (name === null) return
+  if (!name.trim()) { toast('שם החשבון חובה', { type: 'error' }); return }
+  const institution = await promptDialog('בנק / מוסד (ריק = ללא):', { defaultValue: acc.institution || '', title: 'עריכת חשבון' })
+  if (institution === null) return
+  const balRaw = await promptDialog('יתרת פתיחה (₪):', { defaultValue: String(acc.openingBalance ?? 0), title: 'עריכת חשבון' })
+  if (balRaw === null) return
+  const bal = parseFloat(String(balRaw).replace(/,/g, ''))
+  if (!isFinite(bal)) { toast('יתרת פתיחה לא תקינה', { type: 'error' }); return }
+  acc.name = name.trim()
+  acc.institution = institution.trim()
+  acc.openingBalance = bal
+  DB.set('finAccounts', accs)
+  invalidatePLCache()
+  invalidateAccountCache()
+  toast('החשבון עודכן', { type: 'success' })
+  renderSettings()
+}
+
 function runAutoLinkTransfers() {
   const n = autoLinkTransfersByPattern()
   toast(n === 0 ? 'לא נמצאו העברות חדשות להתאמה' : `זוהו וסומנו ${n} העברות לפי דפוסים`, { type: n === 0 ? 'info' : 'success' })
@@ -588,6 +614,7 @@ function renderAccountList() {
             <div class="list-item-sub">${TYPE[a.type]||a.type}${a.institution?' · '+escHtml(a.institution):''}${balLine}</div>
           </div>
           <div style="display:flex;gap:.4rem;align-items:center">
+            <button class="btn-ghost" style="font-size:.75rem;padding:.3rem .7rem" onclick="editAccountBasics('${a.id}')" title="עריכת שם / מוסד / יתרת פתיחה">✏️ ערוך</button>
             ${patternsBtn}
             ${billingDayBtn}
             <button class="list-item-del" onclick="deleteAccount('${a.id}')">🗑️</button>

@@ -1129,6 +1129,40 @@ function migrateRecurringCriteriaToAliases_v1() {
   if (migrated > 0) console.log(`Migration v1: moved ${migrated} recurring criteria into aliases`)
 }
 
+// One-shot per-boot maintenance: drop state keyed to entities that no longer
+// exist, so localStorage doesn't accumulate dead entries forever.
+//  - dismissed anomalies anchored to a deleted transaction
+//  - recurring hidden/override/outlier entries for unmerged (deleted) groups
+function cleanupOrphanedStateKeys() {
+  try {
+    const txIds = new Set(getTransactions().map(t => t.id))
+    const TX_RULES = new Set(['dup-month', 'dup-near', 'large-expense', 'recurring-spike',
+      'price-creep', 'vendor-spike', 'dormant', 'new-vendor'])
+    const dismissed = DB.get('finDismissedAnomalies', [])
+    const keptDismissed = dismissed.filter(k => {
+      const i = String(k).indexOf(':')
+      if (i < 0) return true
+      const rule = k.slice(0, i), rest = k.slice(i + 1)
+      return TX_RULES.has(rule) ? txIds.has(rest) : true
+    })
+    if (keptDismissed.length !== dismissed.length) DB.set('finDismissedAnomalies', keptDismissed)
+
+    const groupIds = new Set(DB.get('finManualRecurringGroups', []).map(g => g.id))
+    const liveGroupKey = k => !String(k).startsWith('mgroup:') || groupIds.has(String(k).slice(7))
+    const hidden = DB.get('finRecurringHidden', [])
+    const keptHidden = hidden.filter(liveGroupKey)
+    if (keptHidden.length !== hidden.length) DB.set('finRecurringHidden', keptHidden)
+    for (const key of ['finRecurringAmountOverride', 'finRecurringCadenceOverride']) {
+      const ov = DB.get(key, {})
+      const dead = Object.keys(ov).filter(k => !liveGroupKey(k))
+      if (dead.length) { dead.forEach(k => delete ov[k]); DB.set(key, ov) }
+    }
+    const ign = DB.get('finRecurringIgnoreOutliers', [])
+    const keptIgn = ign.filter(liveGroupKey)
+    if (keptIgn.length !== ign.length) DB.set('finRecurringIgnoreOutliers', keptIgn)
+  } catch (e) { console.error('orphan cleanup failed:', e) }
+}
+
 // ===== INIT =====
 document.addEventListener('DOMContentLoaded', () => {
   initDefaultData()
@@ -1148,6 +1182,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (typeof migrateExcludeFromUnforeseen_v1 === 'function') migrateExcludeFromUnforeseen_v1()
   if (typeof migrateManualGroupVendorKeys_v1 === 'function') migrateManualGroupVendorKeys_v1()
   if (typeof migrateCategoryIconsToSvg_v1 === 'function') migrateCategoryIconsToSvg_v1()
+  cleanupOrphanedStateKeys()
   window.addEventListener('hashchange', _onHashChange)
   const _initialScreen = location.hash.slice(1)
   navigate(SCREENS.includes(_initialScreen) ? _initialScreen : 'dashboard', true)
