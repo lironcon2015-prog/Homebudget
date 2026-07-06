@@ -162,7 +162,7 @@ function updatePropCost(idx, field, value) {
 
 function _propSetupCard(p, cats) {
   const catOpts = ['<option value="">— בחר קטגוריה —</option>']
-    .concat(cats.map(c => `<option value="${c.id}" ${p.mortgageCategoryId===c.id?'selected':''}>${catIconText(c)} ${c.name}</option>`))
+    .concat(cats.map(c => `<option value="${c.id}" ${p.mortgageCategoryId===c.id?'selected':''}>${catIconText(c)} ${escHtml(c.name)}</option>`))
     .join('')
     
   const costsHtml = (p.additionalCosts || []).map((c, i) => `
@@ -184,9 +184,9 @@ function _propSetupCard(p, cats) {
       </div>
       <div class="prop-setup-grid">
         <label class="form-row"><span class="form-label">שם הנכס</span>
-          <input type="text" value="${p.name||''}" oninput="onPropertyMetaChange('name', this.value)" class="form-input"></label>
+          <input type="text" value="${escAttr(p.name||'')}" oninput="onPropertyMetaChange('name', this.value)" class="form-input"></label>
         <label class="form-row"><span class="form-label">כתובת</span>
-          <input type="text" value="${p.address||''}" oninput="onPropertyMetaChange('address', this.value)" class="form-input" placeholder="עיר, רחוב, מספר"></label>
+          <input type="text" value="${escAttr(p.address||'')}" oninput="onPropertyMetaChange('address', this.value)" class="form-input" placeholder="עיר, רחוב, מספר"></label>
         <label class="form-row"><span class="form-label">מחיר חוזה מקורי</span>
           <input type="text" inputmode="numeric" value="${p.basePrice ? Number(p.basePrice).toLocaleString('en-US') : ''}" onfocus="this.value=this.value.replace(/,/g,'')" onblur="this.value=Number(this.value.replace(/,/g,'')||0).toLocaleString('en-US'); onPropertyMetaChange('basePrice', this.value.replace(/,/g,''))" class="form-input" style="direction:ltr;text-align:left" placeholder="0"></label>
         <label class="form-row"><span class="form-label">תאריך חתימה</span>
@@ -209,7 +209,7 @@ function _propSetupCard(p, cats) {
         </label>
         
         <label class="form-row" style="grid-column: 1 / -1"><span class="form-label">הערות כלליות לנכס</span>
-          <textarea rows="2" onchange="onPropertyMetaChange('notes', this.value)" class="form-input" placeholder="הערות לעצמך — קומה, מ״ר, חניות, מחסן…">${p.notes||''}</textarea></label>
+          <textarea rows="2" onchange="onPropertyMetaChange('notes', this.value)" class="form-input" placeholder="הערות לעצמך — קומה, מ״ר, חניות, מחסן…">${escHtml(p.notes||'')}</textarea></label>
       </div>
     </div>`
 }
@@ -372,7 +372,7 @@ function _propMortgageCard(t, mort, mortgageRemaining, monthsLeft, p) {
     ? `<div class="prop-summary-sub">~${Math.round(monthsLeft)} חודשים בקצב הנוכחי</div>`
     : ''
   const subline = cat
-    ? `מבוסס על קטגוריה: <b>${catIconHTML(cat)} ${cat.name}</b> + רישומים ידניים. לא כולל את תשלומי הרכישה למעלה.`
+    ? `מבוסס על קטגוריה: <b>${catIconHTML(cat)} ${escHtml(cat.name)}</b> + רישומים ידניים. לא כולל את תשלומי הרכישה למעלה.`
     : 'בחר קטגוריה למעלה כדי לשלב גם החזרים אוטומטיים ממסך ההוצאות. ניתן להזין רישומים ידניים בכל מקרה.'
   return `
     <div class="card">
@@ -504,7 +504,7 @@ function _renderMortgagePaidModal() {
         return `<tr>
           <td>${formatDate(x.date)}</td>
           <td>${srcBadge}</td>
-          <td>${x.vendor || x.notes || ''}</td>
+          <td>${escHtml(x.vendor || x.notes || '')}</td>
           <td style="text-align:end;font-weight:600">${formatCurrency(x.amount)}</td>
           <td>${delBtn}</td>
         </tr>`

@@ -123,9 +123,9 @@ function printReport() {
   const generated = new Date().toLocaleDateString('he-IL')
 
   const expRowsHTML = d.expRows.map(r =>
-    `<tr><td>${r.name}</td><td class="num">${f(r.total)}</td><td class="num">${pct(r.total, d.expBreakdownTotal)}</td><td class="num">${r.count}</td></tr>`).join('')
+    `<tr><td>${escHtml(r.name)}</td><td class="num">${f(r.total)}</td><td class="num">${pct(r.total, d.expBreakdownTotal)}</td><td class="num">${r.count}</td></tr>`).join('')
   const incRowsHTML = d.incRows.map(r =>
-    `<tr><td>${r.name}</td><td class="num">${f(r.total)}</td><td class="num">${pct(r.total, d.income)}</td><td class="num">${r.count}</td></tr>`).join('')
+    `<tr><td>${escHtml(r.name)}</td><td class="num">${f(r.total)}</td><td class="num">${pct(r.total, d.income)}</td><td class="num">${r.count}</td></tr>`).join('')
   const plRowsHTML = d.monthly.map(m =>
     `<tr><td>${m.month}</td><td class="num">${f(m.income)}</td><td class="num">${f(m.expense)}</td><td class="num">${f(m.net)}</td></tr>`).join('')
 

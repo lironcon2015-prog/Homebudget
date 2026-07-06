@@ -40,7 +40,7 @@ function renderReconcileAccountSelector() {
     return
   }
   const prev = sel.value
-  sel.innerHTML = accs.map(a => `<option value="${a.id}">${a.name}${a.institution?' – '+a.institution:''}</option>`).join('')
+  sel.innerHTML = accs.map(a => `<option value="${a.id}">${escHtml(a.name)}${a.institution?' – '+escHtml(a.institution):''}</option>`).join('')
   if (prev && accs.some(a => a.id === prev)) sel.value = prev
 }
 
@@ -257,8 +257,8 @@ function renderAliasList() {
       const dayRange    = formatAliasDayRange(a.dayMin, a.dayMax)
       return `
       <div class="rules-row" style="grid-template-columns:1fr 1.5fr auto auto auto">
-        <div class="rules-pattern" style="font-weight:600">${a.displayName}</div>
-        <div class="rules-cat">${(a.patterns || []).map(p => `<span class="vendor-raw-chip">${p}</span>`).join(' ')}</div>
+        <div class="rules-pattern" style="font-weight:600">${escHtml(a.displayName)}</div>
+        <div class="rules-cat">${(a.patterns || []).map(p => `<span class="vendor-raw-chip">${escHtml(p)}</span>`).join(' ')}</div>
         <div>${cell(amountRange)}</div>
         <div>${cell(dayRange)}</div>
         <div style="display:flex;gap:.4rem">
@@ -324,7 +324,7 @@ function renderRulesList() {
   const catSel = document.getElementById('ruleInputCategory')
   if (catSel) {
     const cats = getCategories().filter(c => c.type !== 'transfer')
-    catSel.innerHTML = cats.map(c => `<option value="${c.id}">${catIconText(c)} ${c.name}</option>`).join('')
+    catSel.innerHTML = cats.map(c => `<option value="${c.id}">${catIconText(c)} ${escHtml(c.name)}</option>`).join('')
   }
   const listEl = document.getElementById('rulesList')
   if (listEl) {
@@ -343,8 +343,8 @@ function renderRulesList() {
           const c = cats.find(x => x.id === r.categoryId)
           return `
             <div class="rules-row">
-              <div class="rules-pattern">${r.pattern}</div>
-              <div class="rules-cat">${c ? `${catIconHTML(c)} ${c.name}` : '(קטגוריה לא קיימת)'}</div>
+              <div class="rules-pattern">${escHtml(r.pattern)}</div>
+              <div class="rules-cat">${c ? `${catIconHTML(c)} ${escHtml(c.name)}` : '(קטגוריה לא קיימת)'}</div>
               <div><button class="btn-danger" onclick="removeRule('${r.id}')">מחק</button></div>
             </div>`
         }).join('')}
@@ -357,8 +357,8 @@ function renderRulesList() {
     defEl.innerHTML = DEFAULT_CATEGORY_RULES.map(r => {
       const c = cats.find(x => x.id === r.categoryId)
       return `<div class="rules-default-row">
-        <span class="rules-pattern">${r.patterns.join(' · ')}</span>
-        <span class="rules-cat">→ ${c ? `${catIconHTML(c)} ${c.name}` : r.categoryId}</span>
+        <span class="rules-pattern">${escHtml(r.patterns.join(' · '))}</span>
+        <span class="rules-cat">→ ${c ? `${catIconHTML(c)} ${escHtml(c.name)}` : r.categoryId}</span>
       </div>`
     }).join('')
   }
@@ -412,10 +412,10 @@ function renderTemplatesList() {
     return `
       <div class="template-row">
         <div class="template-main">
-          <div class="template-name">${t.name}</div>
-          <div class="template-meta">${headerPreview}</div>
+          <div class="template-name">${escHtml(t.name)}</div>
+          <div class="template-meta">${escHtml(headerPreview)}</div>
           <div class="template-meta">
-            ${acc ? `חשבון: ${acc.name} · ` : 'כל חשבון · '}
+            ${acc ? `חשבון: ${escHtml(acc.name)} · ` : 'כל חשבון · '}
             שימוש אחרון: ${lastUsed} ·
             סה"כ תנועות שחולצו: ${t.txCount || 0}
           </div>
@@ -579,8 +579,8 @@ function renderAccountList() {
         return `
         <div class="list-item">
           <div style="flex:1">
-            <div class="list-item-name">${a.name}</div>
-            <div class="list-item-sub">${TYPE[a.type]||a.type}${a.institution?' · '+a.institution:''}${balLine}</div>
+            <div class="list-item-name">${escHtml(a.name)}</div>
+            <div class="list-item-sub">${TYPE[a.type]||a.type}${a.institution?' · '+escHtml(a.institution):''}${balLine}</div>
           </div>
           <div style="display:flex;gap:.4rem;align-items:center">
             ${patternsBtn}
@@ -657,7 +657,7 @@ function renderCategoryList() {
           <div class="cat-chip" onclick="openCatEditModal('${c.id}')" style="cursor:pointer">
             <div class="cat-chip-left">
               <span class="cat-dot" style="background:${c.color}"></span>
-              ${catIconHTML(c)} ${c.name}${c.isSavings ? ' <span class="cat-savings-badge" title="חיסכון חבוי">🪙</span>' : ''}${c.isSavingsReduction ? ' <span class="cat-savings-badge" title="הכנסה הונית">📉</span>' : ''}
+              ${catIconHTML(c)} ${escHtml(c.name)}${c.isSavings ? ' <span class="cat-savings-badge" title="חיסכון חבוי">🪙</span>' : ''}${c.isSavingsReduction ? ' <span class="cat-savings-badge" title="הכנסה הונית">📉</span>' : ''}
             </div>
             <span class="cat-chip-edit">✏️</span>
           </div>`).join('')}
@@ -798,7 +798,7 @@ function renderImportBatches() {
     return `
     <div class="list-item" style="flex-wrap:wrap;gap:.5rem">
       <div style="flex:1;min-width:200px">
-        <div class="list-item-name">${b.file}</div>
+        <div class="list-item-name">${escHtml(b.file)}</div>
         <div class="list-item-sub">${date} · ${b.count} עסקאות · ${formatCurrency(b.total)}</div>
       </div>
       <button class="btn-danger" style="font-size:.8rem;padding:.35rem .75rem" onclick="deleteImportBatch('${batchId}')">מחק ייבוא</button>
@@ -877,9 +877,7 @@ async function resetGeminiModelsFromUI() {
   msg.style.color = 'var(--income)'
 }
 
-function _escHtml(s) {
-  return String(s == null ? '' : s).replace(/[<>&"']/g, c => ({ '<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;' }[c]))
-}
+function _escHtml(s) { return escHtml(s) }
 
 async function runGeminiModelsTest() {
   const key = getApiKey()

@@ -190,9 +190,9 @@ function renderFeedbackList() {
     return `
       <div class="fb-item ${x.status === 'done' ? 'fb-item-done' : ''}">
         <div class="fb-item-main">
-          <div class="fb-item-title">${isBug ? '🐞' : '💡'} ${x.title || '(ללא כותרת)'} ${syncBadge}</div>
-          ${x.text ? `<div class="fb-item-text">${x.text}</div>` : ''}
-          <div class="fb-item-meta">${x.screen} · גרסה ${x.appVersion || '—'} · ${fmt(x.createdAt)}</div>
+          <div class="fb-item-title">${isBug ? '🐞' : '💡'} ${escHtml(x.title || '(ללא כותרת)')} ${syncBadge}</div>
+          ${x.text ? `<div class="fb-item-text">${escHtml(x.text)}</div>` : ''}
+          <div class="fb-item-meta">${escHtml(x.screen)} · גרסה ${escHtml(x.appVersion || '—')} · ${fmt(x.createdAt)}</div>
         </div>
         <div class="fb-item-actions">
           <button class="btn-ghost" style="font-size:.75rem;padding:.3rem .6rem" onclick="toggleFeedbackStatus('${x.id}')">${x.status === 'done' ? 'פתח מחדש' : 'סמן כטופל'}</button>

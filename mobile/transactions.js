@@ -150,14 +150,14 @@ function M_txListRow(tx) {
   const cat = getCategoryById(tx.categoryId)
   const isNonCounted = tx.type === 'transfer' || tx.type === 'refund'
   const cls = isNonCounted ? 'm-muted' : (tx.amount > 0 ? 'pos' : 'neg')
-  const name = resolveVendor(tx.vendor, tx.amount, getTxAliasDay(tx)) || tx.description || '—'
+  const name = escHtml(resolveVendor(tx.vendor, tx.amount, getTxAliasDay(tx)) || tx.description || '—')
   const sign = tx.amount > 0 ? '+' : ''
   const avatar = (typeof UK_vendorAvatar === 'function') ? UK_vendorAvatar(tx, { size: 42 }) : `<div class="tx-avatar">📋</div>`
   return `<div class="m-tx-row" data-id="${tx.id}" onclick="openEditModal('${tx.id}')">
     ${checkbox}${avatar}
     <div class="m-tx-mid">
       <div class="m-tx-name">${name} ${badges}</div>
-      <div class="m-tx-sub" onclick="event.stopPropagation();openTxCategoryPicker('${tx.id}')">${formatDate(tx.date)} · ${cat ? cat.name + ' ▾' : '+ סווג'}</div>
+      <div class="m-tx-sub" onclick="event.stopPropagation();openTxCategoryPicker('${tx.id}')">${formatDate(tx.date)} · ${cat ? escHtml(cat.name) + ' ▾' : '+ סווג'}</div>
     </div>
     <div class="m-tx-amt ${cls}">${sign}${formatCurrency(tx.amount)}</div>
   </div>`

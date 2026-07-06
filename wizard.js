@@ -89,7 +89,7 @@ function _renderWizard() {
       <label class="form-label">שורת כותרות</label>
       <select id="tplHeaderRow" onchange="_wizardChangeHeaderRow(this.value)">
         ${rows.slice(0, Math.min(15, rows.length)).map((r, i) =>
-          `<option value="${i}" ${i===headerRowIndex?'selected':''}>שורה ${i+1} — ${r.slice(0,4).map(c => String(c??'').slice(0,18)).join(' | ')}</option>`
+          `<option value="${i}" ${i===headerRowIndex?'selected':''}>שורה ${i+1} — ${escHtml(r.slice(0,4).map(c => String(c??'').slice(0,18)).join(' | '))}</option>`
         ).join('')}
       </select>
     </div>`
@@ -98,7 +98,7 @@ function _renderWizard() {
     <div style="overflow-x:auto;margin:.75rem 0">
       <table class="tpl-map-table">
         <thead>
-          <tr>${header.map((h, i) => `<th>${String(h ?? '').slice(0,30) || `עמודה ${i+1}`}</th>`).join('')}</tr>
+          <tr>${header.map((h, i) => `<th>${escHtml(String(h ?? '').slice(0,30)) || `עמודה ${i+1}`}</th>`).join('')}</tr>
           <tr>${header.map((_, i) => `
             <th>
               <select class="tpl-role-select" data-col="${i}" onchange="_wizardChangeRole(${i}, this.value)">
@@ -107,7 +107,7 @@ function _renderWizard() {
             </th>`).join('')}</tr>
         </thead>
         <tbody>
-          ${preview.map(r => `<tr>${header.map((_, i) => `<td>${String(r?.[i] ?? '').slice(0,40)}</td>`).join('')}</tr>`).join('')}
+          ${preview.map(r => `<tr>${header.map((_, i) => `<td>${escHtml(String(r?.[i] ?? '').slice(0,40))}</td>`).join('')}</tr>`).join('')}
         </tbody>
       </table>
     </div>`
@@ -241,7 +241,7 @@ function _wizardRenderPreview() {
       ${sample.map(t => `
         <div class="tpl-preview-tx">
           <span>${t.date}</span>
-          <span style="font-weight:500">${t.vendor}</span>
+          <span style="font-weight:500">${escHtml(t.vendor)}</span>
           <span style="font-weight:700;color:${t.amount > 0 ? 'var(--income)' : 'var(--expense)'}">${t.amount > 0 ? '+' : ''}${t.amount}</span>
         </div>`).join('')}
     </div>`

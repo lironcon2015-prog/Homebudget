@@ -321,7 +321,8 @@ function UK_vendorAvatar(arg, opts = {}) {
     return `<div class="tx-avatar uk-avatar" style="width:${size}px;height:${size}px;background:${cat.color}22">${icon}</div>`
   }
   const color = _UK_hashColor(name)
-  return `<div class="tx-avatar uk-avatar uk-avatar-initials" style="width:${size}px;height:${size}px;background:${color}22;color:${color};font-size:${Math.round(size * 0.36)}px">${_UK_initials(name)}</div>`
+  const initials = (typeof escHtml === 'function') ? escHtml(_UK_initials(name)) : _UK_initials(name)
+  return `<div class="tx-avatar uk-avatar uk-avatar-initials" style="width:${size}px;height:${size}px;background:${color}22;color:${color};font-size:${Math.round(size * 0.36)}px">${initials}</div>`
 }
 
 // Sync chart palette to the active theme at load-time — runs before app.js's

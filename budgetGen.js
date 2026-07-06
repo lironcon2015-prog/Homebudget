@@ -255,7 +255,7 @@ function _renderBudgetGenModal() {
       '<div class="bgen-notes">' +
       p.recurringNotes.map(n => `
         <span class="bgen-note ${n.expectedThisMonth?'bgen-note-hot':''}" title="ממוצע ${formatCurrencyPlain(n.avgAmount)}">
-          ${n.vendor} · ${n.cadence}${n.expectedThisMonth?' · צפוי בחודש היעד':''}
+          ${escHtml(n.vendor)} · ${n.cadence}${n.expectedThisMonth?' · צפוי בחודש היעד':''}
         </span>`).join('') + '</div>'
     const outBadge = p.wasTrimmed ? '<span class="bgen-badge">חריג הוחרג</span>' : ''
     const prevLine = p.prevBudget != null
@@ -269,12 +269,12 @@ function _renderBudgetGenModal() {
       : ''
     const aiAdvice = _budgetGenAdvicePerCat[p.categoryId]
     const aiLine = aiAdvice
-      ? `<div class="bgen-ai-advice" title="המלצת AI">💡 ${aiAdvice}</div>`
+      ? `<div class="bgen-ai-advice" title="המלצת AI">💡 ${escHtml(aiAdvice)}</div>`
       : ''
     return `
       <tr>
         <td><input type="checkbox" onchange="_toggleBudgetProposal(${idx})" ${p.include?'checked':''}></td>
-        <td><span class="budget-cat-name">${catIconHTML(p.category)} ${p.category.name}</span>${notesHTML}${aiLine}</td>
+        <td><span class="budget-cat-name">${catIconHTML(p.category)} ${escHtml(p.category.name)}</span>${notesHTML}${aiLine}</td>
         <td class="bgen-months">${monthsCols}</td>
         <td class="bgen-stats">
           <div>חציון: ${formatCurrency(p.median)}</div>
@@ -316,7 +316,7 @@ function _renderBudgetGenModal() {
   const advice = _budgetGenAdvice ? `
     <div class="bgen-advice">
       <strong>💡 סיכום AI כללי</strong>
-      <div style="white-space:pre-wrap;margin-top:.5rem">${_budgetGenAdvice}</div>
+      <div style="white-space:pre-wrap;margin-top:.5rem">${escHtml(_budgetGenAdvice)}</div>
     </div>` : ''
 
   body.innerHTML = `

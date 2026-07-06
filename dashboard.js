@@ -140,8 +140,8 @@ function _renderAccountBalances() {
     return `
       <div class="account-balance-row">
         <div>
-          <div class="list-item-name">${a.name}</div>
-          <div class="list-item-sub">${TYPE[a.type]||a.type}${a.institution?' · '+a.institution:''}</div>
+          <div class="list-item-name">${escHtml(a.name)}</div>
+          <div class="list-item-sub">${TYPE[a.type]||a.type}${a.institution?' · '+escHtml(a.institution):''}</div>
         </div>
         <span class="bal-amt" style="font-weight:700;color:${color}">${formatCurrency(bal)}</span>
       </div>`
@@ -169,8 +169,8 @@ function _renderNonLiquidFlows(period) {
       ${rows.map(r => `
         <div class="nonliquid-flow-row">
           <div>
-            <div class="list-item-name">${r.acc.name}</div>
-            <div class="list-item-sub">${TYPE[r.acc.type]||r.acc.type}${r.acc.institution?' · '+r.acc.institution:''}</div>
+            <div class="list-item-name">${escHtml(r.acc.name)}</div>
+            <div class="list-item-sub">${TYPE[r.acc.type]||r.acc.type}${r.acc.institution?' · '+escHtml(r.acc.institution):''}</div>
           </div>
           <div class="nonliquid-flow-nums">
             <span class="income-color">+${formatCurrency(r.deposited)}</span>
@@ -257,7 +257,7 @@ function _renderCategoryBreakdown(periodTx, expenses) {
     : sorted.map(c => `
       <div class="cat-bar-item">
         <div class="cat-bar-header">
-          <span>${c.name}</span>
+          <span>${escHtml(c.name)}</span>
           <span style="color:var(--text-secondary)">${formatCurrency(c.total)}</span>
         </div>
         <div class="cat-bar-track">
@@ -289,8 +289,8 @@ function _renderRecentTx(all) {
           <div class="recent-tx-left">
             <div class="recent-tx-icon">${cat ? (catIconHTML(cat, 18) || '📋') : '📋'}</div>
             <div>
-              <div class="recent-tx-name">${resolveVendor(tx.vendor, tx.amount, getTxAliasDay(tx)) || tx.description || '—'}${badge}</div>
-              <div class="recent-tx-meta">${formatDate(tx.date)} · ${cat?.name || 'לא מסווג'}</div>
+              <div class="recent-tx-name">${escHtml(resolveVendor(tx.vendor, tx.amount, getTxAliasDay(tx)) || tx.description || '—')}${badge}</div>
+              <div class="recent-tx-meta">${formatDate(tx.date)} · ${escHtml(cat?.name || 'לא מסווג')}</div>
             </div>
           </div>
           <span style="font-weight:700;color:${amountColor}">

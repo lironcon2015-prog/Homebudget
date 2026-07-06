@@ -150,7 +150,7 @@ function M_dashCats(periodTx) {
     ? '<p class="m-empty-line">אין נתונים לתקופה</p>'
     : sorted.map(c => `
       <div class="m-catbar">
-        <div class="m-catbar-head"><span>${c.name}</span><span class="m-muted">${formatCurrency(c.total)}</span></div>
+        <div class="m-catbar-head"><span>${escHtml(c.name)}</span><span class="m-muted">${formatCurrency(c.total)}</span></div>
         <div class="m-catbar-track"><div class="m-catbar-fill" style="width:${total > 0 ? Math.round(c.total / total * 100) : 0}%;background:${c.color}"></div></div>
       </div>`).join('')
 }
@@ -164,7 +164,7 @@ function M_dashAccounts() {
   el.innerHTML = accs.map(a => {
     const bal = getAccountBalance(a.id)
     return `<div class="m-acct-row">
-      <div><div class="m-acct-name">${a.name}</div><div class="m-muted">${TYPE[a.type] || a.type}${a.institution ? ' · ' + a.institution : ''}</div></div>
+      <div><div class="m-acct-name">${escHtml(a.name)}</div><div class="m-muted">${TYPE[a.type] || a.type}${a.institution ? ' · ' + escHtml(a.institution) : ''}</div></div>
       <span class="${bal >= 0 ? 'pos' : 'neg'} m-acct-bal">${formatCurrency(bal)}</span>
     </div>`
   }).join('')
@@ -181,7 +181,7 @@ function M_dashNonLiquid(period) {
   el.innerHTML = M_sectionHead('תזרים חיסכון והשקעות', `<span class="${totalNet >= 0 ? 'pos' : 'neg'}">נטו ${formatCurrency(totalNet)}</span>`) + `
     <div class="m-card">${rows.map(r => `
       <div class="m-acct-row">
-        <div><div class="m-acct-name">${r.acc.name}</div><div class="m-muted">${TYPE[r.acc.type] || r.acc.type}</div></div>
+        <div><div class="m-acct-name">${escHtml(r.acc.name)}</div><div class="m-muted">${TYPE[r.acc.type] || r.acc.type}</div></div>
         <div class="m-flow-nums">
           <span class="pos">+${formatCurrency(r.deposited)}</span>
           <span class="neg">−${formatCurrency(r.withdrawn)}</span>
@@ -209,7 +209,7 @@ function M_txRow(tx, opts = {}) {
   const cat = getCategoryById(tx.categoryId)
   const isNonCounted = tx.type === 'transfer' || tx.type === 'refund'
   const cls = isNonCounted ? 'm-muted' : (tx.amount > 0 ? 'pos' : 'neg')
-  const name = resolveVendor(tx.vendor, tx.amount, getTxAliasDay(tx)) || tx.description || '—'
+  const name = escHtml(resolveVendor(tx.vendor, tx.amount, getTxAliasDay(tx)) || tx.description || '—')
   const sign = tx.amount > 0 ? '+' : ''
   const avatar = (typeof UK_vendorAvatar === 'function') ? UK_vendorAvatar(tx, { size: 40 })
     : `<div class="tx-avatar">${cat ? (catIconHTML(cat, 18) || '📋') : '📋'}</div>`
@@ -217,7 +217,7 @@ function M_txRow(tx, opts = {}) {
     ${avatar}
     <div class="m-tx-mid">
       <div class="m-tx-name">${name}</div>
-      <div class="m-tx-sub">${formatDate(tx.date)} · ${cat ? cat.name : 'לא מסווג'}</div>
+      <div class="m-tx-sub">${formatDate(tx.date)} · ${cat ? escHtml(cat.name) : 'לא מסווג'}</div>
     </div>
     <div class="m-tx-amt ${cls}">${sign}${formatCurrency(tx.amount)}</div>
   </div>`

@@ -146,7 +146,7 @@ function M_anVendors(periodTx) {
         const avatar = (typeof UK_vendorAvatar === 'function') ? UK_vendorAvatar(r.displayName, { size: 40 }) : '<div class="tx-avatar">🏷️</div>'
         return `<div class="m-tx-row" onclick="M_anOpenVendor('v${i}')">
           ${avatar}
-          <div class="m-tx-mid"><div class="m-tx-name">${r.displayName}</div><div class="m-tx-sub">${r.count} עסקאות</div></div>
+          <div class="m-tx-mid"><div class="m-tx-name">${escHtml(r.displayName)}</div><div class="m-tx-sub">${r.count} עסקאות</div></div>
           <div class="m-tx-amt neg">${formatCurrency(r.total)}</div>
         </div>`
       }).join('')

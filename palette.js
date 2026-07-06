@@ -23,7 +23,7 @@ function CP_open() {
 
 function CP_close() { if (_cpSheet) { _cpSheet.close(); _cpSheet = null } }
 
-function _cpEsc(s) { return String(s == null ? '' : s).replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c])) }
+function _cpEsc(s) { return escHtml(s) }
 
 function CP_render(q) {
   q = (q || '').trim()

@@ -469,7 +469,7 @@ function _openBudgetFilterSheet(monthKey, mode) {
         const good = mode === 'under' ? !isInc : isInc
         const cls = good ? 'income-color' : 'expense-color'
         return `<button class="bf-row" onclick="_budgetFilterGo('${r.categoryId}','${monthKey}')">
-          <span class="bf-cat">${catIconHTML(r.cat) || '📋'} ${r.cat.name}${isInc ? ' <span class="bf-badge">הכנסה</span>' : ''}</span>
+          <span class="bf-cat">${catIconHTML(r.cat) || '📋'} ${escHtml(r.cat.name)}${isInc ? ' <span class="bf-badge">הכנסה</span>' : ''}</span>
           <div class="bf-side">
             <span class="bf-nums"><span class="${cls}">${formatCurrency(r.actual)}</span> / ${formatCurrency(r.budget)}</span>
             <span class="bf-sub ${cls}">${Math.round(r.pct)}% · ${sub}</span>
@@ -528,7 +528,7 @@ function _renderBudgetScreenTable(monthKey, readOnly) {
     const linkTitle = noClick ? '' : (residual ? residualTitle : 'ערוך אילו עסקאות נכללות בשורה זו')
     return `
       <div class="budget-screen-row ${residualRowCls} ${cls}">
-        <span ${catAttrs}${linkTitle ? ` title="${linkTitle}"` : ''}>${catIconHTML(c) || '📋'} ${c.name}${tag}</span>
+        <span ${catAttrs}${linkTitle ? ` title="${linkTitle}"` : ''}>${catIconHTML(c) || '📋'} ${escHtml(c.name)}${tag}</span>
         <span class="budget-screen-actual-wrap"${onClick ? ` onclick="${onClick}" style="cursor:pointer"` : ''}>${actualCell}</span>
         ${input}
         <div class="budget-screen-bar-track"><div class="budget-screen-bar-fill" style="width:${pct}%"></div></div>
@@ -735,7 +735,7 @@ function _renderBudgetRowModal() {
 
   const lines = rows.map(({ tx, amount }) => {
     const c = tx.categoryId ? getCategoryById(tx.categoryId) : null
-    const catLbl = c ? `${catIconHTML(c) || '📋'} ${c.name}` : '<span style="color:var(--text-muted)">ללא קטגוריה</span>'
+    const catLbl = c ? `${catIconHTML(c) || '📋'} ${escHtml(c.name)}` : '<span style="color:var(--text-muted)">ללא קטגוריה</span>'
     const vendor = (typeof resolveVendor === 'function')
       ? (resolveVendor(tx.vendor, tx.amount, typeof getTxAliasDay === 'function' ? getTxAliasDay(tx) : null) || tx.vendor || '')
       : (tx.vendor || '')
@@ -744,7 +744,7 @@ function _renderBudgetRowModal() {
       <label class="unforeseen-row ${included ? '' : 'unforeseen-row-excluded'}">
         <input type="checkbox" ${included ? 'checked' : ''} onchange="_toggleBudgetRowTx('${tx.id}', this.checked)">
         <span class="unforeseen-row-date">${tx.date || ''}</span>
-        <span class="unforeseen-row-vendor">${vendor}</span>
+        <span class="unforeseen-row-vendor">${escHtml(vendor)}</span>
         <span class="unforeseen-row-cat">${catLbl}</span>
         <span class="unforeseen-row-amt ${amtCls}">${formatCurrency(amount)}</span>
       </label>`

@@ -118,7 +118,7 @@ function _buildTxCategoryFilter() {
   const cats = getCategories()
   const expCats = cats.filter(c => c.type === 'expense')
   const incCats = cats.filter(c => c.type === 'income')
-  const opt = c => `<option value="${c.id}" ${c.id===cur?'selected':''}>${catIconText(c)} ${c.name}</option>`
+  const opt = c => `<option value="${c.id}" ${c.id===cur?'selected':''}>${catIconText(c)} ${escHtml(c.name)}</option>`
   sel.innerHTML = `
     <option value="">כל הקטגוריות</option>
     <option value="__none__" ${cur==='__none__'?'selected':''}>— ללא קטגוריה —</option>
@@ -132,7 +132,7 @@ function _buildTxAccountFilter() {
   if (!sel) return
   const cur = sel.value
   sel.innerHTML = '<option value="">כל החשבונות</option>' +
-    accs.map(a => `<option value="${a.id}" ${a.id===cur?'selected':''}>${a.name}</option>`).join('')
+    accs.map(a => `<option value="${a.id}" ${a.id===cur?'selected':''}>${escHtml(a.name)}</option>`).join('')
 }
 
 function _buildTxFlowFilter() {
@@ -141,7 +141,7 @@ function _buildTxFlowFilter() {
   const nonLiquid = getAccounts().filter(a => !isLiquidAccount(a))
   const cur = sel.value
   sel.innerHTML = '<option value="">תזרים חיסכון/השקעות: הכל</option>' +
-    nonLiquid.map(a => `<option value="${a.id}" ${a.id===cur?'selected':''}>תזרים ל/מ ${a.name}</option>`).join('')
+    nonLiquid.map(a => `<option value="${a.id}" ${a.id===cur?'selected':''}>תזרים ל/מ ${escHtml(a.name)}</option>`).join('')
   sel.style.display = nonLiquid.length === 0 ? 'none' : ''
 }
 
@@ -253,7 +253,7 @@ function _drawTxTable() {
   if (categoryId && categoryId !== '__none__') {
     const cat = getCategoryById(categoryId)
     const catBal = net
-    const label = cat ? `${catIconHTML(cat)} ${cat.name}` : 'קטגוריה'
+    const label = cat ? `${catIconHTML(cat)} ${escHtml(cat.name)}` : 'קטגוריה'
     categoryBalanceInfo = `<span style="color:${catBal>=0?'var(--income)':'var(--expense)'};font-weight:600">יתרת ${label}: ${formatCurrency(catBal)}</span>`
   }
 
@@ -375,7 +375,7 @@ function _drawTxTable() {
             ? (() => {
                 const grp = getManualRecurringGroups().find(g => g.id === tx.recurringGroupId)
                 if (!grp) return ''
-                return `<span class="type-badge type-transfer" title="חלק מקבוצת קבועה: ${grp.label}" style="margin-inline-start:.3rem;cursor:pointer" onclick="event.stopPropagation();openRecurringDrill('mgroup:${grp.id}')">🔗 ${grp.label}</span>`
+                return `<span class="type-badge type-transfer" title="חלק מקבוצת קבועה: ${escAttr(grp.label)}" style="margin-inline-start:.3rem;cursor:pointer" onclick="event.stopPropagation();openRecurringDrill('mgroup:${grp.id}')">🔗 ${escHtml(grp.label)}</span>`
               })()
             : ''
           const selectCell = _txSelectMode
@@ -384,17 +384,17 @@ function _drawTxTable() {
           const avatarBg = cat ? cat.color + '22' : 'rgba(100,116,139,.15)'
           const avatarIcon = cat ? (catIconHTML(cat, 18) || '📋') : '📋'
           const catLabel = cat
-            ? `<span class="tx-vendor-cat cat-badge-clickable" onclick="event.stopPropagation();openTxCategoryPicker('${tx.id}')" title="שנה קטגוריה" style="color:${cat.color}">${catIconHTML(cat)} ${cat.name} ▾</span>`
+            ? `<span class="tx-vendor-cat cat-badge-clickable" onclick="event.stopPropagation();openTxCategoryPicker('${tx.id}')" title="שנה קטגוריה" style="color:${cat.color}">${catIconHTML(cat)} ${escHtml(cat.name)} ▾</span>`
             : `<span class="tx-vendor-cat cat-badge-clickable cat-badge-add" onclick="event.stopPropagation();openTxCategoryPicker('${tx.id}')" title="הוסף קטגוריה" style="color:var(--text-muted)">+ סווג</span>`
-          const vendorName = resolveVendor(tx.vendor, tx.amount, getTxAliasDay(tx)) || '—'
+          const vendorName = escHtml(resolveVendor(tx.vendor, tx.amount, getTxAliasDay(tx)) || '—')
           const descLine = tx.description && tx.description !== tx.vendor
-            ? `<div style="font-size:.72rem;color:var(--text-muted);margin-top:.1rem">${tx.description}</div>` : ''
+            ? `<div style="font-size:.72rem;color:var(--text-muted);margin-top:.1rem">${escHtml(tx.description)}</div>` : ''
           // Refund ↔ expense traceability.
           let refundLine = ''
           if (tx.refundForTxId && _txById[tx.refundForTxId]) {
             const e = _txById[tx.refundForTxId]
             const ev = resolveVendor(e.vendor, e.amount, getTxAliasDay(e)) || e.vendor || '—'
-            refundLine = `<div style="font-size:.72rem;color:var(--accent);margin-top:.1rem">↩ החזר עבור: ${ev}</div>`
+            refundLine = `<div style="font-size:.72rem;color:var(--accent);margin-top:.1rem">↩ החזר עבור: ${escHtml(ev)}</div>`
           } else if (_refundedByExpense[tx.id]) {
             refundLine = `<div style="font-size:.72rem;color:var(--income);margin-top:.1rem">↩ הוחזר ${formatCurrency(_refundedByExpense[tx.id])}</div>`
           }
@@ -415,7 +415,7 @@ function _drawTxTable() {
             <td class="${amountCls} tx-cell-amount">${_richAmount(dispAmt)}</td>
             <td class="tx-cell-sec">${typeBadge}</td>
             ${balCell}
-            <td class="tx-cell-sec" style="color:var(--text-muted);font-size:.8rem">${tx.notes||''}</td>
+            <td class="tx-cell-sec" style="color:var(--text-muted);font-size:.8rem">${escHtml(tx.notes||'')}</td>
             <td class="tx-cell-edit"><button class="edit-btn" onclick="openEditModal('${tx.id}')">✏️</button></td>
           </tr>`
         }).join('')}
@@ -490,7 +490,7 @@ function openTxCategoryPicker(txId, onPick) {
   const cats = getCategories()
   const expCats = cats.filter(c => c.type === 'expense')
   const incCats = cats.filter(c => c.type === 'income')
-  const btn = c => `<button class="cat-pick-btn" onclick="_txPickCat('${c.id}')" style="--cc:${c.color}">${catIconHTML(c)} <span>${c.name}</span></button>`
+  const btn = c => `<button class="cat-pick-btn" onclick="_txPickCat('${c.id}')" style="--cc:${c.color}">${catIconHTML(c)} <span>${escHtml(c.name)}</span></button>`
   const html = `
     <input id="catPickSearch" class="cat-pick-search" placeholder="חיפוש קטגוריה..." oninput="_filterCatPick(this.value)">
     <div class="cat-pick-grid" id="catPickGrid">

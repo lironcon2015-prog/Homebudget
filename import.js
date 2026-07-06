@@ -8,7 +8,7 @@ function initImport() {
   const sel = document.getElementById('importAccount')
   sel.innerHTML = accounts.length === 0
     ? '<option value="">אין חשבונות – צור חשבון בהגדרות</option>'
-    : accounts.map(a => `<option value="${a.id}">${a.name}${a.institution?' – '+a.institution:''}</option>`).join('')
+    : accounts.map(a => `<option value="${a.id}">${escHtml(a.name)}${a.institution?' – '+escHtml(a.institution):''}</option>`).join('')
 }
 
 function resetImport() {
@@ -450,9 +450,9 @@ function showImportReview() {
         ${t._duplicate?'title="עסקה שזוהתה ככפילות. סמן וי כדי לייבא בכל זאת"':''}
         style="width:auto;cursor:pointer"></td>
       <td>${formatDate(t.date)}${billingWarn}</td>
-      <td style="font-weight:500">${t.vendor}</td>
+      <td style="font-weight:500">${escHtml(t.vendor)}</td>
       <td style="font-weight:700;color:${t.amount>0?'var(--income)':'var(--expense)'}">${t.amount>0?'+':''}${formatCurrency(t.amount)}</td>
-      <td>${cat ? `<span style="font-size:.8rem">${catIconHTML(cat)} ${cat.name}</span>` : '<span style="color:var(--text-muted);font-size:.8rem">—</span>'}</td>
+      <td>${cat ? `<span style="font-size:.8rem">${catIconHTML(cat)} ${escHtml(cat.name)}</span>` : '<span style="color:var(--text-muted);font-size:.8rem">—</span>'}</td>
       <td><span class="${badgeCls?`type-badge ${badgeCls}`:''}">${badge}</span></td>
       ${billingMonthCell}
     </tr>`}).join('')
@@ -473,7 +473,7 @@ function _buildParseSummary() {
   const dates = txs.map(t => t.date).filter(Boolean).sort()
   const minDate = dates[0], maxDate = dates[dates.length - 1]
   const tplBadge = _lastTemplateName
-    ? `<span class="parse-summary-badge">תבנית: ${_lastTemplateName}</span>`
+    ? `<span class="parse-summary-badge">תבנית: ${escHtml(_lastTemplateName)}</span>`
     : `<span class="parse-summary-badge parse-summary-ai">AI</span>`
   const stats = _lastParseStats
   const skippedNote = stats && stats.skipped > 0

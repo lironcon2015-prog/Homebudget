@@ -71,7 +71,7 @@ function M_recRow(r, idx, isHidden) {
   return `<div class="m-tx-row ${isHidden ? 'm-rec-hidden' : ''}" data-idx="${idx}" onclick="openRecurringDrillByIdx('${idx}')">
     ${avatar}
     <div class="m-tx-mid">
-      <div class="m-tx-name">${r.vendor} ${badges}</div>
+      <div class="m-tx-name">${escHtml(r.vendor)} ${badges}</div>
       <div class="m-tx-sub">${r.cadenceLabel} · הבא ${formatDate(r.nextExpected)}${smoothNote}</div>
     </div>
     <div class="m-tx-amt ${cls}">${sign}${formatCurrency(r.smoothedMonthly)}</div>

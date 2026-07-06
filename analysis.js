@@ -174,7 +174,7 @@ function _expenseBreakdownRowHtml(r, totalForPct) {
   return `
     <div class="cat-bar-item cat-bar-clickable" onclick="goToTransactionsByCategory('${r.catId}')" title="לחץ כדי לראות עסקאות בקטגוריה זו">
       <div class="cat-bar-header">
-        <span>${r.name}</span>
+        <span>${escHtml(r.name)}</span>
         <span style="color:var(--expense);font-weight:600">${formatCurrency(r.total)}</span>
       </div>
       <div class="cat-bar-track">
@@ -241,7 +241,7 @@ function _renderIncomeBreakdown(periodTx, income) {
     : incRows.map(r => `
       <div class="cat-bar-item cat-bar-clickable" onclick="goToTransactionsByCategory('${r.catId}')" title="לחץ כדי לראות עסקאות בקטגוריה זו">
         <div class="cat-bar-header">
-          <span>${r.name}${r.isCapital ? ' <span class="cat-capital-badge" title="הכנסה הונית — מנוכה מאחוז החיסכון האמיתי">📉</span>' : ''}</span>
+          <span>${escHtml(r.name)}${r.isCapital ? ' <span class="cat-capital-badge" title="הכנסה הונית — מנוכה מאחוז החיסכון האמיתי">📉</span>' : ''}</span>
           <span style="color:var(--income);font-weight:600">${formatCurrency(r.total)}</span>
         </div>
         <div class="cat-bar-track">
@@ -450,7 +450,7 @@ function _renderTopVendors(periodTx) {
         <tbody>${rows.map((r, i) => {
           const aliased = r.rawVendors.size > 1 ? ` <span title="מאוחד מ-${r.rawVendors.size} שמות" style="font-size:.72rem;color:var(--text-muted)">🔗</span>` : ''
           return `<tr class="vendor-row">
-            <td style="font-weight:500" onclick="openVendorDrillByIdx('v${i}')" title="לחץ כדי לראות את כל העסקאות">${r.displayName}${aliased}</td>
+            <td style="font-weight:500" onclick="openVendorDrillByIdx('v${i}')" title="לחץ כדי לראות את כל העסקאות">${escHtml(r.displayName)}${aliased}</td>
             <td onclick="openVendorDrillByIdx('v${i}')">${r.count}</td>
             <td class="amount-exp" onclick="openVendorDrillByIdx('v${i}')">${formatCurrency(r.total)}</td>
             <td><button class="vendor-hide-btn" onclick="event.stopPropagation();hideTopVendorByIdx('v${i}')" title="הסתר מהרשימה">✕</button></td>
@@ -466,7 +466,7 @@ function _renderTopVendors(periodTx) {
       <div id="hiddenTopVendorsList" class="hidden-vendors-list">
         ${hiddenAll.map(r => `
           <div class="hidden-vendor-row">
-            <span class="hidden-vendor-name">${r.displayName}</span>
+            <span class="hidden-vendor-name">${escHtml(r.displayName)}</span>
             ${r.total > 0 ? `<span class="hidden-vendor-total amount-exp">${formatCurrency(r.total)}</span>` : '<span class="hidden-vendor-total" style="color:var(--text-muted);font-size:.75rem">—</span>'}
             <button class="btn-ghost hidden-vendor-restore" onclick="unhideTopVendor('${escapeAttr(r.displayName)}')" title="החזר לרשימה">↩ החזר</button>
           </div>`).join('')}
@@ -568,12 +568,12 @@ function _renderVendorDrill() {
         🔗 איחוד שמות ספקים
         ${existingAlias ? '<span class="vendor-alias-tag">קיים</span>' : ''}
       </div>
-      <div class="vendor-alias-sub">כל ביטוי (שורה אחת לכל אחד) שיימצא בשם הספק יוצג מעתה כ־"${displayName}". ההאחדה חלה מיידית על כל העסקאות הקיימות ועל כל ייבוא עתידי. ניתן להגביל את האיחוד לטווח סכומים — שימושי כשאותה מילת מפתח (למשל "העברה בנקאית") מציינת תשלומים שונים בסכומים שונים.</div>
+      <div class="vendor-alias-sub">כל ביטוי (שורה אחת לכל אחד) שיימצא בשם הספק יוצג מעתה כ־"${escHtml(displayName)}". ההאחדה חלה מיידית על כל העסקאות הקיימות ועל כל ייבוא עתידי. ניתן להגביל את האיחוד לטווח סכומים — שימושי כשאותה מילת מפתח (למשל "העברה בנקאית") מציינת תשלומים שונים בסכומים שונים.</div>
       <div class="vendor-alias-body">
         <label class="form-label">שם תצוגה</label>
         <input id="vendorAliasDisplayName" value="${(existingAlias?.displayName || displayName).replace(/"/g, '&quot;')}">
         <label class="form-label" style="margin-top:.6rem">ביטויים לזיהוי (שורה לכל אחד)</label>
-        <textarea id="vendorAliasPatterns" rows="3" placeholder="למשל:&#10;משיכת שיק 2500&#10;שיק שכירות">${(existingAlias?.patterns || rawNames).join('\n')}</textarea>
+        <textarea id="vendorAliasPatterns" rows="3" placeholder="למשל:&#10;משיכת שיק 2500&#10;שיק שכירות">${escHtml((existingAlias?.patterns || rawNames).join('\n'))}</textarea>
         <div style="display:flex;gap:.6rem;margin-top:.6rem;flex-wrap:wrap">
           <div style="flex:1;min-width:120px">
             <label class="form-label">סכום מינימום</label>
@@ -593,7 +593,7 @@ function _renderVendorDrill() {
     </div>`
 
   const rawList = rawNames.length > 1
-    ? `<div class="vendor-raw-list">נמצא תחת ${rawNames.length} שמות גולמיים: ${rawNames.map(r => `<span class="vendor-raw-chip">${r}</span>`).join(' ')}</div>`
+    ? `<div class="vendor-raw-list">נמצא תחת ${rawNames.length} שמות גולמיים: ${rawNames.map(r => `<span class="vendor-raw-chip">${escHtml(r)}</span>`).join(' ')}</div>`
     : ''
 
   const rows = filtered.length === 0
@@ -604,9 +604,9 @@ function _renderVendorDrill() {
         return `
           <tr>
             <td>${formatDate(t.date)}</td>
-            <td style="font-weight:500">${t.vendor || '—'}</td>
-            <td style="font-size:.78rem;color:var(--text-muted)">${acc?.name || '—'}</td>
-            <td>${cat ? `<span class="cat-badge" style="background:${cat.color}22;color:${cat.color}">${catIconHTML(cat)} ${cat.name}</span>` : '<span style="color:var(--text-muted)">—</span>'}</td>
+            <td style="font-weight:500">${escHtml(t.vendor || '—')}</td>
+            <td style="font-size:.78rem;color:var(--text-muted)">${escHtml(acc?.name || '—')}</td>
+            <td>${cat ? `<span class="cat-badge" style="background:${cat.color}22;color:${cat.color}">${catIconHTML(cat)} ${escHtml(cat.name)}</span>` : '<span style="color:var(--text-muted)">—</span>'}</td>
             <td class="${t.amount>0?'amount-inc':'amount-exp'}" style="font-weight:600">${t.amount>0?'+':''}${formatCurrency(t.amount)}</td>
           </tr>`
       }).join('')
@@ -825,7 +825,7 @@ function _renderChat(loading = false) {
   container.innerHTML = _chatMessages.map(m => `
     <div class="chat-msg ${m.role}">
       <div class="chat-avatar">${m.role==='user'?'👤':'🤖'}</div>
-      <div class="chat-bubble">${m.text}</div>
+      <div class="chat-bubble">${escHtml(m.text).replace(/\n/g, '<br>')}</div>
     </div>`).join('')
   if (loading) container.innerHTML += `
     <div class="chat-msg ai">

@@ -970,7 +970,7 @@ function renderRecurring() {
       : ''
     return `
       <tr class="recurring-row ${isHidden?'recurring-row-hidden':''}" onclick="openRecurringDrillByIdx('${idx}')">
-        <td class="rec-cell-main" style="font-weight:500">${r.vendor} ${sourceBadge}${installmentBadge}
+        <td class="rec-cell-main" style="font-weight:500">${escHtml(r.vendor)} ${sourceBadge}${installmentBadge}
           <div class="rec-meta-mobile"><span class="type-badge type-income">${r.cadenceLabel}</span><span>הבא: ${formatDate(r.nextExpected)}</span><span>${r.occurrences} מופעים</span></div>
         </td>
         <td class="rec-cell-sec"><span class="type-badge type-income">${r.cadenceLabel}</span></td>
@@ -1141,8 +1141,8 @@ function _renderDrillModal() {
         return `
           <tr style="${rowMuted}">
             <td>${formatDate(t.date)}${periodBadge}</td>
-            <td style="font-weight:500">${resolveVendor(t.vendor, t.amount, getTxAliasDay(t)) || '—'}</td>
-            <td>${cat ? `<span class="cat-badge" style="background:${cat.color}22;color:${cat.color}">${catIconHTML(cat)} ${cat.name}</span>` : '<span style="color:var(--text-muted)">—</span>'}</td>
+            <td style="font-weight:500">${escHtml(resolveVendor(t.vendor, t.amount, getTxAliasDay(t)) || '—')}</td>
+            <td>${cat ? `<span class="cat-badge" style="background:${cat.color}22;color:${cat.color}">${catIconHTML(cat)} ${escHtml(cat.name)}</span>` : '<span style="color:var(--text-muted)">—</span>'}</td>
             <td class="${t.amount>0?'amount-inc':'amount-exp'}" style="font-weight:600">${t.amount>0?'+':''}${formatCurrency(t.amount)}</td>
             <td style="min-width:9.5rem">
               <input type="month" value="${overrideYm}" onchange="setRecurringTxPeriodOverride('${t.id}', this.value)" style="font-size:.85rem;padding:.3rem .4rem;width:9rem">

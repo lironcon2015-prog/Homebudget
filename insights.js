@@ -2,7 +2,7 @@
 // Globals prefixed INS_. Loads after recurring.js (getAllRecurring) and
 // dashboard.js. All read-only over the existing data layer; never touches P&L.
 
-function _insEsc(s) { return String(s == null ? '' : s).replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c])) }
+function _insEsc(s) { return escHtml(s) }
 
 function INS_uncategorizedCount() {
   if (typeof getTransactions !== 'function') return 0

@@ -40,6 +40,15 @@ function escAttr(s) {
   return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')
 }
 
+// Escape a string for HTML text content. Use for EVERY interpolation of
+// input-controlled data (vendor, description, notes, file/template names,
+// account/category names, AI answers) into innerHTML. Bank exports and AI
+// output are untrusted input — a crafted vendor must render as text, never
+// execute.
+function escHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
+}
+
 function _rawHash(str) {
   let h = 0
   for (let i = 0; i < str.length; i++) h = (Math.imul(31, h) + str.charCodeAt(i)) | 0
@@ -356,15 +365,15 @@ function openEditModal(id) {
   _editRefundForTxId = tx.refundForTxId || null
   const cats = getCategories()
   const accs = getAccounts()
-  const catOptions = cats.map(c => `<option value="${c.id}" ${tx.categoryId === c.id ? 'selected' : ''}>${catIconText(c)} ${c.name}</option>`).join('')
-  const accOptions = accs.map(a => `<option value="${a.id}" ${tx.accountId === a.id ? 'selected' : ''}>${a.name}</option>`).join('')
+  const catOptions = cats.map(c => `<option value="${c.id}" ${tx.categoryId === c.id ? 'selected' : ''}>${catIconText(c)} ${escHtml(c.name)}</option>`).join('')
+  const accOptions = accs.map(a => `<option value="${a.id}" ${tx.accountId === a.id ? 'selected' : ''}>${escHtml(a.name)}</option>`).join('')
   const typeOptions = ['income','expense','transfer','refund'].map(tp => {
     const lbl = { income:'הכנסה', expense:'הוצאה', transfer:'העברה', refund:'החזר' }[tp]
     return `<option value="${tp}" ${tx.type===tp?'selected':''}>${lbl}</option>`
   }).join('')
   // destination account for transfers (excluding source)
   const destAccOptions = accs.filter(a => a.id !== tx.accountId).map(a =>
-    `<option value="${a.id}" ${tx.transferAccountId === a.id ? 'selected' : ''}>${a.name}</option>`).join('')
+    `<option value="${a.id}" ${tx.transferAccountId === a.id ? 'selected' : ''}>${escHtml(a.name)}</option>`).join('')
 
   const showDest = tx.type === 'transfer' ? 'block' : 'none'
   document.getElementById('editModalTitle').textContent = _editIsNew ? 'עסקה חדשה' : 'עריכת עסקה'
@@ -393,7 +402,7 @@ function openEditModal(id) {
       const grp = (typeof getManualRecurringGroups === 'function') ? getManualRecurringGroups().find(g => g.id === tx.recurringGroupId) : null
       const label = grp?.label || 'קבוצה ידנית'
       return `<div class="modal-row" style="background:var(--bg-elevated);padding:.6rem .8rem;border-radius:8px;font-size:.85rem">
-        🔗 חלק מקבוצת קבועה: <strong>${label}</strong>
+        🔗 חלק מקבוצת קבועה: <strong>${escHtml(label)}</strong>
         <div style="font-size:.72rem;color:var(--text-muted);margin-top:.3rem">הקבוצה אחראית על ה-cadence והאיחוד במסך הקבועות. כדי להוציא את העסקה — פרק את הקבוצה במסך הקבועות.</div>
         <input type="hidden" id="editRecurringFlag" value="${tx.recurringFlag || ''}">
       </div>`
@@ -428,7 +437,7 @@ function _refundLinkRowHTML() {
     if (e) {
       const v = (typeof resolveVendor === 'function') ? (resolveVendor(e.vendor, e.amount, getTxAliasDay(e)) || e.vendor) : e.vendor
       return `<div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
-        <span style="background:var(--bg-elevated);padding:.35rem .6rem;border-radius:8px;font-size:.85rem">↩ ${v} · ${formatCurrency(e.amount)} · ${formatDate(e.date)}</span>
+        <span style="background:var(--bg-elevated);padding:.35rem .6rem;border-radius:8px;font-size:.85rem">↩ ${escHtml(v)} · ${formatCurrency(e.amount)} · ${formatDate(e.date)}</span>
         <button type="button" class="btn-ghost" style="font-size:.8rem;padding:.3rem .6rem" onclick="openRefundPicker()">שנה</button>
         <button type="button" class="btn-ghost" style="font-size:.8rem;padding:.3rem .6rem;color:var(--expense)" onclick="unlinkRefund()">נתק</button>
       </div>`
@@ -448,7 +457,7 @@ function openRefundPicker() {
   const catSel = document.getElementById('refundPickCat')
   if (catSel) {
     catSel.innerHTML = '<option value="">כל הקטגוריות</option>' +
-      getCategories().filter(c => c.type === 'expense').map(c => `<option value="${c.id}">${catIconText(c)} ${c.name}</option>`).join('')
+      getCategories().filter(c => c.type === 'expense').map(c => `<option value="${c.id}">${catIconText(c)} ${escHtml(c.name)}</option>`).join('')
   }
   const s = document.getElementById('refundPickSearch'); if (s) s.value = ''
   renderRefundPickerList()
@@ -481,7 +490,7 @@ function renderRefundPickerList() {
     const cat = getCategoryById(t.categoryId)
     const v = resolveVendor(t.vendor, t.amount, getTxAliasDay(t)) || t.vendor || '—'
     return `<div class="refund-pick-row" onclick="selectRefundExpense('${t.id}')" style="display:flex;justify-content:space-between;align-items:center;gap:.6rem;padding:.55rem .7rem;border:1px solid var(--border);border-radius:8px;margin-bottom:.4rem;cursor:pointer">
-      <div style="min-width:0"><div style="font-weight:500">${v}</div><div style="font-size:.75rem;color:var(--text-muted)">${formatDate(t.date)}${cat ? ' · ' + cat.name : ''}</div></div>
+      <div style="min-width:0"><div style="font-weight:500">${escHtml(v)}</div><div style="font-size:.75rem;color:var(--text-muted)">${formatDate(t.date)}${cat ? ' · ' + escHtml(cat.name) : ''}</div></div>
       <span class="amount-exp" style="font-weight:600;white-space:nowrap">${formatCurrency(t.amount)}</span>
     </div>`
   }).join('')
