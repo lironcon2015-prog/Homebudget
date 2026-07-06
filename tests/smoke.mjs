@@ -145,6 +145,17 @@ async function main() {
   check('flow filter matches linked expense row', (await page.locator('#txTable').innerText()).includes('הפקדה לחיסכון'))
   await page.evaluate(() => { document.getElementById('txFlowFilter').value = ''; _drawTxTable() })
 
+  // ===== classification provenance =====
+  const prov = await page.evaluate(() => {
+    setTxCategory('t4', 'cat_leisure')
+    const t = getTransactions().find(x => x.id === 't4')
+    openEditModal('t4')
+    const modalHtml = document.getElementById('editModalBody').innerHTML
+    closeEditModal()
+    return { source: t.categorySource, shown: modalHtml.includes('מקור הסיווג') }
+  })
+  check('categorySource=manual after picker + shown in edit modal', prov.source === 'manual' && prov.shown, JSON.stringify(prov))
+
   // ===== local snapshots: write → tamper → restore payload equals original =====
   const snapRes = await page.evaluate(async () => {
     const before = JSON.stringify(getTransactions())

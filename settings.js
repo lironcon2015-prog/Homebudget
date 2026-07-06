@@ -395,7 +395,7 @@ function applyRulesToUncategorized() {
     if (t.categoryId) return
     if (t.type === 'transfer') return
     const cid = matchVendorToCategory(t.vendor, t.description)
-    if (cid) { t.categoryId = cid; changed++ }
+    if (cid) { t.categoryId = cid; t.categorySource = 'rule'; changed++ }
   })
   if (changed > 0) DB.set('finTransactions', txs)
   return changed

@@ -345,6 +345,9 @@ function _finalizeParsedTransactions(parsed, accountId) {
     const catFromName    = matchCategory(t)
     const catFromRules   = catFromName ? '' : matchVendorToCategory(t.vendor, t.description)
     const catFromAutocat = (catFromName || catFromRules) ? '' : suggestFromAutocat(t.vendor)
+    // A category NAME on the parsed row comes from the file column on
+    // template imports, and from the model on Gemini imports.
+    const catSource = catFromName ? (_lastTemplateName ? 'import' : 'ai') : catFromRules ? 'rule' : catFromAutocat ? 'autocat' : ''
     const { hash, legacyHash, looseHash } = hashTx(t, accountId)
     const newMonth = txMonth(t, accountId)
     const isDuplicate = consumeMatch(newMonth, hash, legacyHash)
@@ -368,6 +371,7 @@ function _finalizeParsedTransactions(parsed, accountId) {
       ...t,
       _installmentFinalMonth: installmentFinalMonth,
       _categoryId:     catFromName || catFromRules || catFromAutocat,
+      _categorySource: catSource,
       _hash:           hash,
       _legacyHash:     legacyHash,
       _looseHash:      looseHash,
@@ -511,6 +515,7 @@ function saveImport() {
     ...(t.chargeDate ? { chargeDate: t.chargeDate } : {}),
     type:             t.type,
     categoryId:       t._categoryId || '',
+    ...(t._categoryId && t._categorySource ? { categorySource: t._categorySource } : {}),
     notes:            (typeof buildAutoNotes === 'function') ? buildAutoNotes({
                         installmentCurrent: t.installmentCurrent,
                         installmentTotal:   t.installmentTotal,

@@ -384,7 +384,7 @@ function _drawTxTable() {
           const avatarBg = cat ? cat.color + '22' : 'rgba(100,116,139,.15)'
           const avatarIcon = cat ? (catIconHTML(cat, 18) || '📋') : '📋'
           const catLabel = cat
-            ? `<span class="tx-vendor-cat cat-badge-clickable" onclick="event.stopPropagation();openTxCategoryPicker('${tx.id}')" title="שנה קטגוריה" style="color:${cat.color}">${catIconHTML(cat)} ${escHtml(cat.name)} ▾</span>`
+            ? `<span class="tx-vendor-cat cat-badge-clickable" onclick="event.stopPropagation();openTxCategoryPicker('${tx.id}')" title="שנה קטגוריה${tx.categorySource && typeof categorySourceLabel === 'function' && categorySourceLabel(tx.categorySource) ? ' · מקור: ' + categorySourceLabel(tx.categorySource) : ''}" style="color:${cat.color}">${catIconHTML(cat)} ${escHtml(cat.name)} ▾</span>`
             : `<span class="tx-vendor-cat cat-badge-clickable cat-badge-add" onclick="event.stopPropagation();openTxCategoryPicker('${tx.id}')" title="הוסף קטגוריה" style="color:var(--text-muted)">+ סווג</span>`
           const vendorName = escHtml(resolveVendor(tx.vendor, tx.amount, getTxAliasDay(tx)) || '—')
           const descLine = tx.description && tx.description !== tx.vendor
@@ -522,6 +522,8 @@ function setTxCategory(txId, catId) {
   const tx = txs.find(t => t.id === txId)
   if (!tx) return
   tx.categoryId = catId || ''
+  if (catId) tx.categorySource = 'manual'
+  else delete tx.categorySource
   DB.set('finTransactions', txs)
   if (typeof UK_haptic === 'function') UK_haptic('tap')
   _drawTxTable()
@@ -566,7 +568,12 @@ function bulkRecategorize() {
   openTxCategoryPicker(null, catId => {
     const txs = getTransactions()
     let n = 0
-    txs.forEach(t => { if (_txSelected.has(t.id) && t.categoryId !== (catId || '')) { t.categoryId = catId || ''; n++ } })
+    txs.forEach(t => {
+      if (!_txSelected.has(t.id) || t.categoryId === (catId || '')) return
+      t.categoryId = catId || ''
+      if (catId) t.categorySource = 'manual'; else delete t.categorySource
+      n++
+    })
     DB.set('finTransactions', txs)
     _txSelected.clear(); _txSelectMode = false
     _drawTxTable(); _renderTxSelectToolbar()

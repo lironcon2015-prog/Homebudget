@@ -81,6 +81,7 @@ function INS_inboxPick(id, catId) {
   const t = txs.find(x => x.id === id)
   if (!t) return
   t.categoryId = catId
+  t.categorySource = 'manual'
   DB.set('finTransactions', txs)
   if (typeof UK_haptic === 'function') UK_haptic('tap')
   _insInboxQueue.shift()

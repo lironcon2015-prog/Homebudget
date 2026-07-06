@@ -71,6 +71,14 @@ function escHtml(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
 }
 
+// Human label for tx.categorySource — the provenance tag written by every
+// classification path so "why is this categorized like this?" is answerable.
+const CATEGORY_SOURCE_LABELS = {
+  manual: 'ידני', propagated: 'הופץ מעסקה דומה', rule: 'כלל סיווג',
+  autocat: 'למידה מסיווגים קודמים', ai: 'סיווג AI', import: 'מקובץ המקור',
+}
+function categorySourceLabel(src) { return CATEGORY_SOURCE_LABELS[src] || '' }
+
 function _rawHash(str) {
   let h = 0
   for (let i = 0; i < str.length; i++) h = (Math.imul(31, h) + str.charCodeAt(i)) | 0
@@ -429,7 +437,9 @@ function openEditModal(id) {
     <div class="modal-row"><label class="form-label">סכום (חיובי=הכנסה)</label><input id="editAmount" type="number" step="0.01" value="${tx.amount}"></div>
     <div class="modal-row"><label class="form-label">סוג</label><select id="editType" onchange="_onEditTypeChange()">${typeOptions}</select></div>
     <div class="modal-row" id="editDestRow" style="display:${showDest}"><label class="form-label">חשבון יעד (להעברה)</label><select id="editDestAccount"><option value="">—</option>${destAccOptions}</select></div>
-    <div class="modal-row"><label class="form-label">קטגוריה</label><select id="editCategory"><option value="">ללא קטגוריה</option>${catOptions}</select></div>
+    <div class="modal-row"><label class="form-label">קטגוריה</label><select id="editCategory"><option value="">ללא קטגוריה</option>${catOptions}</select>${
+      tx.categoryId && tx.categorySource ? `<div style="font-size:.72rem;color:var(--text-muted);margin-top:.3rem">מקור הסיווג: ${categorySourceLabel(tx.categorySource) || escHtml(tx.categorySource)}</div>` : ''
+    }</div>
     <div class="modal-row" id="editRefundRow" style="display:${tx.type==='refund'?'block':'none'}">
       <label class="form-label">החזר עבור הוצאה</label>
       <div id="editRefundLink">${_refundLinkRowHTML()}</div>
@@ -579,17 +589,23 @@ function saveEditModal() {
       ccPaymentForAccountId: undefined,
       createdAt: Date.now(),
     }
+    if (fresh.categoryId) fresh.categorySource = 'manual'
     if (newRecurringFlag) fresh.recurringFlag = newRecurringFlag
     txs.push(fresh)
   } else {
     const idx = txs.findIndex(t => t.id === _editId)
     if (idx < 0) return
+    const _prevCatId = txs[idx].categoryId
     txs[idx].accountId  = document.getElementById('editAccount').value
     txs[idx].vendor     = document.getElementById('editVendor').value
     txs[idx].date       = _dmyToIso(document.getElementById('editDate').value) || txs[idx].date
     if (!isNaN(newAmount)) txs[idx].amount = newAmount
     txs[idx].type       = newType
     txs[idx].categoryId = document.getElementById('editCategory').value
+    if (txs[idx].categoryId !== _prevCatId) {
+      if (txs[idx].categoryId) txs[idx].categorySource = 'manual'
+      else delete txs[idx].categorySource
+    }
     txs[idx].notes      = document.getElementById('editNotes').value
     if (newRecurringFlag) txs[idx].recurringFlag = newRecurringFlag
     else delete txs[idx].recurringFlag
@@ -643,6 +659,7 @@ function propagateCategoryToSimilar(txs, vendor, categoryId, skipId) {
     if (!t.vendor) continue
     if (normalizeVendorForAutocat(t.vendor) !== target) continue
     t.categoryId = categoryId
+    t.categorySource = 'propagated'
     count++
   }
   return count
@@ -677,7 +694,7 @@ async function applyCategoryToAllSimilar() {
     if (!t.vendor) return
     if (t.type === 'transfer') return
     if (normalizeVendorForAutocat(t.vendor) !== target) return
-    if (t.categoryId !== catId) { t.categoryId = catId; changed++ }
+    if (t.categoryId !== catId) { t.categoryId = catId; t.categorySource = 'propagated'; changed++ }
   })
   DB.set('finTransactions', txs)
   showPropagateToast(changed)

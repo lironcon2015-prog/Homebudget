@@ -64,7 +64,9 @@ function applyAutoCategorizeConfident(plan) {
   txs.forEach(t => {
     if (!map.has(t.id)) return
     if (t.categoryId) return
-    t.categoryId = map.get(t.id); n++
+    t.categoryId = map.get(t.id)
+    t.categorySource = 'autocat'
+    n++
   })
   DB.set('finTransactions', txs)
   return n
@@ -78,7 +80,9 @@ function applyCategoryToTxIds(txIds, catId) {
   txs.forEach(t => {
     if (!set.has(t.id)) return
     if (t.categoryId) return
-    t.categoryId = catId; n++
+    t.categoryId = catId
+    t.categorySource = 'autocat'
+    n++
   })
   DB.set('finTransactions', txs)
   return n
@@ -246,7 +250,7 @@ ${uniqueVendors.map(v => `- ${v}`).join('\n')}`
     all.forEach(t => {
       if (t.categoryId || !t.vendor || t.type === 'transfer') return
       const k = normalizeVendorForAutocat(t.vendor)
-      if (k && lookup[k]) { t.categoryId = lookup[k]; applied++ }
+      if (k && lookup[k]) { t.categoryId = lookup[k]; t.categorySource = 'ai'; applied++ }
     })
     DB.set('finTransactions', all)
     toast(applied === 0
