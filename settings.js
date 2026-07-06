@@ -100,9 +100,13 @@ function renderReconcileTable() {
   // Build rows in chronological order so the FIRST divergence stands out as
   // the failure point — bugs cascade forward so anything after that month
   // is downstream noise.
-  const rows = months.map(ym => {
-    const lastDay = _lastDayOfMonth(ym)
-    const computed = getAccountBalance(accountId, lastDay)
+  const lastDays = months.map(_lastDayOfMonth)
+  const computedSeries = (typeof getAccountBalanceSeries === 'function')
+    ? getAccountBalanceSeries(accountId, lastDays)
+    : lastDays.map(d => getAccountBalance(accountId, d))
+  const rows = months.map((ym, mi) => {
+    const lastDay = lastDays[mi]
+    const computed = computedSeries[mi]
     const bankRaw = recForAcc[ym]
     const bank = (bankRaw === '' || bankRaw == null) ? null : Number(bankRaw)
     const diff = (bank == null || !isFinite(bank)) ? null : bank - computed

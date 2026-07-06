@@ -195,3 +195,22 @@ test('matchVendorToCategory: user rules outrank defaults; account-derived rules 
   c.addCategoryRule('שופרסל', 'cat_invest_out')
   assert.equal(c.matchVendorToCategory('שופרסל דיל', ''), 'cat_invest_out')
 })
+
+test('getAccountBalanceSeries equals per-cutoff getAccountBalance (incl. undated tx)', () => {
+  const txs = [
+    { accountId: 'chk', amount: -100, type: 'expense', date: '2026-05-15' },
+    { accountId: 'chk', amount: -400, type: 'expense', ccPaymentForAccountId: 'cc', date: '2026-06-01' },
+    { accountId: 'chk', amount: 2000, type: 'income', date: '2026-07-03' },
+    { accountId: 'chk', amount: -7, type: 'expense' },                       // undated → counts everywhere
+    { accountId: 'chk', amount: -500, type: 'expense', transferAccountId: 'sav', date: '2026-06-20' },
+  ]
+  const c = core(txs)
+  const cutoffs = ['2026-05-31', '2026-06-30', '2026-07-31']
+  for (const acc of ['chk', 'cc', 'sav']) {
+    const series = c.getAccountBalanceSeries(acc, cutoffs)
+    cutoffs.forEach((cut, i) => {
+      assert.equal(series[i], c.getAccountBalance(acc, cut), `${acc} @ ${cut}`)
+    })
+  }
+  deepEq(c.getAccountBalanceSeries('missing', cutoffs), [0, 0, 0])
+})

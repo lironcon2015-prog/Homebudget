@@ -372,23 +372,73 @@ function shiftPeriodByYear(p, years = 1) {
 const NON_LIQUID_ACCOUNT_TYPES = new Set(['savings', 'investment'])
 function isLiquidAccount(a) { return !NON_LIQUID_ACCOUNT_TYPES.has(a.type) }
 
+// Per-tx balance delta for one account — the single semantic used everywhere:
+// own row adds the amount; the mirror side of a linked/transfer transaction
+// (CC payment / savings deposit — independent of type) subtracts it.
+function _accountTxDelta(t, accountId) {
+  if (t.accountId === accountId) return t.amount
+  if (t.transferAccountId === accountId || t.ccPaymentForAccountId === accountId) return -t.amount
+  return 0
+}
+
+// All current balances in ONE pass over the transactions (the per-account
+// scan made dashboards O(accounts × transactions)). Cached by data revision;
+// falls back to per-call compute when DB.rev is unavailable (test stubs).
+let _allBalancesCache = null
+let _allBalancesCacheRev = null
+function _getAllBalances() {
+  const rev = (typeof DB.rev === 'function') ? `${DB.rev('finTransactions')}:${DB.rev('finAccounts')}` : null
+  if (rev !== null && _allBalancesCache && _allBalancesCacheRev === rev) return _allBalancesCache
+  const map = new Map()
+  getAccounts().forEach(a => map.set(a.id, a.openingBalance || 0))
+  for (const t of getTransactions()) {
+    if (map.has(t.accountId)) map.set(t.accountId, map.get(t.accountId) + t.amount)
+    // Mirror sides — matching the per-account else-if: a row never mirrors
+    // into its own account, and an identical transfer/cc target counts once.
+    const m1 = t.transferAccountId, m2 = t.ccPaymentForAccountId
+    if (m1 && m1 !== t.accountId && map.has(m1)) map.set(m1, map.get(m1) - t.amount)
+    if (m2 && m2 !== t.accountId && m2 !== m1 && map.has(m2)) map.set(m2, map.get(m2) - t.amount)
+  }
+  if (rev !== null) { _allBalancesCache = map; _allBalancesCacheRev = rev }
+  return map
+}
+
 function getAccountBalance(accountId, uptoDateISO = null) {
+  if (!uptoDateISO) {
+    const map = _getAllBalances()
+    return map.has(accountId) ? map.get(accountId) : 0
+  }
   const acc = getAccounts().find(a => a.id === accountId)
   if (!acc) return 0
   let balance = acc.openingBalance || 0
   getTransactions().forEach(t => {
     if (uptoDateISO && t.date > uptoDateISO) return
-    if (t.accountId === accountId) {
-      balance += t.amount
-    } else if (t.transferAccountId === accountId || t.ccPaymentForAccountId === accountId) {
-      // Mirror side of a linked/transfer transaction — independent of type.
-      // A CC payment or savings deposit on the bank should still update the
-      // linked account's balance, even though we keep type='expense' so it
-      // counts in P&L.
-      balance -= t.amount
-    }
+    balance += _accountTxDelta(t, accountId)
   })
   return balance
+}
+
+// End-of-cutoff balances for a list of ISO cutoff dates (ascending), computed
+// in one pass instead of dates × full-scan. Matches getAccountBalance's
+// semantics exactly: a tx with a missing date is never "after" any cutoff,
+// so it counts toward every cutoff (empty string sorts before any ISO date).
+function getAccountBalanceSeries(accountId, cutoffsAsc) {
+  const acc = getAccounts().find(a => a.id === accountId)
+  if (!acc) return cutoffsAsc.map(() => 0)
+  const deltas = []
+  for (const t of getTransactions()) {
+    const d = _accountTxDelta(t, accountId)
+    if (d !== 0) deltas.push([t.date || '', d])
+  }
+  deltas.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
+  const out = []
+  let run = acc.openingBalance || 0
+  let i = 0
+  for (const cutoff of cutoffsAsc) {
+    while (i < deltas.length && deltas[i][0] <= cutoff) { run += deltas[i][1]; i++ }
+    out.push(run)
+  }
+  return out
 }
 
 function getLiquidBalance(uptoDateISO = null) {
@@ -403,11 +453,17 @@ function getCheckingCashBalance(uptoDateISO = null) {
 }
 
 function getLiquidBalanceTrend(months) {
-  return months.map(mo => {
+  const cutoffs = months.map(mo => {
     const [y, m] = mo.split('-').map(Number)
-    const endIso = _iso(new Date(y, m, 0))
-    return { month: mo, balance: getLiquidBalance(endIso) }
+    return _iso(new Date(y, m, 0))
   })
+  const liquid = getAccounts().filter(isLiquidAccount)
+  const totals = cutoffs.map(() => 0)
+  for (const a of liquid) {
+    const series = getAccountBalanceSeries(a.id, cutoffs)
+    series.forEach((v, i) => { totals[i] += v })
+  }
+  return months.map((mo, i) => ({ month: mo, balance: totals[i] }))
 }
 
 // Flow to/from a specific account during a period.

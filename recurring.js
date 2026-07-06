@@ -812,7 +812,28 @@ function _attachInstallmentInfo(items) {
 
 // Reconciles manual groups first so newly-imported tx with a matching vendor
 // are absorbed before the auto pass sees them.
+//
+// Memoized by the revision counters of every input the pipeline reads —
+// summary callers (dashboard / analysis / tx screen) used to re-run the whole
+// detection on every render. The rev key is computed AFTER the body because
+// _reconcileManualGroups may itself write finTransactions; capturing the
+// post-write rev keeps the very next call a cache hit. Result entries are
+// treated as read-only by all callers.
+const _RECURRING_REV_KEYS = ['finTransactions', 'finAccounts', 'finVendorAliases',
+  'finManualRecurringGroups', 'finRecurringHidden', 'finRecurringIgnoreOutliers',
+  'finRecurringAmountOverride', 'finRecurringCadenceOverride']
+let _recurringCache = null
+let _recurringCacheRev = null
+function _recurringRev() {
+  if (typeof DB.rev !== 'function') return null
+  // Day stamp: parts of the pipeline read "today" (12-month window,
+  // finished-installment cutoff) — a PWA left open across midnight must
+  // not serve yesterday's result.
+  return new Date().toDateString() + '|' + _RECURRING_REV_KEYS.map(k => DB.rev(k)).join(':')
+}
 function getAllRecurring() {
+  const revBefore = _recurringRev()
+  if (revBefore !== null && _recurringCache && _recurringCacheRev === revBefore) return _recurringCache
   _reconcileManualGroups()
   _migrateHiddenRecurringKeys()
   const auto         = detectRecurring()
@@ -827,8 +848,11 @@ function getAllRecurring() {
   const installments = _getInstallmentRecurring(covered)
   const annotated = _attachInstallmentInfo(
       _applyCadenceOverrides(_applyAmountOverrides([...autoKept, ...manualFlags, ...manualGroups, ...installments])))
-  return _dropFinishedInstallments(annotated)
+  const result = _dropFinishedInstallments(annotated)
     .sort((a,b) => Math.abs(b.smoothedMonthly) - Math.abs(a.smoothedMonthly))
+  const revAfter = _recurringRev()
+  if (revAfter !== null) { _recurringCache = result; _recurringCacheRev = revAfter }
+  return result
 }
 
 // Monthly-equivalent income/expense/net of NON-HIDDEN recurring entries.

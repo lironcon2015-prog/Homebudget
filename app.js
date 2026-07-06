@@ -1,20 +1,41 @@
 const APP_VERSION = '1.32.5'
 
 // ===== STORAGE =====
+// Hot keys are cached as parsed objects: getTransactions() etc. used to
+// JSON.parse the full array on EVERY call (~100 call sites per render).
+// The cache is coherent because every write in the codebase goes through
+// DB.set (mutate-in-place → DB.set with the same array reference), which
+// refreshes the cache and bumps the key's revision counter. DB.rev(key)
+// lets derived caches (balances, recurring) invalidate precisely.
+const _DB_CACHED_KEYS = new Set(['finTransactions', 'finAccounts', 'finCategories'])
+const _dbCache = new Map()   // key → parsed value
+const _dbRev = {}            // key → monotonically increasing write counter
 const DB = {
-  get: (key, def = []) => { try { return JSON.parse(localStorage.getItem(key)) ?? def } catch { return def } },
+  get: (key, def = []) => {
+    if (_dbCache.has(key)) return _dbCache.get(key)
+    let val
+    try { val = JSON.parse(localStorage.getItem(key)) ?? def } catch { val = def }
+    if (_DB_CACHED_KEYS.has(key) && val !== def) _dbCache.set(key, val)
+    return val
+  },
   set: (key, val) => {
     try {
       localStorage.setItem(key, JSON.stringify(val))
     } catch (e) {
       console.error('DB.set failed', key, e)
+      // Storage now diverges from in-memory state — drop the cache so the
+      // next read reflects what actually persisted.
+      _dbCache.delete(key)
       if (typeof toast === 'function') toast('השמירה נכשלה — ייתכן שנגמר מקום האחסון', { type: 'error', duration: 6000 })
       return false
     }
+    if (_DB_CACHED_KEYS.has(key)) _dbCache.set(key, val)
+    _dbRev[key] = (_dbRev[key] || 0) + 1
     if (typeof _onBackupKeyWrite === 'function') _onBackupKeyWrite(key)
     return true
   },
   getObj: (key, def = {}) => { try { return JSON.parse(localStorage.getItem(key)) ?? def } catch { return def } },
+  rev: key => _dbRev[key] || 0,
 }
 
 // ===== UTILS =====
