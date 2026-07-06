@@ -27,6 +27,7 @@ const ASSETS = [
   './analysis.js',
   './settings.js',
   './drive.js',
+  './backupLocal.js',
   './autocat.js',
   './detect.js',
   './property.js',

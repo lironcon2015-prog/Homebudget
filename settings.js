@@ -16,6 +16,7 @@ function renderSettings() {
   renderReconcileAccountSelector()
   renderReconcileTable()
   if (typeof loadGithubConfig === 'function') loadGithubConfig()
+  if (typeof renderLocalSnapshots === 'function') renderLocalSnapshots()
   if (typeof renderFeedbackList === 'function') renderFeedbackList()
   document.getElementById('appVersion').textContent = 'גרסה ' + APP_VERSION
 }

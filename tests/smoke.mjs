@@ -145,6 +145,26 @@ async function main() {
   check('flow filter matches linked expense row', (await page.locator('#txTable').innerText()).includes('הפקדה לחיסכון'))
   await page.evaluate(() => { document.getElementById('txFlowFilter').value = ''; _drawTxTable() })
 
+  // ===== local snapshots: write → tamper → restore payload equals original =====
+  const snapRes = await page.evaluate(async () => {
+    const before = JSON.stringify(getTransactions())
+    const meta = await writeLocalSnapshot('manual')
+    if (!meta) return { ok: false, why: 'no meta' }
+    // simulate data damage
+    DB.set('finTransactions', [])
+    const metas = await listLocalSnapshots()
+    const payload = await _snapGetPayload(metas[0].id)
+    if (!validateBackupData(payload)) return { ok: false, why: 'invalid payload' }
+    applyBackupData(payload)
+    const after = JSON.stringify(getTransactions())
+    return { ok: before === after, why: 'roundtrip', count: metas.length }
+  })
+  check('local snapshot write→restore roundtrip identical', snapRes.ok, snapRes.why)
+  const badRejected = await page.evaluate(() =>
+    !validateBackupData(null) && !validateBackupData([]) && !validateBackupData({}) &&
+    !validateBackupData({ transactions: 'x' }) && validateBackupData({ transactions: [] }))
+  check('validateBackupData rejects malformed payloads', badRejected)
+
   // ===== perf: 10k transactions =====
   const perf = await page.evaluate(() => {
     const vendors = ['שופרסל', 'רמי לוי', 'פז', 'מסעדה', 'נטפליקס', 'חשמל', 'ארנונה', 'ביט דנה']

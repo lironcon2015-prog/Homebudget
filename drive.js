@@ -176,9 +176,10 @@ async function driveRestore() {
     if (!r.ok) throw new Error(await r.text())
     let data
     try { data = await r.json() } catch { data = null }
-    const isValid = data && typeof data === 'object' && !Array.isArray(data) &&
-      (Array.isArray(data.transactions) || Array.isArray(data.accounts) || Array.isArray(data.categories))
-    if (!isValid) throw new Error('קובץ הגיבוי בענן פגום — לא בוצע שחזור.')
+    if (!validateBackupData(data)) throw new Error('קובץ הגיבוי בענן פגום — לא בוצע שחזור.')
+    // The current state becomes a local snapshot before it's replaced —
+    // a wrong-file restore is always reversible from Settings → גיבוי.
+    if (typeof writeLocalSnapshot === 'function') await writeLocalSnapshot('pre-restore-drive')
     applyBackupData(data)
     localStorage.setItem('driveBackupFileId', file.id)
     localStorage.setItem('driveBackupAt', new Date(file.modifiedTime).toISOString())
@@ -256,9 +257,7 @@ async function _driveAutoPull() {
   const r = await _driveReq('GET', `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`)
   if (!r.ok) throw new Error(await r.text())
   const data = await r.json()
-  const isValid = data && typeof data === 'object' && !Array.isArray(data) &&
-    (Array.isArray(data.transactions) || Array.isArray(data.accounts) || Array.isArray(data.categories))
-  if (!isValid) return
+  if (!validateBackupData(data)) return
   _driveSuppressPush = true
   try { applyBackupData(data) } finally { _driveSuppressPush = false }
   _driveDirty = false

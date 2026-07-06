@@ -32,6 +32,7 @@ const DB = {
     if (_DB_CACHED_KEYS.has(key)) _dbCache.set(key, val)
     _dbRev[key] = (_dbRev[key] || 0) + 1
     if (typeof _onBackupKeyWrite === 'function') _onBackupKeyWrite(key)
+    if (typeof _onLocalSnapshotKeyWrite === 'function') _onLocalSnapshotKeyWrite(key)
     return true
   },
   getObj: (key, def = {}) => { try { return JSON.parse(localStorage.getItem(key)) ?? def } catch { return def } },
@@ -312,6 +313,22 @@ function collectBackupData() {
   }
 }
 
+// Structural validation shared by EVERY restore path (JSON import, Drive
+// restore/auto-pull, local snapshot). Restoring replaces the whole dataset —
+// a malformed payload must be rejected before it wipes good data.
+function validateBackupData(data) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return false
+  // At least one core collection must be present and an array.
+  if (!Array.isArray(data.transactions) && !Array.isArray(data.accounts) && !Array.isArray(data.categories)) return false
+  // Whatever IS present must have the right shape.
+  for (const k of ['transactions', 'accounts', 'categories', 'budgets', 'rules', 'templates', 'aliases']) {
+    if (data[k] !== undefined && !Array.isArray(data[k])) return false
+  }
+  if (Array.isArray(data.transactions) && data.transactions.some(t => !t || typeof t !== 'object')) return false
+  if (Array.isArray(data.accounts) && data.accounts.some(a => !a || typeof a !== 'object' || !a.id)) return false
+  return true
+}
+
 function applyBackupData(data) {
   if (!data || typeof data !== 'object') return
   if (data.transactions)       DB.set('finTransactions',            data.transactions)
@@ -357,9 +374,13 @@ function importData(input) {
   const file = input.files[0]
   if (!file) return
   const reader = new FileReader()
-  reader.onload = e => {
+  reader.onload = async e => {
     try {
-      applyBackupData(JSON.parse(e.target.result))
+      const data = JSON.parse(e.target.result)
+      if (!validateBackupData(data)) { toast('קובץ הגיבוי פגום או לא בפורמט הנכון', { type: 'error' }); return }
+      // The current state becomes a local snapshot before it's replaced.
+      if (typeof writeLocalSnapshot === 'function') await writeLocalSnapshot('pre-restore-local')
+      applyBackupData(data)
       toast('הנתונים יובאו בהצלחה', { type: 'success' })
       renderSettings()
     } catch { toast('שגיאה בקריאת הקובץ', { type: 'error' }) }

@@ -687,6 +687,14 @@
         </div>
       </div>
       <div class="card" style="max-width:480px;margin-top:1rem">
+        <div class="card-title">🛟 גיבויים מקומיים (אוטומטי)</div>
+        <p style="font-size:.85rem;color:var(--text-muted);margin-bottom:1rem">
+          המערכת שומרת snapshots של כל הנתונים בזיכרון הדפדפן (IndexedDB) אחרי כל שינוי, כולל snapshot אוטומטי לפני כל שחזור — כך ששחזור שגוי תמיד הפיך.
+        </p>
+        <div style="margin-bottom:.75rem"><button class="btn-ghost" onclick="createLocalSnapshotNow()" style="font-size:.85rem">📸 צור גיבוי עכשיו</button></div>
+        <div id="localSnapshotsList"></div>
+      </div>
+      <div class="card" style="max-width:480px;margin-top:1rem">
         <div class="card-title">☁️ גיבוי לגוגל דרייב</div>
         <p style="font-size:.85rem;color:var(--text-muted);margin-bottom:1.25rem">גיבוי מאובטח של כל הנתונים לקובץ בגוגל דרייב שלך.</p>
         <div id="driveNotSignedIn">
@@ -945,6 +953,7 @@
 <script src="analysis.js?v=1.32.5"></script>
 <script src="settings.js?v=1.32.5"></script>
 <script src="drive.js?v=1.32.5"></script>
+<script src="backupLocal.js?v=1.32.5"></script>
 <script src="property.js?v=1.32.5"></script>
 <script src="reports.js?v=1.32.5"></script>
 <script src="feedback.js?v=1.32.5"></script>
