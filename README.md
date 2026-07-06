@@ -56,3 +56,7 @@ finance-app/
 - **Smoke בדפדפן** (דורש `playwright-core` ו-Chromium): שרת מקומי על 8000 ואז `node tests/smoke.mjs`. הקובץ `tests/smoke-baseline.json` הוא snapshot התנהגותי — אם ערכי P&L/יתרות משתנים בכוונה, מחקו אותו כדי לחדש baseline.
 - CI מריץ את בדיקות היחידה על כל push‏ (`.github/workflows/tests.yml`).
 
+## אבטחת מפתחות
+
+האפליקציה היא צד-לקוח בלבד (ללא backend), ולכן מפתח ה-Gemini וטוקן ה-GitHub נשמרים ב-localStorage של הדפדפן. מיטיגציות מיושמות: המפתח נשלח ב-header (לא ב-URL, כדי שלא יירשם בלוגים של proxies), וכל קלט חיצוני עובר escaping לפני רינדור. מומלץ: להגביל את מפתח ה-Gemini לדומיין האפליקציה ב-Google AI Studio, ולהשתמש בטוקן GitHub מסוג fine-grained עם הרשאת Issues בלבד לרפו זה.
+

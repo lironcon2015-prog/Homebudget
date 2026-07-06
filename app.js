@@ -241,9 +241,11 @@ function setGeminiModels(list) {
 async function callGemini(apiKey, body) {
   let lastError = ''
   for (const model of getGeminiModels()) {
+    // API key travels in a header, not the query string — URLs get logged
+    // by proxies/CDNs; headers don't.
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey }, body: JSON.stringify(body) }
     )
     // Non-JSON error bodies (proxy/HTML 5xx) must not abort the cascade.
     let data = null
@@ -265,8 +267,8 @@ async function testGeminiModels(apiKey, promptText, modelsList) {
     const startedAt = performance.now()
     try {
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-        { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
           body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] }) }
       )
       const data = await res.json()
