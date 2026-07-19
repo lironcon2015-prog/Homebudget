@@ -916,70 +916,23 @@ function renderRecurring() {
   items.forEach((r, i) => { _recKeyMap['k' + i] = r.key })
   const idxOf = r => Object.keys(_recKeyMap).find(k => _recKeyMap[k] === r.key)
 
-  // V2 hero — the fixed monthly commitment, income coverage, and what's left.
+  // Top summary — monthly-equivalent of all non-hidden recurring entries.
   const totals = recurringMonthlyTotals()
-  const covPct = totals.income > 0 ? Math.min(100, Math.round((totals.expense / totals.income) * 100)) : null
-  const covRatio = totals.expense > 0 && totals.income > 0 ? (totals.income / totals.expense) : null
-  const covBar = covPct != null ? `
-    <div class="rec2-cov">
-      <div class="rec2-cov-t"><span>${covRatio != null && covRatio >= 1 ? `ההכנסה הקבועה מכסה פי ${covRatio.toFixed(1)} מהמחויבויות` : 'המחויבויות הקבועות גבוהות מההכנסה הקבועה'}</span><span>${covPct}% מההכנסה</span></div>
-      <div class="rec2-cov-track"><i style="width:${covPct}%;background:linear-gradient(90deg,#fb6a86,#f97316)"></i><i style="width:${100 - covPct}%;background:rgba(45,212,160,.3)"></i></div>
-    </div>` : ''
   const summary = `
-    <div class="card txh rec2-hero">
-      <div class="txh-lead">
-        <div class="txh-k">מחויבות חודשית קבועה</div>
-        <div class="txh-v expense">${formatCurrency(totals.expense)}</div>
-        <div class="txh-sub">${totals.count} קבועות פעילות · חודשי שקול</div>
+    <div class="recurring-summary">
+      <div class="recurring-summary-card">
+        <span class="recurring-summary-label">הוצאות קבועות (חודשי שקול)</span>
+        <span class="recurring-summary-val expense-color">-${formatCurrency(totals.expense)}</span>
       </div>
-      <div class="txh-side" style="flex:1">
-        <div class="txh-stat"><div class="k">הכנסה קבועה</div><div class="v income">${formatCurrency(totals.income)}</div></div>
-        <div class="txh-stat"><div class="k">פנוי אחרי קבועות</div><div class="v ${totals.net >= 0 ? '' : 'expense'}">${formatCurrency(totals.net)}</div></div>
-        ${covBar}
+      <div class="recurring-summary-card">
+        <span class="recurring-summary-label">הכנסות קבועות (חודשי שקול)</span>
+        <span class="recurring-summary-val income-color">+${formatCurrency(totals.income)}</span>
+      </div>
+      <div class="recurring-summary-card">
+        <span class="recurring-summary-label">נטו חודשי שקול</span>
+        <span class="recurring-summary-val ${totals.net>=0?'income-color':'expense-color'}">${totals.net>=0?'+':''}${formatCurrency(totals.net)}</span>
       </div>
     </div>`
-
-  // Per-vendor tx index for the history sparkbars (auto/manual-flag keys are
-  // vendor keys; manual groups resolve through their explicit txIds).
-  const _sparkIdx = {}
-  if (typeof _txVendorKey === 'function') {
-    for (const t of getTransactions()) {
-      const k = _txVendorKey(t)
-      ;(_sparkIdx[k] = _sparkIdx[k] || []).push(t)
-    }
-  }
-  const _mgroups = typeof getManualRecurringGroups === 'function' ? getManualRecurringGroups() : []
-  const _sparkTxsFor = r => {
-    if (r.source === 'manual-group') {
-      const g = _mgroups.find(x => 'mgroup:' + x.id === r.key)
-      if (!g) return []
-      const ids = new Set(g.txIds || [])
-      return getTransactions().filter(t => ids.has(t.id))
-    }
-    return _sparkIdx[r.sourceKey] || _sparkIdx[r.key] || []
-  }
-  const _sparkHtml = r => {
-    const txs = _sparkTxsFor(r)
-    if (txs.length < 2) return { html: '<div class="rec2-spark"></div>', trend: '' }
-    const byPeriod = {}
-    for (const t of txs) {
-      if (!t.date) continue
-      const pk = _cadencePeriodKey(t.date, r.cadence)
-      byPeriod[pk] = (byPeriod[pk] || 0) + Math.abs(t.amount || 0)
-    }
-    const keys = Object.keys(byPeriod).sort().slice(-6)
-    if (keys.length < 2) return { html: '<div class="rec2-spark"></div>', trend: '' }
-    const vals = keys.map(k => byPeriod[k])
-    const max = Math.max(...vals, 1)
-    const bars = vals.map((v, i) => `<i class="${i === vals.length - 1 ? 'hot' : ''}" style="height:${Math.max(6, (v / max) * 100)}%" title="${keys[i]} · ${formatCurrencyPlain(v)}"></i>`).join('')
-    const prev = vals.slice(0, -1)
-    const prevAvg = prev.reduce((a, b) => a + b, 0) / prev.length
-    const lastV = vals[vals.length - 1]
-    const trend = prevAvg > 0 && lastV > prevAvg * 1.1
-      ? `<span class="rec2-warn">▲ ${Math.round((lastV / prevAvg - 1) * 100)}% מהממוצע</span>`
-      : ''
-    return { html: `<div class="rec2-spark">${bars}</div>`, trend }
-  }
 
   const modeLabel = _recFlowMode === 'income' ? 'הכנסות' : 'הוצאות'
   const toggle = `
@@ -1039,37 +992,44 @@ function renderRecurring() {
       : r.source === 'manual-flag'
       ? `<button class="btn-ghost" style="font-size:.7rem;padding:.25rem .55rem;margin-inline-start:.3rem" onclick="event.stopPropagation();clearRecurringFlagByIdx('${idx}')" title="הסר סימון ידני">בטל סימון</button>`
       : ''
-    const cat = r.categoryId && typeof getCategoryById === 'function' ? getCategoryById(r.categoryId) : null
-    const tileBg = cat ? cat.color + '22' : 'rgba(79,139,255,.13)'
-    const tileIcon = cat ? (catIconHTML(cat, 18) || '↻') : '↻'
-    const spark = _sparkHtml(r)
-    const occTitle = r.periods && r.periods !== r.occurrences ? `${r.occurrences} עסקאות לאורך ${r.periods} תקופות` : `${r.occurrences} מופעים`
     return `
-      <div class="rec2-row ${isHidden ? 'recurring-row-hidden' : ''}" onclick="openRecurringDrillByIdx('${idx}')">
-        <div class="tx-avatar tx2-tile" style="background:${tileBg}">${tileIcon}</div>
-        <div class="rec2-mid">
-          <div class="tx-vendor-name">${escHtml(r.vendor)} ${sourceBadge}${installmentBadge}</div>
-          <div class="rec2-sub">${r.cadenceLabel} · אחרון ${formatDate(r.lastSeen)} · <span title="${occTitle}">${r.occurrences} מופעים</span>${spark.trend ? ' · ' + spark.trend : ''}</div>
-        </div>
-        ${spark.html}
-        <span class="rec2-next">הבא · ${formatDate(r.nextExpected) || '—'}</span>
-        <div class="rec2-amt ${amountCls}">${r.smoothedMonthly > 0 ? '+' : ''}${formatCurrency(r.smoothedMonthly)}<small>/ח׳</small>${smoothNote}${overrideNote}</div>
-        <div class="rec2-act" onclick="event.stopPropagation()">
+      <tr class="recurring-row ${isHidden?'recurring-row-hidden':''}" onclick="openRecurringDrillByIdx('${idx}')">
+        <td class="rec-cell-main" style="font-weight:500">${escHtml(r.vendor)} ${sourceBadge}${installmentBadge}
+          <div class="rec-meta-mobile"><span class="type-badge type-income">${r.cadenceLabel}</span><span>הבא: ${formatDate(r.nextExpected)}</span><span>${r.occurrences} מופעים</span></div>
+        </td>
+        <td class="rec-cell-sec"><span class="type-badge type-income">${r.cadenceLabel}</span></td>
+        <td class="${amountCls} rec-cell-amount">${r.smoothedMonthly>0?'+':''}${formatCurrency(r.smoothedMonthly)}${smoothNote}${overrideNote}</td>
+        <td class="rec-cell-sec">${formatDate(r.lastSeen)}</td>
+        <td class="rec-cell-sec">${formatDate(r.nextExpected)}</td>
+        <td class="rec-cell-sec" title="${r.periods && r.periods !== r.occurrences ? r.occurrences + ' עסקאות לאורך ' + r.periods + ' תקופות' : r.occurrences + ' מופעים'}">${r.periods && r.periods !== r.occurrences ? `${r.occurrences} <span style="color:var(--text-muted);font-size:.7rem">(${r.periods})</span>` : r.occurrences}</td>
+        <td class="rec-cell-act" onclick="event.stopPropagation()">
           ${isHidden
             ? `<button class="btn-ghost" style="font-size:.75rem;padding:.3rem .6rem" onclick="unhideRecurringByIdx('${idx}')">שחזר</button>`
             : `<button class="btn-ghost" style="font-size:.75rem;padding:.3rem .6rem" onclick="hideRecurringByIdx('${idx}')">הסתר</button>`}
           ${manualAction}
-        </div>
-      </div>`
+        </td>
+      </tr>`
   }
 
   const visibleTable = visible.length === 0
     ? `<p style="color:var(--text-muted);font-size:.85rem;text-align:center;padding:2rem">אין ${modeLabel} קבועות${bucket.length>0?' (כולן מוסתרות)':''}.</p>`
-    : `<div class="rec2-list">${visible.map(r => buildRow(r, false)).join('')}</div>`
+    : `<table class="data-table recurring-table">
+        <thead><tr>
+          <th>ספק</th><th>תדירות</th><th>חודשי שקול</th>
+          <th>מופע אחרון</th><th>מופע הבא</th><th>מופעים</th><th></th>
+        </tr></thead>
+        <tbody>${visible.map(r => buildRow(r, false)).join('')}</tbody>
+      </table>`
 
   const hiddenBlock = (_recShowHidden && hiddenList.length > 0)
     ? `<div class="card-title" style="margin-top:1.5rem">מוסתרות (${hiddenList.length})</div>
-       <div class="rec2-list">${hiddenList.map(r => buildRow(r, true)).join('')}</div>`
+       <table class="data-table recurring-table">
+        <thead><tr>
+          <th>ספק</th><th>תדירות</th><th>חודשי שקול</th>
+          <th>מופע אחרון</th><th>מופע הבא</th><th>מופעים</th><th></th>
+        </tr></thead>
+        <tbody>${hiddenList.map(r => buildRow(r, true)).join('')}</tbody>
+       </table>`
     : ''
 
   container.innerHTML = summary + toggle + toolbar + visibleTable + hiddenBlock

@@ -145,7 +145,7 @@ function _buildTxFlowFilter() {
   sel.style.display = nonLiquid.length === 0 ? 'none' : ''
 }
 
-function _getFiltered(periodOverride) {
+function _getFiltered() {
   const search = document.getElementById('txSearch')?.value.toLowerCase() || ''
   const type   = document.getElementById('txTypeFilter')?.value || 'all'
   const account = document.getElementById('txAccountFilter')?.value || ''
@@ -158,7 +158,7 @@ function _getFiltered(periodOverride) {
   const amtMax = amtMaxRaw === '' || amtMaxRaw == null ? null : Math.abs(parseFloat(amtMaxRaw))
   const onlyInstallments  = !!document.getElementById('txInstallmentFilter')?.checked
   const onlyStandingOrder = !!document.getElementById('txStandingOrderFilter')?.checked
-  const period = periodOverride || getActivePeriod()
+  const period = getActivePeriod()
   // Treat a tx as uncategorized if it has no categoryId, or if its
   // categoryId points at a category that was deleted.
   const validCatIds = new Set(getCategories().map(c => c.id))
@@ -273,11 +273,11 @@ function _drawTxTable() {
     }
   }
 
-  // V2: the headline numbers moved to the hero band; the summary strip keeps
-  // only the contextual extras (count, per-account balance, recurring slice).
-  _renderTxHero(filtered, viewAmt, totalInc, totalExp, net)
   document.getElementById('txSummary').innerHTML = `
     <span>${filtered.length} עסקאות</span>
+    <span class="income">+${formatCurrency(totalInc)}</span>
+    <span class="expense">-${formatCurrency(totalExp)}</span>
+    <span class="${net>=0?'net-pos':'net-neg'}">נטו: ${formatCurrency(net)}</span>
     ${categoryBalanceInfo}
     ${runningBalanceInfo}
     ${recurringInfo}`
@@ -317,28 +317,21 @@ function _drawTxTable() {
     }
   }
 
-  // V2: day-grouped list (headers with daily net) instead of a column table.
-  // Sums per calendar day come from the FULL filtered set, not just the page,
-  // so the header number is true even when a day spans a page boundary.
-  const _daySums = {}
-  for (const t of filtered) {
-    if (t.type === 'transfer' || !t.date) continue
-    _daySums[t.date] = (_daySums[t.date] || 0) + viewAmt(t)
-  }
-  const _todayIso = new Date().toISOString().slice(0, 10)
-  const _yesterIso = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
-  const _weekday = d => ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'][new Date(d).getDay()]
-  const _dayHead = d => {
-    const sum = _daySums[d]
-    const sumHtml = sum == null ? '' : `<s class="${sum >= 0 ? 'income' : 'expense'}">${sum >= 0 ? '+' : '−'}${formatCurrency(Math.abs(sum))}</s>`
-    const name = d === _todayIso ? 'היום' : (d === _yesterIso ? 'אתמול' : formatDate(d))
-    const sub = d === _todayIso || d === _yesterIso ? `${_weekday(d)}, ${formatDate(d)}` : _weekday(d)
-    return `<div class="tx2-dayrow"><b>${name}</b><em>· ${sub}</em><i></i>${sumHtml}</div>`
-  }
+  const selectColHead = _txSelectMode ? '<th style="width:32px"><input type="checkbox" id="txSelectAll" onclick="toggleTxSelectAll(this.checked)"></th>' : ''
+  const colspan = (showRunningBalance ? 8 : 7) + (_txSelectMode ? 1 : 0)
 
   document.getElementById('txTable').innerHTML = `
-    <div class="tx2-list">
-      ${page.length === 0 ? emptyStateHTML({
+    <table class="data-table tx-table">
+      <thead><tr>
+        ${selectColHead}
+        <th>ספק / קטגוריה</th>
+        <th>תאריך</th><th>חודש חיוב</th>
+        <th>סכום</th><th>סוג</th>
+        ${showRunningBalance ? '<th>יתרה</th>' : ''}
+        <th>הערות</th><th></th>
+      </tr></thead>
+      <tbody>
+      ${page.length === 0 ? `<tr><td colspan="${colspan}">${emptyStateHTML({
           icon: '🧾',
           title: 'אין עסקאות להצגה',
           text: 'ייבא דוח או הוסף עסקה ידנית. אם הגדרת סינון — נסה לנקות אותו.',
@@ -346,9 +339,8 @@ function _drawTxTable() {
             { label: 'הוסף עסקה', onclick: 'addManualTransaction()', primary: true },
             { label: 'ייבוא קובץ', onclick: "navigate('import')" },
           ],
-        }) :
-        page.map((tx, i) => {
-          const dayHeader = (i === 0 || tx.date !== page[i - 1].date) && tx.date ? _dayHead(tx.date) : ''
+        })}</td></tr>` :
+        page.map(tx => {
           const cat = getCategoryById(tx.categoryId)
           const isMirror = _txIsMirrorFor(tx, accountId)
           const dispAmt = isMirror ? -tx.amount : tx.amount
@@ -387,7 +379,7 @@ function _drawTxTable() {
               })()
             : ''
           const selectCell = _txSelectMode
-            ? `<span class="tx2-check" onclick="event.stopPropagation()"><input type="checkbox" ${_txSelected.has(tx.id)?'checked':''} onclick="toggleTxSelected('${tx.id}')"></span>`
+            ? `<td onclick="event.stopPropagation()"><input type="checkbox" ${_txSelected.has(tx.id)?'checked':''} onclick="toggleTxSelected('${tx.id}')"></td>`
             : ''
           const avatarBg = cat ? cat.color + '22' : 'rgba(100,116,139,.15)'
           const avatarIcon = cat ? (catIconHTML(cat, 18) || '📋') : '📋'
@@ -406,39 +398,29 @@ function _drawTxTable() {
           } else if (_refundedByExpense[tx.id]) {
             refundLine = `<div style="font-size:.72rem;color:var(--income);margin-top:.1rem">↩ הוחזר ${formatCurrency(_refundedByExpense[tx.id])}</div>`
           }
-          // Type is evident from the amount color — badge shown only when it
-          // adds information (transfer/refund/mirror/effective-month shift).
-          const specialBadge = (isNonCounted || isMirror) ? typeBadge : ''
-          const effChip = effMonthMismatch
-            ? `<span class="tx2-eff" title="חודש חיוב שונה מתאריך העסקה">חיוב ${effMonthDisplay}</span>` : ''
-          const noteLine = tx.notes
-            ? `<div class="tx2-note">💬 ${escHtml(tx.notes)}</div>` : ''
-          const balSub = showRunningBalance
-            ? `<div class="tx2-bal">יתרה ${formatCurrency(rowBalances[tx.id] ?? 0)}</div>` : ''
-          const rowClick = _txSelectMode ? `toggleTxSelected('${tx.id}');_drawTxTable()` : `openEditModal('${tx.id}')`
-          return `${dayHeader}
-          <div class="tx2-row ${isNonCounted||isMirror?'tx-noncounted':''}" onclick="${rowClick}">
+          return `<tr ${isNonCounted||isMirror?'class="tx-noncounted"':''}>
             ${selectCell}
-            <div class="tx-vendor-cell tx2-main" data-id="${tx.id}">
-              <div class="tx-avatar tx2-tile" style="background:${avatarBg}">${avatarIcon}</div>
-              <div class="tx2-mid">
-                <div class="tx-vendor-name">${vendorName}${recurringFlagBadge}${installmentBadge}${standingOrderBadge}${groupBadge}${effChip}</div>
-                ${catLabel}${descLine}${refundLine}${noteLine}
-                <div class="tx-meta-mobile">${formatDate(tx.date)} · ${typeBadge}</div>
+            <td class="tx-cell-main">
+              <div class="tx-vendor-cell" data-id="${tx.id}">
+                <div class="tx-avatar" style="background:${avatarBg}">${avatarIcon}</div>
+                <div>
+                  <div class="tx-vendor-name">${vendorName}${recurringFlagBadge}${installmentBadge}${standingOrderBadge}${groupBadge}</div>
+                  ${catLabel}${descLine}${refundLine}
+                  <div class="tx-meta-mobile">${formatDate(tx.date)} · ${typeBadge}</div>
+                </div>
               </div>
-            </div>
-            <div class="tx2-left">
-              ${specialBadge}
-              <div class="${amountCls} tx-cell-amount tx2-amt">${_richAmount(dispAmt)}</div>
-              ${balSub}
-            </div>
-            <div class="tx2-hover" onclick="event.stopPropagation()">
-              <b onclick="openEditModal('${tx.id}')" title="עריכה">✏️</b>
-              <b onclick="openTxCategoryPicker('${tx.id}')" title="שנה קטגוריה">🏷️</b>
-            </div>
-          </div>`
+            </td>
+            <td class="tx-cell-sec" style="font-size:.85rem;color:var(--text-secondary)">${formatDate(tx.date)}</td>
+            ${effCell}
+            <td class="${amountCls} tx-cell-amount">${_richAmount(dispAmt)}</td>
+            <td class="tx-cell-sec">${typeBadge}</td>
+            ${balCell}
+            <td class="tx-cell-sec" style="color:var(--text-muted);font-size:.8rem">${escHtml(tx.notes||'')}</td>
+            <td class="tx-cell-edit"><button class="edit-btn" onclick="openEditModal('${tx.id}')">✏️</button></td>
+          </tr>`
         }).join('')}
-    </div>`
+      </tbody>
+    </table>`
 
   _wireTxSwipe()
 
@@ -449,113 +431,6 @@ function _drawTxTable() {
     <button class="btn-ghost" onclick="_txPage=Math.max(0,_txPage-1);_drawTxTable()" ${_txPage===0?'disabled':''}>הקודם</button>
     <span class="page-info">${_txPage+1} / ${totalPages}</span>
     <button class="btn-ghost" onclick="_txPage=Math.min(${totalPages-1},_txPage+1);_drawTxTable()" ${_txPage===totalPages-1?'disabled':''}>הבא</button>`
-}
-
-// ===== V2 HERO BAND =====
-// The screen's bottom line before any scrolling: net for the period (with a
-// delta vs the previous equal-length window), income/expense, and a cumulative
-// net sparkline. Desktop only — mobile has its own hero in mobile/transactions.
-function _renderTxHero(filtered, viewAmt, totalInc, totalExp, net) {
-  const el = document.getElementById('txHero')
-  if (!el) return
-  if (typeof IS_MOBILE_UI !== 'undefined' && IS_MOBILE_UI) { el.innerHTML = ''; return }
-
-  const rate = totalInc > 0 ? Math.round((net / totalInc) * 100) : null
-
-  let deltaChip = ''
-  try {
-    const p = getActivePeriod()
-    if (p && p.start && p.end) {
-      const from = new Date(p.start), to = new Date(p.end)
-      const lenMs = (to - from) + 86400000
-      const prev = { start: _iso(new Date(from - lenMs)), end: _iso(new Date(from - 86400000)) }
-      const pf = _getFiltered(prev).filter(t => t.type !== 'transfer')
-      if (pf.length) {
-        const pNet = pf.reduce((s, t) => s + viewAmt(t), 0)
-        const diff = net - pNet
-        if (Math.abs(diff) > 1) deltaChip = `<span class="txh-delta ${diff >= 0 ? 'up' : 'dn'}">${diff >= 0 ? '▲' : '▼'} ${formatCurrency(Math.abs(diff))} מול התקופה הקודמת</span>`
-      }
-    }
-  } catch (e) {}
-
-  // Cumulative net over the period, one point per active day.
-  const byDate = {}
-  for (const t of filtered) {
-    if (t.type === 'transfer' || !t.date) continue
-    byDate[t.date] = (byDate[t.date] || 0) + viewAmt(t)
-  }
-  const days = Object.keys(byDate).sort()
-  let spark = ''
-  if (days.length >= 2) {
-    let run = 0
-    const pts = days.map(d => (run += byDate[d]))
-    const min = Math.min(0, ...pts), max = Math.max(0, ...pts)
-    const W = 280, H = 68, span = (max - min) || 1
-    const x = i => (i / (pts.length - 1)) * W
-    const y = v => H - ((v - min) / span) * (H - 8) - 4
-    const path = pts.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ')
-    spark = `<div class="txh-chart"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
-      <defs><linearGradient id="txhg" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#4f8bff" stop-opacity=".32"/><stop offset="1" stop-color="#4f8bff" stop-opacity="0"/>
-      </linearGradient></defs>
-      <path d="${path} L${W},${H} L0,${H} Z" fill="url(#txhg)"/>
-      <path d="${path}" fill="none" stroke="#4f8bff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-      <circle cx="${x(pts.length - 1).toFixed(1)}" cy="${y(pts[pts.length - 1]).toFixed(1)}" r="4" fill="#4f8bff" stroke="var(--bg-surface)" stroke-width="2.5"/>
-    </svg></div>`
-  }
-
-  el.innerHTML = `<div class="card txh">
-    <div class="txh-lead">
-      <div class="txh-k">נטו התקופה</div>
-      <div class="txh-v ${net >= 0 ? 'txh-grad' : 'expense'}">${formatCurrency(net)}${deltaChip}</div>
-      <div class="txh-sub">${filtered.length} עסקאות${rate != null && rate >= 0 && rate <= 100 ? ` · ${rate}% שיעור חיסכון` : ''}</div>
-    </div>
-    <div class="txh-side">
-      <div class="txh-stat"><div class="k">הכנסות</div><div class="v income">${formatCurrency(totalInc)}</div></div>
-      <div class="txh-stat"><div class="k">הוצאות</div><div class="v expense">${formatCurrency(totalExp)}</div></div>
-      ${spark}
-    </div>
-  </div>`
-}
-
-// ===== V2 EDIT-MODAL CONTEXT PANE =====
-// Answers "how much do I spend there anyway?" while editing: 6-month history
-// bars for the vendor, monthly average, and the latest similar transactions.
-function _renderEditTxContext(tx, isNew) {
-  const ctx = document.getElementById('editModalCtx')
-  const grid = document.getElementById('editModalGrid')
-  if (!ctx || !grid) return
-  const vendorKey = resolveVendor(tx.vendor, tx.amount, getTxAliasDay(tx)) || tx.vendor
-  if (isNew || !vendorKey) { ctx.style.display = 'none'; grid.classList.add('editm-solo'); return }
-
-  const all = getTransactions().filter(t =>
-    t.id !== tx.id && t.type !== 'transfer' &&
-    (resolveVendor(t.vendor, t.amount, getTxAliasDay(t)) || t.vendor) === vendorKey)
-  if (!all.length) { ctx.style.display = 'none'; grid.classList.add('editm-solo'); return }
-
-  const now = new Date()
-  const months = []
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-    months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
-  }
-  const sums = months.map(m => all.filter(t => (t.date || '').startsWith(m)).reduce((s, t) => s + Math.abs(t.amount), 0))
-  const maxSum = Math.max(...sums, 1)
-  const activeMonths = sums.filter(s => s > 0).length
-  const avg = activeMonths ? sums.reduce((a, b) => a + b, 0) / activeMonths : 0
-  const bars = sums.map((s, i) => `<i style="height:${Math.max(4, (s / maxSum) * 100)}%" class="${i === sums.length - 1 ? 'hot' : ''}" title="${months[i].slice(5)}/${months[i].slice(0, 4)} · ${formatCurrencyPlain(s)}"></i>`).join('')
-  const similar = all.sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 4)
-    .map(t => `<div class="editm-sim"><b>${escHtml(resolveVendor(t.vendor, t.amount, getTxAliasDay(t)) || t.vendor || '—')}</b><span>${formatDate(t.date)} · ${formatCurrency(t.amount)}</span></div>`).join('')
-
-  ctx.style.display = ''
-  grid.classList.remove('editm-solo')
-  ctx.innerHTML = `
-    <h5>${escHtml(vendorKey)} — חצי שנה אחרונה</h5>
-    <div class="editm-spark">${bars}</div>
-    <div class="editm-sim"><b>ממוצע חודשי פעיל</b><span>${formatCurrency(avg)}</span></div>
-    <div class="editm-sim"><b>סה"כ עסקאות</b><span>${all.length}</span></div>
-    <h5 style="margin-top:1rem">עסקאות אחרונות</h5>
-    ${similar}`
 }
 
 // Click-to-filter from a category badge inside the table.
@@ -596,13 +471,8 @@ function _renderTxSelectToolbar(_filteredCount) {
     return
   }
   const n = _txSelected.size
-  const pageIds = _getFiltered().slice(_txPage * TX_PAGE_SIZE, (_txPage + 1) * TX_PAGE_SIZE).map(t => t.id)
-  const allChecked = pageIds.length > 0 && pageIds.every(id => _txSelected.has(id))
   el.innerHTML = `
     <button class="btn-ghost" onclick="toggleTxSelectMode()" style="font-size:.85rem">בטל בחירה</button>
-    <label style="display:flex;align-items:center;gap:.35rem;font-size:.82rem;color:var(--text-secondary);cursor:pointer">
-      <input type="checkbox" ${allChecked ? 'checked' : ''} onclick="toggleTxSelectAll(this.checked)" style="width:auto"> הכל בעמוד
-    </label>
     <span style="color:var(--text-muted);font-size:.85rem">${n} נבחרו</span>
     <button class="btn-ghost" ${n<1?'disabled':''} onclick="bulkRecategorize()" style="font-size:.85rem">🏷️ סווג</button>
     <button class="btn-ghost" ${n<1?'disabled':''} onclick="bulkExportCsv()" style="font-size:.85rem">⬇️ CSV</button>
