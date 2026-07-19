@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>מוקאפ V2 — שפה חדשה: עסקאות · קבועות · תקציב · מודאלים</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap');
+:root {
+  --bg:#060608; --panel:#0c0d11; --panel2:#12131a; --field:#15161d;
+  --line:rgba(255,255,255,.055); --line2:rgba(255,255,255,.11);
+  --ink:#f6f7fb; --ink2:#8b94a7; --mut:#565e6e;
+  --blue:#4f8bff; --violet:#8b5cf6; --income:#2dd4a0; --expense:#fb6a86; --amber:#fbbf24;
+  --grad:linear-gradient(120deg,#4f8bff,#8b5cf6);
+  --r:22px;
+  --shadow:0 24px 70px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.05);
+}
+* { box-sizing:border-box; margin:0; }
+html,body { height:100%; }
+body {
+  background:var(--bg); color:var(--ink); font-family:'Heebo',sans-serif; overflow-x:hidden;
+  background-image:
+    radial-gradient(1100px 600px at 100% -20%, rgba(79,139,255,.10), transparent 55%),
+    radial-gradient(900px 600px at -10% 115%, rgba(139,92,246,.09), transparent 55%),
+    radial-gradient(600px 400px at 50% 120%, rgba(45,212,160,.04), transparent 60%);
+}
+.note { max-width:1360px; margin:1rem auto .8rem; padding:.7rem 1.1rem; border-radius:14px; background:rgba(79,139,255,.07); border:1px solid rgba(79,139,255,.22); font-size:.83rem; line-height:1.6; color:#c7d4ee; }
+.note b { color:#8fb4ff; }
+
+.shell { display:flex; gap:1rem; max-width:1360px; margin:0 auto 2rem; padding:0 1rem; }
+
+/* ═══ ICON RAIL ═══ */
+.rail {
+  width:86px; flex-shrink:0; background:var(--panel); border:1px solid var(--line); border-radius:26px;
+  padding:1rem .5rem; display:flex; flex-direction:column; align-items:center; gap:.35rem;
+  box-shadow:var(--shadow); height:fit-content; position:sticky; top:1rem;
+}
+.orb { width:44px; height:44px; border-radius:16px; background:var(--grad); margin-bottom:1rem; box-shadow:0 8px 26px rgba(99,102,241,.5), inset 0 1px 0 rgba(255,255,255,.35); }
+.ritem { width:70px; padding:.55rem 0 .45rem; border-radius:16px; text-align:center; cursor:pointer; color:var(--mut); border:1px solid transparent; }
+.ritem i { font-style:normal; font-size:1.15rem; display:block; margin-bottom:.15rem; }
+.ritem b { font-weight:500; font-size:.62rem; letter-spacing:.02em; }
+.ritem:hover { color:var(--ink2); background:rgba(255,255,255,.04); }
+.ritem.on { color:#dbe7ff; background:linear-gradient(150deg,rgba(79,139,255,.20),rgba(139,92,246,.12)); border-color:rgba(110,140,255,.3); box-shadow:0 6px 20px rgba(79,139,255,.18), inset 0 1px 0 rgba(255,255,255,.09); }
+.rail hr { width:38px; border:none; border-top:1px solid var(--line); margin:.5rem 0; }
+
+/* ═══ MAIN ═══ */
+.main { flex:1; min-width:0; }
+
+/* topbar */
+.topbar {
+  display:flex; align-items:center; gap:.8rem; background:var(--panel); border:1px solid var(--line);
+  border-radius:20px; padding:.6rem .9rem; margin-bottom:1rem; box-shadow:var(--shadow); position:sticky; top:1rem; z-index:5;
+}
+.crumb { font-size:.95rem; font-weight:700; white-space:nowrap; }
+.crumb em { font-style:normal; color:var(--mut); font-weight:400; }
+.cmdk { flex:1; display:flex; align-items:center; gap:.6rem; background:var(--field); border:1px solid var(--line); border-radius:14px; padding:.5rem .85rem; color:var(--mut); font-size:.84rem; cursor:text; }
+.cmdk kbd { margin-inline-start:auto; background:var(--panel2); border:1px solid var(--line2); border-radius:7px; padding:.1rem .45rem; font:600 .68rem 'Heebo'; color:var(--ink2); }
+.gperiod { display:flex; background:var(--field); border:1px solid var(--line); border-radius:999px; padding:3px; }
+.gperiod span { padding:.38rem .85rem; border-radius:999px; font-size:.78rem; color:var(--ink2); cursor:pointer; white-space:nowrap; }
+.gperiod span.on { background:var(--panel2); color:var(--ink); font-weight:700; box-shadow:0 2px 10px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.07); }
+.sync { display:flex; align-items:center; gap:.4rem; font-size:.74rem; color:var(--income); white-space:nowrap; }
+.sync i { width:8px; height:8px; border-radius:50%; background:var(--income); box-shadow:0 0 0 4px rgba(45,212,160,.15); font-style:normal; }
+
+/* buttons */
+.cta { background:var(--grad); border:none; color:#fff; border-radius:14px; padding:.62rem 1.2rem; font:700 .86rem 'Heebo'; cursor:pointer; box-shadow:0 8px 24px rgba(99,102,241,.4), inset 0 1px 0 rgba(255,255,255,.25); white-space:nowrap; }
+.cta:hover { filter:brightness(1.08); }
+.sec { background:var(--panel2); border:1px solid var(--line2); color:var(--ink); border-radius:14px; padding:.58rem 1.05rem; font:600 .84rem 'Heebo'; cursor:pointer; white-space:nowrap; }
+.tert { background:transparent; border:none; color:var(--ink2); font:500 .84rem 'Heebo'; cursor:pointer; padding:.5rem .7rem; border-radius:10px; }
+.tert:hover { background:rgba(255,255,255,.05); color:var(--ink); }
+
+.scr { display:none; } .scr.on { display:block; animation:up .3s cubic-bezier(.2,.7,.3,1); }
+@keyframes up { from { opacity:0; transform:translateY(10px); } to { opacity:1; } }
+
+/* ═══ HERO BAND ═══ */
+.hero { position:relative; overflow:hidden; background:var(--panel); border:1px solid var(--line); border-radius:var(--r); padding:1.5rem 1.6rem 1.3rem; margin-bottom:1rem; box-shadow:var(--shadow); display:flex; align-items:center; gap:2.2rem; flex-wrap:wrap; }
+.hero::before { content:''; position:absolute; inset:0; background:radial-gradient(600px 220px at 85% 0%, rgba(79,139,255,.13), transparent 60%); pointer-events:none; }
+.hk { font-size:.7rem; font-weight:700; letter-spacing:.14em; color:var(--mut); }
+.hv { font-size:2.6rem; font-weight:900; letter-spacing:-1.5px; line-height:1.1; font-variant-numeric:tabular-nums; margin-top:.3rem; }
+.hv.grad { background:var(--grad); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.hsub { font-size:.8rem; color:var(--ink2); margin-top:.4rem; }
+.hstats { display:flex; gap:2rem; margin-inline-start:auto; align-items:center; position:relative; }
+.hstat .k { font-size:.68rem; color:var(--mut); font-weight:600; letter-spacing:.08em; }
+.hstat .v { font-size:1.25rem; font-weight:800; margin-top:.2rem; font-variant-numeric:tabular-nums; }
+.hchart { width:280px; height:74px; position:relative; }
+.hchart svg { width:100%; height:100%; overflow:visible; }
+.delta { display:inline-flex; align-items:center; gap:.3rem; font-size:.7rem; font-weight:700; padding:.16rem .55rem; border-radius:999px; margin-inline-start:.5rem; vertical-align:middle; }
+.delta.up { background:rgba(45,212,160,.13); color:var(--income); }
+.delta.dn { background:rgba(251,106,134,.13); color:var(--expense); }
+
+/* ═══ PANEL / LIST ═══ */
+.panel { background:var(--panel); border:1px solid var(--line); border-radius:var(--r); box-shadow:var(--shadow); }
+.phead { display:flex; align-items:center; gap:.7rem; padding:1rem 1.3rem; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+.ptitle { font-weight:800; font-size:.98rem; }
+.count { background:var(--panel2); border:1px solid var(--line2); color:var(--ink2); border-radius:999px; font-size:.68rem; font-weight:700; padding:.12rem .55rem; }
+.pbody { padding:.55rem .8rem .9rem; }
+.seg2 { display:flex; background:var(--field); border:1px solid var(--line); border-radius:12px; padding:3px; }
+.seg2 span { padding:.4rem .9rem; border-radius:9px; font-size:.78rem; color:var(--ink2); cursor:pointer; }
+.seg2 span.on { background:var(--panel2); color:var(--ink); font-weight:700; box-shadow:0 2px 8px rgba(0,0,0,.4); }
+.dot { width:6px; height:6px; border-radius:50%; display:inline-block; margin-inline-end:.35rem; vertical-align:1px; }
+
+.dayrow { display:flex; align-items:center; gap:.7rem; margin:.9rem .5rem .3rem; }
+.dayrow b { font-size:.72rem; font-weight:800; letter-spacing:.1em; color:var(--ink2); }
+.dayrow em { font-style:normal; font-size:.72rem; color:var(--mut); }
+.dayrow i { flex:1; height:1px; background:var(--line); font-style:normal; }
+.dayrow s { text-decoration:none; font-size:.7rem; color:var(--mut); font-variant-numeric:tabular-nums; }
+
+.row { display:grid; grid-template-columns:auto 1fr auto; gap:.9rem; align-items:center; padding:.6rem .6rem; border-radius:16px; cursor:pointer; position:relative; transition:background .12s, transform .12s; }
+.row:hover { background:rgba(255,255,255,.035); }
+.tile { width:42px; height:42px; border-radius:14px; display:grid; place-items:center; font-size:1.1rem; box-shadow:inset 0 1px 0 rgba(255,255,255,.09); border:1px solid transparent; }
+.rname { font-weight:700; font-size:.92rem; }
+.rsub { color:var(--mut); font-size:.74rem; margin-top:.14rem; }
+.ramt { font-weight:800; font-size:1rem; font-variant-numeric:tabular-nums; letter-spacing:-.3px; text-align:left; }
+.ramt small { font-size:.7rem; font-weight:500; color:var(--mut); }
+.exp { color:var(--expense); } .inc { color:var(--income); }
+.chip { font-size:.64rem; padding:.12rem .5rem; border-radius:999px; background:var(--panel2); border:1px solid var(--line2); color:var(--ink2); margin-inline-start:.4rem; font-weight:600; vertical-align:2px; }
+.hoverbar { position:absolute; inset-inline-end:7.2rem; top:50%; transform:translateY(-50%); display:none; gap:.1rem; background:var(--panel2); border:1px solid var(--line2); border-radius:12px; padding:.22rem .3rem; box-shadow:0 10px 30px rgba(0,0,0,.55); }
+.row:hover .hoverbar { display:flex; }
+.hoverbar b { font-weight:400; font-size:.85rem; padding:.25rem .45rem; border-radius:9px; cursor:pointer; }
+.hoverbar b:hover { background:rgba(255,255,255,.07); }
+
+.bulk { position:fixed; bottom:1.4rem; inset-inline-start:50%; transform:translateX(50%); background:var(--panel2); border:1px solid var(--line2); border-radius:999px; padding:.55rem .6rem .55rem 1.1rem; display:flex; align-items:center; gap:.7rem; box-shadow:0 20px 50px rgba(0,0,0,.65); font-size:.82rem; z-index:40; }
+.bulk .cta { padding:.45rem .95rem; border-radius:999px; font-size:.78rem; }
+
+/* recurring */
+.rec2 { display:grid; grid-template-columns:auto 1fr 110px auto auto; gap:1rem; align-items:center; padding:.7rem .6rem; border-radius:16px; cursor:pointer; }
+.rec2:hover { background:rgba(255,255,255,.035); }
+.spark { display:flex; align-items:flex-end; gap:3px; height:30px; }
+.spark i { flex:1; background:rgba(79,139,255,.35); border-radius:3px 3px 0 0; min-height:3px; }
+.spark i.hot { background:var(--blue); }
+.nextpill { font-size:.7rem; color:var(--ink2); background:var(--field); border:1px solid var(--line); border-radius:999px; padding:.22rem .65rem; white-space:nowrap; text-align:center; }
+.rec-x { border:1px solid rgba(110,140,255,.25); border-radius:18px; background:linear-gradient(160deg,rgba(79,139,255,.07),transparent 50%); margin:.4rem .3rem; }
+
+/* budget */
+.bud2 { display:grid; grid-template-columns:auto 1.1fr 2fr auto; gap:1.1rem; align-items:center; padding:.75rem .7rem; border-radius:16px; cursor:pointer; }
+.bud2:hover { background:rgba(255,255,255,.035); }
+.bn { font-weight:700; font-size:.9rem; }
+.bs { font-size:.72rem; color:var(--mut); margin-top:.12rem; font-variant-numeric:tabular-nums; }
+.btrack { height:9px; border-radius:6px; background:var(--field); position:relative; }
+.bfill { height:100%; border-radius:6px; position:relative; }
+.bfill::after { content:''; position:absolute; inset:0; border-radius:6px; background:linear-gradient(180deg,rgba(255,255,255,.25),transparent 55%); }
+.g-ok { background:linear-gradient(90deg,#2dd4a0,#4f8bff); }
+.g-warn { background:linear-gradient(90deg,#fbbf24,#f97316); }
+.g-over { background:linear-gradient(90deg,#fb6a86,#f43f5e); }
+.pace { position:absolute; top:-4px; bottom:-4px; width:2px; background:#fff; opacity:.55; border-radius:2px; }
+.bpct { font-size:.95rem; font-weight:900; font-variant-numeric:tabular-nums; width:3.2rem; text-align:left; }
+.ring { --p:68; width:118px; height:118px; border-radius:50%; flex-shrink:0; background:conic-gradient(#4f8bff 0 calc(var(--p)*1%), #8b5cf6 calc(var(--p)*1%) calc(var(--p)*1% + .1%), var(--field) 0); display:grid; place-items:center; position:relative; }
+.ring::before { content:''; position:absolute; inset:10px; border-radius:50%; background:var(--panel2); box-shadow:inset 0 3px 12px rgba(0,0,0,.5); }
+.ring b { position:relative; font-size:1.5rem; font-weight:900; letter-spacing:-.5px; }
+.ring span { position:relative; display:block; text-align:center; font-size:.62rem; color:var(--mut); }
+
+/* drill side panel (sub-screen example) */
+.drill { width:330px; flex-shrink:0; }
+.drill .panel { position:sticky; top:5.4rem; }
+.dhead { padding:1.1rem 1.2rem .9rem; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:.7rem; }
+.mini { display:flex; align-items:flex-end; gap:4px; height:56px; padding:1rem 1.2rem 0; }
+.mini i { flex:1; background:rgba(251,106,134,.3); border-radius:4px 4px 0 0; }
+.mini i.hot { background:var(--expense); }
+.dtx { display:flex; justify-content:space-between; padding:.5rem 1.2rem; font-size:.8rem; color:var(--ink2); }
+.dtx b { color:var(--ink); font-weight:600; }
+.dtx span { font-variant-numeric:tabular-nums; }
+
+/* ═══ MODAL ═══ */
+.overlay { position:fixed; inset:0; background:rgba(4,4,7,.66); backdrop-filter:blur(10px); display:none; place-items:center; z-index:60; }
+.overlay.on { display:grid; animation:fade .2s ease; }
+@keyframes fade { from{opacity:0} }
+.modal { width:min(500px,94vw); background:var(--panel2); border:1px solid var(--line2); border-radius:24px; box-shadow:0 40px 120px rgba(0,0,0,.8), inset 0 1px 0 rgba(255,255,255,.08); animation:pop .25s cubic-bezier(.2,.9,.3,1.2); }
+@keyframes pop { from { opacity:0; transform:scale(.96) translateY(8px); } }
+.mhead { display:flex; align-items:center; gap:.8rem; padding:1.15rem 1.4rem; border-bottom:1px solid var(--line); }
+.mhead .tile { width:38px; height:38px; border-radius:12px; }
+.mhead h3 { font-size:1rem; font-weight:800; flex:1; }
+.mx { color:var(--mut); cursor:pointer; font-size:1rem; padding:.3rem .5rem; border-radius:9px; }
+.mx:hover { background:rgba(255,255,255,.06); color:var(--ink); }
+.mbody { padding:1.2rem 1.4rem; }
+.fgrid { display:grid; grid-template-columns:1fr 1fr; gap:.8rem .9rem; }
+.fld label { display:block; font-size:.68rem; font-weight:700; letter-spacing:.06em; color:var(--mut); margin-bottom:.3rem; }
+.fld input, .fld select { width:100%; background:var(--field); border:1px solid var(--line2); color:var(--ink); border-radius:12px; padding:.6rem .75rem; font:500 .9rem 'Heebo'; }
+.fld input:focus { outline:none; border-color:var(--blue); box-shadow:0 0 0 3px rgba(79,139,255,.18); }
+.mfoot { display:flex; gap:.6rem; padding:1rem 1.4rem 1.3rem; justify-content:flex-end; align-items:center; }
+.mfoot .danger { margin-inline-end:auto; color:var(--expense); }
+
+/* toast */
+.toast { position:fixed; bottom:1.4rem; inset-inline-end:1.4rem; background:var(--panel2); border:1px solid rgba(45,212,160,.35); border-radius:16px; padding:.75rem 1.1rem; display:flex; gap:.6rem; align-items:center; font-size:.85rem; box-shadow:0 16px 50px rgba(0,0,0,.6); z-index:70; }
+.toast i { font-style:normal; color:var(--income); }
+
+/* design-language tab */
+.dl { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
+.dl .panel { padding:1.2rem 1.3rem; }
+.dl h4 { font-size:.8rem; font-weight:800; letter-spacing:.08em; color:var(--ink2); margin-bottom:.9rem; }
+.sw { display:flex; gap:.5rem; flex-wrap:wrap; }
+.sw div { width:86px; }
+.sw i { display:block; height:44px; border-radius:12px; font-style:normal; border:1px solid var(--line2); }
+.sw b { font-size:.62rem; color:var(--mut); font-weight:500; display:block; margin-top:.3rem; }
+.tscale div { margin-bottom:.55rem; }
+.tscale small { color:var(--mut); font-size:.62rem; display:block; }
+</style>
+</head>
+<body>
+
+<div class="note"><b>V2 — שפה חדשה, לא ליטוש:</b> rail אייקונים במקום sidebar רחב · topbar צף עם חיפוש גלובלי (⌘K), בורר תקופה גלובלי אחד וסטטוס סנכרון · כל מסך נפתח ב-hero עם המספר-שחשוב + גרף · פאנלים מאט (לא זכוכית שקופה) עם צל עמוק · מסך-משנה (drill) בתקציב · מודאל, bulk-bar ו-toast חיים — לחץ "＋ עסקה חדשה" ו"בחר שורות" בעסקאות. הטאב האחרון מגדיר את שפת העיצוב לכל שאר המערכת.</div>
+
+<div class="shell">
+  <aside class="rail">
+    <div class="orb"></div>
+    <div class="ritem"><i>◫</i><b>בית</b></div>
+    <div class="ritem on" data-s="tx" onclick="go('tx',this)"><i>⇄</i><b>עסקאות</b></div>
+    <div class="ritem" data-s="rec" onclick="go('rec',this)"><i>↻</i><b>קבועות</b></div>
+    <div class="ritem" data-s="bud" onclick="go('bud',this)"><i>◔</i><b>תקציב</b></div>
+    <div class="ritem"><i>⌂</i><b>משכנתא</b></div>
+    <hr>
+    <div class="ritem" data-s="dl" onclick="go('dl',this)"><i>✦</i><b>שפה</b></div>
+    <div class="ritem"><i>⚙</i><b>הגדרות</b></div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <span class="crumb" id="crumb">עסקאות <em>· יולי 2026</em></span>
+      <div class="cmdk">⌕ חיפוש מהיר — ספק, קטגוריה, סכום, מסך… <kbd>⌘K</kbd></div>
+      <div class="gperiod"><span>שנה</span><span>3 ח׳</span><span class="on">יולי</span><span>◂ ▸</span></div>
+      <span class="sync"><i></i> מסונכרן</span>
+    </div>
+
+    <!-- ════════ עסקאות ════════ -->
+    <section class="scr on" id="scr-tx">
+      <div class="hero">
+        <div>
+          <div class="hk">נטו החודש</div>
+          <div class="hv grad">₪13,929<span class="delta up">▲ 8% מיוני</span></div>
+          <div class="hsub">64% שיעור חיסכון · 10 עסקאות · עדכון אחרון לפני 2 ד׳</div>
+        </div>
+        <div class="hstats">
+          <div class="hstat"><div class="k">הכנסות</div><div class="v inc">₪21,500</div></div>
+          <div class="hstat"><div class="k">הוצאות</div><div class="v exp">₪7,571</div></div>
+          <div class="hchart">
+            <svg viewBox="0 0 280 74">
+              <defs><linearGradient id="a" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#4f8bff" stop-opacity=".35"/><stop offset="1" stop-color="#4f8bff" stop-opacity="0"/>
+              </linearGradient></defs>
+              <path d="M0,60 C30,58 45,40 70,42 C95,44 110,20 140,24 C170,28 185,34 210,18 C235,6 255,12 280,8 L280,74 L0,74 Z" fill="url(#a)"/>
+              <path d="M0,60 C30,58 45,40 70,42 C95,44 110,20 140,24 C170,28 185,34 210,18 C235,6 255,12 280,8" fill="none" stroke="#4f8bff" stroke-width="2.5" stroke-linecap="round"/>
+              <circle cx="280" cy="8" r="4" fill="#4f8bff" stroke="#0c0d11" stroke-width="2.5"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="phead">
+          <span class="ptitle">תנועות</span><span class="count">10</span>
+          <div class="seg2" style="margin-inline-start:auto"><span class="on">הכל</span><span>הוצאות</span><span>הכנסות</span><span><span class="dot" style="background:var(--amber)"></span>לא מסווג · 2</span></div>
+          <button class="tert">⚲ סינון</button>
+          <button class="tert" onclick="bulk()">☑ בחר שורות</button>
+          <button class="cta" onclick="modal(true)">＋ עסקה חדשה</button>
+        </div>
+        <div class="pbody">
+          <div class="dayrow"><b>היום</b><em>שישי, 19 ביולי</em><i></i><s>−₪615.40</s></div>
+          <div class="row">
+            <div class="tile" style="background:rgba(239,68,68,.13);border-color:rgba(239,68,68,.22)">🛒</div>
+            <div><div class="rname">שופרסל דיל</div><div class="rsub">מזון וסופרמרקט · ויזה כאל</div></div>
+            <div class="hoverbar"><b>✏️</b><b>💬</b><b>📎</b><b>🗑</b></div>
+            <div class="ramt exp">−487.40<small> ₪</small></div>
+          </div>
+          <div class="row">
+            <div class="tile" style="background:rgba(249,115,22,.13);border-color:rgba(249,115,22,.22)">🍽️</div>
+            <div><div class="rname">וולט — סושי בר<span class="chip">📎 קבלה</span></div><div class="rsub">מסעדות ובתי קפה · ויזה כאל</div></div>
+            <div class="ramt exp">−128.00<small> ₪</small></div>
+          </div>
+
+          <div class="dayrow"><b>אתמול</b><em>חמישי, 18 ביולי</em><i></i><s>−₪745.20</s></div>
+          <div class="row">
+            <div class="tile" style="background:rgba(132,204,22,.13);border-color:rgba(132,204,22,.22)">⛽</div>
+            <div><div class="rname">פז — יהוד</div><div class="rsub">דלק · ויזה כאל</div></div>
+            <div class="ramt exp">−343.20<small> ₪</small></div>
+          </div>
+          <div class="row">
+            <div class="tile" style="background:rgba(6,182,212,.13);border-color:rgba(6,182,212,.22)">⚡</div>
+            <div><div class="rname">חברת חשמל<span class="chip">↻ קבועה</span></div><div class="rsub">דיור ושכירות · הוראת קבע</div></div>
+            <div class="ramt exp">−402.00<small> ₪</small></div>
+          </div>
+
+          <div class="dayrow"><b>14 ביולי</b><em>שני</em><i></i><s>+₪16,309</s></div>
+          <div class="row">
+            <div class="tile" style="background:rgba(45,212,160,.13);border-color:rgba(45,212,160,.25)">💼</div>
+            <div><div class="rname">משכורת — אקמי בע"מ</div><div class="rsub">משכורת · עו"ש לאומי</div></div>
+            <div class="ramt inc">+21,500.00<small> ₪</small></div>
+          </div>
+          <div class="row">
+            <div class="tile" style="background:rgba(6,182,212,.13);border-color:rgba(6,182,212,.22)">🏠</div>
+            <div><div class="rname">שכירות<span class="chip">↻ קבועה</span></div><div class="rsub">דיור ושכירות · עו"ש לאומי</div></div>
+            <div class="ramt exp">−5,191.00<small> ₪</small></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════ קבועות ════════ -->
+    <section class="scr" id="scr-rec">
+      <div class="hero">
+        <div>
+          <div class="hk">מחויבות חודשית קבועה</div>
+          <div class="hv" style="color:var(--expense)">₪7,326<span class="delta dn">▲ ₪84 מהרבעון</span></div>
+          <div class="hsub">34% מההכנסה הקבועה · יחס כיסוי פי 2.9</div>
+        </div>
+        <div class="hstats">
+          <div class="hstat"><div class="k">הכנסה קבועה</div><div class="v inc">₪21,500</div></div>
+          <div class="hstat"><div class="k">פנוי אחרי קבועות</div><div class="v">₪14,174</div></div>
+          <div class="hchart">
+            <svg viewBox="0 0 280 74">
+              <defs><linearGradient id="b" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#fb6a86" stop-opacity=".3"/><stop offset="1" stop-color="#fb6a86" stop-opacity="0"/>
+              </linearGradient></defs>
+              <path d="M0,40 L40,40 L40,38 L80,38 L80,42 L120,42 L120,36 L160,36 L160,38 L200,38 L200,30 L240,30 L240,28 L280,28 L280,74 L0,74 Z" fill="url(#b)"/>
+              <path d="M0,40 L40,40 L40,38 L80,38 L80,42 L120,42 L120,36 L160,36 L160,38 L200,38 L200,30 L240,30 L240,28 L280,28" fill="none" stroke="#fb6a86" stroke-width="2.5"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="phead">
+          <span class="ptitle">מנויים והוראות קבע</span><span class="count">6 פעילות</span>
+          <div class="seg2" style="margin-inline-start:auto"><span class="on">הוצאות</span><span>הכנסות · 1</span><span>מוסתרות · 2</span></div>
+          <button class="sec">＋ רישום ידני</button>
+        </div>
+        <div class="pbody">
+          <div class="rec2">
+            <div class="tile" style="background:rgba(6,182,212,.13);border-color:rgba(6,182,212,.22)">🏠</div>
+            <div><div class="rname">שכירות</div><div class="rsub">דיור ושכירות · חיוב ב-1 לחודש · יציב</div></div>
+            <div class="spark"><i style="height:86%"></i><i style="height:86%"></i><i style="height:86%"></i><i style="height:86%"></i><i style="height:86%"></i><i class="hot" style="height:90%"></i></div>
+            <span class="nextpill">הבא · 01/08</span>
+            <div class="ramt exp">5,191<small> ₪/ח׳</small></div>
+          </div>
+
+          <!-- expanded row = sub-state example -->
+          <div class="rec-x">
+            <div class="rec2" style="cursor:default">
+              <div class="tile" style="background:rgba(6,182,212,.13);border-color:rgba(6,182,212,.22)">⚡</div>
+              <div><div class="rname">חברת חשמל</div><div class="rsub"><span class="dot" style="background:var(--amber)"></span>דו-חודשי · ▲ 12% מעל הממוצע — קיץ?</div></div>
+              <div class="spark"><i style="height:45%"></i><i style="height:58%"></i><i style="height:44%"></i><i style="height:60%"></i><i style="height:52%"></i><i class="hot" style="height:74%"></i></div>
+              <span class="nextpill">הבא · ~13/09</span>
+              <div class="ramt exp">402<small> ₪/ח׳</small></div>
+            </div>
+            <div style="display:flex;gap:.5rem;padding:.15rem .9rem .8rem;align-items:center">
+              <span style="font-size:.72rem;color:var(--mut)">שורה פתוחה — פעולות מהירות:</span>
+              <button class="sec" style="padding:.35rem .8rem;font-size:.74rem">📊 כל החיובים</button>
+              <button class="sec" style="padding:.35rem .8rem;font-size:.74rem">✏️ קבע סכום ידני</button>
+              <button class="sec" style="padding:.35rem .8rem;font-size:.74rem">🙈 הסתר מהרשימה</button>
+              <button class="tert" style="font-size:.74rem;color:var(--expense)">התעלם מחריגים</button>
+            </div>
+          </div>
+
+          <div class="rec2">
+            <div class="tile" style="background:rgba(139,92,246,.13);border-color:rgba(139,92,246,.22)">🛡️</div>
+            <div><div class="rname">ביטוח בריאות</div><div class="rsub">ביטוחים · חיוב ב-14 לחודש · יציב</div></div>
+            <div class="spark"><i style="height:60%"></i><i style="height:60%"></i><i style="height:60%"></i><i style="height:60%"></i><i style="height:60%"></i><i class="hot" style="height:60%"></i></div>
+            <span class="nextpill">הבא · 14/08</span>
+            <div class="ramt exp">219<small> ₪/ח׳</small></div>
+          </div>
+          <div class="rec2">
+            <div class="tile" style="background:rgba(234,179,8,.13);border-color:rgba(234,179,8,.22)">🚌</div>
+            <div><div class="rname">רב-קו</div><div class="rsub">תחבורה · חודשי · יציב</div></div>
+            <div class="spark"><i style="height:50%"></i><i style="height:46%"></i><i style="height:55%"></i><i style="height:50%"></i><i style="height:48%"></i><i class="hot" style="height:50%"></i></div>
+            <span class="nextpill">הבא · 11/08</span>
+            <div class="ramt exp">142<small> ₪/ח׳</small></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════ תקציב + drill ════════ -->
+    <section class="scr" id="scr-bud">
+      <div style="display:flex;gap:1rem;align-items:flex-start">
+        <div style="flex:1;min-width:0">
+          <div class="hero">
+            <div class="ring"><div><b>68%</b><span>מנוצל</span></div></div>
+            <div>
+              <div class="hk">תקציב יולי 2026</div>
+              <div class="hv">₪6,876<span style="font-size:1.1rem;color:var(--mut);font-weight:500"> / ₪10,100</span></div>
+              <div class="hsub">נותרו 12 ימים · קצב תקין — צפי לסיום ב-<b style="color:var(--income)">96%</b></div>
+            </div>
+            <div class="hstats">
+              <div class="hstat"><div class="k">נותר לניצול</div><div class="v">₪3,224</div></div>
+              <div class="hstat"><div class="k">חריגות</div><div class="v" style="color:var(--expense)">1</div></div>
+              <button class="cta">✨ הצע תקציב</button>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="phead"><span class="ptitle">קטגוריות</span><span class="count">5</span>
+              <button class="tert" style="margin-inline-start:auto">📋 העתק מיוני</button>
+              <button class="tert">🧹 נקה</button>
+            </div>
+            <div class="pbody">
+              <div class="bud2" style="background:rgba(255,255,255,.035);box-shadow:inset 3px 0 0 var(--blue);border-radius:16px">
+                <div class="tile" style="background:rgba(249,115,22,.13);border-color:rgba(249,115,22,.22)">🍽️</div>
+                <div><div class="bn">מסעדות ובתי קפה</div><div class="bs">₪910 מתוך ₪600</div></div>
+                <div class="btrack"><div class="bfill g-over" style="width:100%"></div><div class="pace" style="inset-inline-start:61%"></div></div>
+                <div class="bpct" style="color:var(--expense)">152%</div>
+              </div>
+              <div class="bud2">
+                <div class="tile" style="background:rgba(239,68,68,.13);border-color:rgba(239,68,68,.22)">🛒</div>
+                <div><div class="bn">מזון וסופרמרקט</div><div class="bs">₪1,842 מתוך ₪2,200</div></div>
+                <div class="btrack"><div class="bfill g-warn" style="width:84%"></div><div class="pace" style="inset-inline-start:61%"></div></div>
+                <div class="bpct" style="color:var(--amber)">84%</div>
+              </div>
+              <div class="bud2">
+                <div class="tile" style="background:rgba(132,204,22,.13);border-color:rgba(132,204,22,.22)">⛽</div>
+                <div><div class="bn">דלק</div><div class="bs">₪693 מתוך ₪900</div></div>
+                <div class="btrack"><div class="bfill g-ok" style="width:77%"></div><div class="pace" style="inset-inline-start:61%"></div></div>
+                <div class="bpct">77%</div>
+              </div>
+              <div class="bud2">
+                <div class="tile" style="background:rgba(6,182,212,.13);border-color:rgba(6,182,212,.22)">🏠</div>
+                <div><div class="bn">דיור ושכירות</div><div class="bs">₪5,593 מתוך ₪6,000 · קבועות</div></div>
+                <div class="btrack"><div class="bfill g-ok" style="width:93%"></div><div class="pace" style="inset-inline-start:61%"></div></div>
+                <div class="bpct" style="color:var(--income)">93%</div>
+              </div>
+              <div class="bud2">
+                <div class="tile" style="background:rgba(234,179,8,.13);border-color:rgba(234,179,8,.22)">🚌</div>
+                <div><div class="bn">תחבורה</div><div class="bs">₪142 מתוך ₪400</div></div>
+                <div class="btrack"><div class="bfill g-ok" style="width:36%"></div><div class="pace" style="inset-inline-start:61%"></div></div>
+                <div class="bpct" style="color:var(--income)">36%</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- drill = מסך משנה -->
+        <div class="drill">
+          <div class="panel">
+            <div class="dhead">
+              <div class="tile" style="background:rgba(249,115,22,.13);border-color:rgba(249,115,22,.22)">🍽️</div>
+              <div style="flex:1"><div class="rname">מסעדות ובתי קפה</div><div class="rsub">יולי · 7 עסקאות</div></div>
+              <span class="mx">✕</span>
+            </div>
+            <div class="mini">
+              <i style="height:30%"></i><i style="height:45%"></i><i style="height:38%"></i><i style="height:60%"></i><i style="height:52%"></i><i class="hot" style="height:100%"></i>
+            </div>
+            <div style="padding:.4rem 1.2rem .2rem;font-size:.72rem;color:var(--mut)">יולי הוא החודש הגבוה בחצי השנה — ▲ 41% מהממוצע</div>
+            <div style="padding:.7rem 0 .4rem">
+              <div class="dtx"><b>וולט — סושי בר</b><span>−₪128.00</span></div>
+              <div class="dtx"><b>קפה גרג</b><span>−₪54.00</span></div>
+              <div class="dtx"><b>וולט — פיצה</b><span>−₪96.50</span></div>
+              <div class="dtx"><b>מסעדת השף</b><span>−₪420.00</span></div>
+              <div class="dtx" style="color:var(--mut)">+ 3 נוספות…</div>
+            </div>
+            <div style="display:flex;gap:.5rem;padding: .6rem 1.2rem 1.1rem">
+              <button class="sec" style="flex:1;font-size:.78rem">כל העסקאות ←</button>
+              <button class="sec" style="font-size:.78rem">✏️ עדכן יעד</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════ שפת עיצוב ════════ -->
+    <section class="scr" id="scr-dl">
+      <div class="hero" style="gap:1rem">
+        <div>
+          <div class="hk">שפת העיצוב — חלה על כל מסך, תת-מסך, מודאל ו-toast</div>
+          <div class="hv" style="font-size:1.6rem">מאט כהה · אקסנט אחד · מספרים קודם</div>
+          <div class="hsub">4 עקרונות: (1) פאנל מאט #0c0d11 עם צל עמוק — לא זכוכית; (2) גרדיאנט כחול-סגול רק לפעולה ראשית ול-active; (3) המספר החשוב הוא האלמנט הגדול במסך; (4) פעולות משניות נחשפות ב-hover/הרחבה — לא עמודות קבועות.</div>
+        </div>
+      </div>
+      <div class="dl">
+        <div class="panel">
+          <h4>צבע</h4>
+          <div class="sw">
+            <div><i style="background:#060608"></i><b>רקע 060608</b></div>
+            <div><i style="background:#0c0d11"></i><b>פאנל 0c0d11</b></div>
+            <div><i style="background:#12131a"></i><b>מוגבה 12131a</b></div>
+            <div><i style="background:#15161d"></i><b>שדה 15161d</b></div>
+            <div><i style="background:linear-gradient(120deg,#4f8bff,#8b5cf6)"></i><b>אקסנט (CTA בלבד)</b></div>
+            <div><i style="background:#2dd4a0"></i><b>הכנסה 2dd4a0</b></div>
+            <div><i style="background:#fb6a86"></i><b>הוצאה fb6a86</b></div>
+            <div><i style="background:#fbbf24"></i><b>אזהרה fbbf24</b></div>
+          </div>
+        </div>
+        <div class="panel">
+          <h4>טיפוגרפיה (Heebo)</h4>
+          <div class="tscale">
+            <div style="font-size:2.2rem;font-weight:900;letter-spacing:-1.2px">₪13,929<small>Hero · 900 · tabular · tracking −1</small></div>
+            <div style="font-size:1rem;font-weight:800">כותרת פאנל<small>Panel title · 800</small></div>
+            <div style="font-size:.92rem;font-weight:700">שם שורה<small>Row · 700</small></div>
+            <div style="font-size:.74rem;color:var(--mut)">טקסט משני · תמיד muted<small>Sub · 400</small></div>
+            <div style="font-size:.68rem;font-weight:700;letter-spacing:.14em;color:var(--mut)">תווית מיקרו מרווחת<small>Micro-label · 700 · tracking +.14em</small></div>
+          </div>
+        </div>
+        <div class="panel">
+          <h4>רכיבים</h4>
+          <div style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:center">
+            <button class="cta">פעולה ראשית</button>
+            <button class="sec">משנית</button>
+            <button class="tert">שלישונית</button>
+            <span class="chip">chip מידע</span>
+            <span class="count">count</span>
+            <span class="nextpill">pill סטטוס</span>
+            <span class="delta up">▲ 8%</span>
+            <span class="delta dn">▼ 3%</span>
+          </div>
+          <div style="display:flex;gap:.6rem;margin-top:.9rem;align-items:center">
+            <div class="fld" style="flex:1"><label>שדה קלט</label><input placeholder="טקסט…"></div>
+            <div class="seg2"><span class="on">סגמנט</span><span>אחר</span></div>
+          </div>
+        </div>
+        <div class="panel">
+          <h4>שכבות צפות — אותה שפה</h4>
+          <div style="font-size:.8rem;color:var(--ink2);line-height:1.8">
+            <b style="color:var(--ink)">מודאל:</b> פאנל מוגבה 12131a, radius 24, backdrop מטושטש 10px · כותרת עם tile-אייקון · פעולה הרסנית שמאלה, אישור ימינה<br>
+            <b style="color:var(--ink)">Toast:</b> פינה שמאלית-תחתונה, מסגרת בצבע הסטטוס — <button class="tert" onclick="toastDemo()" style="color:var(--blue)">הדגם ←</button><br>
+            <b style="color:var(--ink)">Bulk-bar:</b> גלולה צפה בתחתית כשנבחרו שורות · <b style="color:var(--ink)">Drill:</b> פאנל צד 330px במקום ניווט למסך חדש<br>
+            <b style="color:var(--ink)">Bottom-sheet במובייל</b> = המודאל, מוצמד לתחתית עם ידית גרירה
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- modal -->
+<div class="overlay" id="ov" onclick="if(event.target===this)modal(false)">
+  <div class="modal">
+    <div class="mhead">
+      <div class="tile" style="background:rgba(79,139,255,.15);border-color:rgba(79,139,255,.3)">⇄</div>
+      <h3>עסקה חדשה</h3>
+      <span class="mx" onclick="modal(false)">✕</span>
+    </div>
+    <div class="mbody">
+      <div class="fgrid">
+        <div class="fld" style="grid-column:span 2"><label>ספק / תיאור</label><input value="וולט — סושי בר" autofocus></div>
+        <div class="fld"><label>סכום</label><input value="128.00" style="direction:ltr;text-align:end"></div>
+        <div class="fld"><label>תאריך</label><input value="19/07/2026"></div>
+        <div class="fld"><label>קטגוריה</label><select><option>🍽️ מסעדות ובתי קפה</option></select></div>
+        <div class="fld"><label>חשבון</label><select><option>ויזה כאל</option></select></div>
+        <div class="fld" style="grid-column:span 2"><label>הערה</label><input placeholder="אופציונלי…"></div>
+      </div>
+      <div style="margin-top:.9rem;font-size:.74rem;color:var(--mut)">✨ הקטגוריה זוהתה אוטומטית לפי עסקאות קודמות של "וולט"</div>
+    </div>
+    <div class="mfoot">
+      <button class="tert danger">🗑 מחק</button>
+      <button class="sec" onclick="modal(false)">ביטול</button>
+      <button class="cta" onclick="modal(false);toastDemo()">שמור עסקה</button>
+    </div>
+  </div>
+</div>
+
+<div class="bulk" id="bulkbar" style="display:none">
+  <b>3 נבחרו</b>
+  <button class="sec" style="padding:.4rem .85rem;font-size:.76rem">שנה קטגוריה</button>
+  <button class="sec" style="padding:.4rem .85rem;font-size:.76rem">🗑 מחק</button>
+  <button class="cta" onclick="bulk(false)">סיום</button>
+</div>
+
+<div class="toast" id="toast" style="display:none"><i>✓</i> העסקה נשמרה · סווגה למסעדות ובתי קפה</div>
+
+<script>
+function go(s, el) {
+  document.querySelectorAll('.scr').forEach(x => x.classList.remove('on'))
+  document.getElementById('scr-' + s).classList.add('on')
+  document.querySelectorAll('.ritem').forEach(a => a.classList.remove('on'))
+  el.classList.add('on')
+  const names = { tx: 'עסקאות', rec: 'הוצאות קבועות', bud: 'תקציב', dl: 'שפת העיצוב' }
+  document.getElementById('crumb').innerHTML = names[s] + ' <em>· יולי 2026</em>'
+}
+function modal(on) { document.getElementById('ov').classList.toggle('on', on) }
+function bulk(on = true) { document.getElementById('bulkbar').style.display = on ? 'flex' : 'none' }
+function toastDemo() {
+  const t = document.getElementById('toast')
+  t.style.display = 'flex'
+  setTimeout(() => t.style.display = 'none', 2600)
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { modal(false); bulk(false) } })
+</script>
+</body>
+</html>
