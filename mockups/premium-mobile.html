@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>מוקאפ פרימיום — מובייל (עסקאות · קבועות · תקציב)</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap');
+:root {
+  --bg:#09090b; --surface:rgba(255,255,255,.03); --elev:rgba(255,255,255,.06); --line:rgba(255,255,255,.055);
+  --ink:#fafafa; --ink2:#9aa7b8; --mut:rgba(255,255,255,.34);
+  --income:#10b981; --expense:#f43f5e; --grad:linear-gradient(135deg,#3b82f6,#8b5cf6);
+}
+* { box-sizing:border-box; margin:0; }
+body { background:#040406; color:var(--ink); font-family:'Heebo',sans-serif; padding:1.4rem; display:flex; gap:1.6rem; justify-content:center; flex-wrap:wrap; align-items:flex-start; }
+.note { width:100%; max-width:1280px; padding:.75rem 1.1rem; border-radius:12px; background:rgba(59,130,246,.08); border:1px solid rgba(59,130,246,.25); font-size:.84rem; line-height:1.6; }
+.note b { color:#7fb0ff; }
+.phone {
+  width:390px; background:var(--bg); border:6px solid #1b1b1f; border-radius:36px; padding:1rem .85rem 4.4rem;
+  box-shadow:0 30px 70px rgba(0,0,0,.75); position:relative; overflow:hidden;
+  background-image:radial-gradient(340px 240px at 90% -6%, rgba(59,130,246,.10), transparent 60%),
+                   radial-gradient(300px 220px at 0% 104%, rgba(139,92,246,.08), transparent 60%);
+}
+.cap { text-align:center; font-size:.76rem; color:var(--mut); margin-bottom:.7rem; width:390px; }
+.col { display:flex; flex-direction:column; align-items:center; gap:.55rem; }
+
+h2 { font-size:1.35rem; font-weight:800; letter-spacing:-.5px; margin:.2rem .2rem .75rem; display:flex; justify-content:space-between; align-items:center; }
+h2 small { font-size:.7rem; color:var(--mut); font-weight:400; display:block; margin-top:.1rem; }
+.iconbtn { width:38px; height:38px; border-radius:13px; background:var(--surface); border:1px solid rgba(255,255,255,.09); color:var(--ink2); display:grid; place-items:center; font-size:1rem; }
+
+.seg { display:flex; background:var(--surface); border:1px solid var(--line); border-radius:999px; padding:3px; margin-bottom:.7rem; }
+.seg span { flex:1; text-align:center; padding:.45rem .2rem; border-radius:999px; font-size:.78rem; color:var(--ink2); white-space:nowrap; }
+.seg span.on { background:var(--elev); color:var(--ink); font-weight:700; box-shadow:0 2px 8px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.07); }
+
+.card { background:var(--surface); border:1px solid var(--line); border-radius:18px; padding:.9rem; backdrop-filter:blur(16px); box-shadow:inset 0 1px 1px rgba(255,255,255,.05), 0 10px 34px rgba(0,0,0,.45); margin-bottom:.75rem; }
+
+.kpis3 { display:flex; gap:.5rem; margin-bottom:.75rem; }
+.kpi { flex:1; background:var(--surface); border:1px solid var(--line); border-radius:15px; padding:.6rem .65rem; }
+.kpi .k { font-size:.62rem; color:var(--mut); font-weight:600; letter-spacing:.04em; }
+.kpi .v { font-size:.98rem; font-weight:800; margin-top:.2rem; font-variant-numeric:tabular-nums; letter-spacing:-.3px; }
+
+.search { display:flex; align-items:center; gap:.5rem; background:var(--surface); border:1px solid var(--line); border-radius:999px; padding:.55rem .95rem; color:var(--mut); font-size:.84rem; margin-bottom:.7rem; }
+
+.dayhead { display:flex; align-items:center; gap:.6rem; margin:.85rem .1rem .35rem; font-size:.7rem; font-weight:700; color:var(--ink2); }
+.dayhead::after { content:''; flex:1; height:1px; background:var(--line); }
+.trow { display:flex; align-items:center; gap:.7rem; padding:.55rem .3rem; border-radius:13px; }
+.tile { width:38px; height:38px; border-radius:12px; display:grid; place-items:center; font-size:1rem; flex-shrink:0; box-shadow:inset 0 1px 0 rgba(255,255,255,.08); }
+.tmid { flex:1; min-width:0; }
+.tname { font-weight:600; font-size:.88rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tsub { color:var(--mut); font-size:.7rem; margin-top:.1rem; }
+.tamt { font-weight:800; font-size:.92rem; font-variant-numeric:tabular-nums; }
+.exp { color:#fb7185; } .inc { color:#34d399; }
+.badge { font-size:.6rem; padding:.08rem .4rem; border-radius:999px; background:var(--elev); color:var(--ink2); margin-inline-start:.35rem; font-weight:600; }
+
+.fab { position:absolute; bottom:4.6rem; inset-inline-start:50%; transform:translateX(50%); width:54px; height:54px; border-radius:50%; background:var(--grad); color:#fff; font-size:1.5rem; display:grid; place-items:center; box-shadow:0 10px 30px rgba(99,102,241,.5); }
+.bnav { position:absolute; bottom:0; inset-inline:0; height:62px; background:rgba(9,9,11,.92); backdrop-filter:blur(14px); border-top:1px solid var(--line); display:flex; align-items:center; justify-content:space-around; font-size:.62rem; color:var(--mut); }
+.bnav b { color:#7fb0ff; font-weight:600; }
+.bnav div { text-align:center; }
+.bnav div i { display:block; font-style:normal; font-size:1rem; margin-bottom:.1rem; }
+
+/* recurring */
+.rec-big { text-align:center; padding:.4rem 0 .6rem; }
+.rec-big .k { font-size:.68rem; color:var(--mut); font-weight:600; letter-spacing:.05em; }
+.rec-big .v { font-size:1.9rem; font-weight:900; letter-spacing:-1px; margin-top:.15rem; }
+.covtrack { height:9px; border-radius:6px; background:var(--elev); overflow:hidden; display:flex; gap:2px; margin-top:.5rem; }
+.covtrack i { display:block; height:100%; border-radius:6px; }
+.covnote { font-size:.68rem; color:var(--ink2); margin-top:.4rem; text-align:center; }
+.rrow { display:flex; align-items:center; gap:.65rem; padding:.6rem .25rem; }
+.rrow + .rrow { border-top:1px solid var(--line); }
+.spark { display:flex; align-items:flex-end; gap:2px; height:20px; width:52px; flex-shrink:0; }
+.spark i { flex:1; background:rgba(59,130,246,.45); border-radius:2px 2px 0 0; min-height:2px; }
+.spark i:last-child { background:#3b82f6; }
+.rnext { font-size:.62rem; color:var(--ink2); }
+.rwarn { color:#fbbf24; }
+
+/* budget */
+.bud-hero { display:flex; align-items:center; gap:1rem; }
+.ring { --p:68; width:86px; height:86px; border-radius:50%; flex-shrink:0;
+  background:conic-gradient(#3b82f6 0 calc(var(--p)*1%), #8b5cf6 calc(var(--p)*1%) calc(var(--p)*1% + .1%), var(--elev) 0);
+  display:grid; place-items:center; position:relative; }
+.ring::before { content:''; position:absolute; inset:8px; border-radius:50%; background:#101014; }
+.ring b { position:relative; font-size:1.05rem; font-weight:900; }
+.ring span { position:relative; display:block; text-align:center; font-size:.55rem; color:var(--mut); }
+.brow { display:flex; gap:.65rem; align-items:center; padding:.6rem .25rem; }
+.brow + .brow { border-top:1px solid var(--line); }
+.bmid { flex:1; min-width:0; }
+.bmid .n { display:flex; justify-content:space-between; font-size:.82rem; font-weight:600; }
+.bmid .n em { font-style:normal; color:var(--ink2); font-weight:500; font-size:.72rem; font-variant-numeric:tabular-nums; }
+.btrack { height:7px; border-radius:5px; background:var(--elev); margin-top:.35rem; position:relative; }
+.bfill { height:100%; border-radius:5px; }
+.ok { background:linear-gradient(90deg,#10b981,#3b82f6); }
+.warn { background:linear-gradient(90deg,#f59e0b,#f97316); }
+.over { background:linear-gradient(90deg,#f43f5e,#fb7185); }
+.pace { position:absolute; top:-2px; bottom:-2px; width:2px; background:rgba(255,255,255,.45); border-radius:2px; }
+.bpct { font-size:.72rem; font-weight:800; width:2.4rem; text-align:left; flex-shrink:0; }
+</style>
+</head>
+<body>
+
+<div class="note"><b>מובייל:</b> אותה שפה — glow עדין ברקע, כרטיסי זכוכית, KPI מוקטן בראש כל מסך, קיבוץ עסקאות לפי יום, ספארקבארים להוצאות קבועות, וטבעת ניצול + פסי קצב בתקציב. סימון "צפי להיום" (הקו הלבן על הפס) אומר בכל רגע אם אתה לפני או אחרי הקצב.</div>
+
+<div class="col">
+<div class="cap">עסקאות</div>
+<div class="phone">
+  <h2><span>עסקאות<small>יולי 2026</small></span><span class="iconbtn">⚲</span></h2>
+  <div class="kpis3">
+    <div class="kpi"><div class="k">הכנסות</div><div class="v inc">₪21.5K</div></div>
+    <div class="kpi"><div class="k">הוצאות</div><div class="v exp">₪7.6K</div></div>
+    <div class="kpi"><div class="k">נטו</div><div class="v">₪13.9K</div></div>
+  </div>
+  <div class="search">⌕ חיפוש ספק או תיאור…</div>
+  <div class="seg"><span class="on">הכל</span><span>הוצאות</span><span>הכנסות</span><span>לא מסווג</span></div>
+
+  <div class="dayhead">היום · 19 ביולי</div>
+  <div class="trow"><div class="tile" style="background:rgba(239,68,68,.14)">🛒</div>
+    <div class="tmid"><div class="tname">שופרסל דיל</div><div class="tsub">מזון וסופרמרקט · ויזה</div></div><div class="tamt exp">−₪487</div></div>
+  <div class="trow"><div class="tile" style="background:rgba(249,115,22,.14)">🍽️</div>
+    <div class="tmid"><div class="tname">וולט — סושי בר<span class="badge">📎</span></div><div class="tsub">מסעדות · ויזה</div></div><div class="tamt exp">−₪128</div></div>
+
+  <div class="dayhead">אתמול · 18 ביולי</div>
+  <div class="trow"><div class="tile" style="background:rgba(132,204,22,.14)">⛽</div>
+    <div class="tmid"><div class="tname">פז — יהוד</div><div class="tsub">דלק · ויזה</div></div><div class="tamt exp">−₪343</div></div>
+  <div class="trow"><div class="tile" style="background:rgba(6,182,212,.14)">🏠</div>
+    <div class="tmid"><div class="tname">חברת חשמל<span class="badge">↻</span></div><div class="tsub">דיור · הו"ק</div></div><div class="tamt exp">−₪402</div></div>
+
+  <div class="dayhead">14 ביולי</div>
+  <div class="trow"><div class="tile" style="background:rgba(16,185,129,.14)">💼</div>
+    <div class="tmid"><div class="tname">משכורת אקמי</div><div class="tsub">משכורת · עו"ש</div></div><div class="tamt inc">+₪21,500</div></div>
+
+  <div class="fab">＋</div>
+  <div class="bnav"><div><i>◫</i>בית</div><div><b><i>⇄</i>עסקאות</b></div><div><i>◔</i>תקציב</div><div><i>⋯</i>עוד</div></div>
+</div>
+</div>
+
+<div class="col">
+<div class="cap">הוצאות קבועות</div>
+<div class="phone">
+  <h2><span>קבועות<small>זוהו אוטומטית</small></span><span class="iconbtn">＋</span></h2>
+  <div class="card">
+    <div class="rec-big"><div class="k">מחויבות חודשית קבועה</div><div class="v exp">₪7,326</div></div>
+    <div class="covtrack"><i style="width:34%;background:linear-gradient(90deg,#f43f5e,#f97316)"></i><i style="width:66%;background:rgba(16,185,129,.35)"></i></div>
+    <div class="covnote">34% מההכנסה הקבועה (₪21,500) · יחס כיסוי פי 2.9</div>
+  </div>
+  <div class="seg"><span class="on">הוצאות · 6</span><span>הכנסות · 1</span><span>מוסתרות</span></div>
+  <div class="card">
+    <div class="rrow"><div class="tile" style="background:rgba(6,182,212,.14)">🏠</div>
+      <div class="tmid"><div class="tname">שכירות</div><div class="tsub rnext">חודשי · הבא 01/08</div></div>
+      <div class="spark"><i style="height:88%"></i><i style="height:88%"></i><i style="height:88%"></i><i style="height:88%"></i><i style="height:92%"></i></div>
+      <div class="tamt exp">₪5,191</div></div>
+    <div class="rrow"><div class="tile" style="background:rgba(6,182,212,.14)">⚡</div>
+      <div class="tmid"><div class="tname">חברת חשמל</div><div class="tsub rnext"><span class="rwarn">▲ 12% מהממוצע</span> · ~13/09</div></div>
+      <div class="spark"><i style="height:45%"></i><i style="height:58%"></i><i style="height:44%"></i><i style="height:60%"></i><i style="height:74%"></i></div>
+      <div class="tamt exp">₪402</div></div>
+    <div class="rrow"><div class="tile" style="background:rgba(139,92,246,.14)">🛡️</div>
+      <div class="tmid"><div class="tname">ביטוח בריאות</div><div class="tsub rnext">חודשי · הבא 14/08</div></div>
+      <div class="spark"><i style="height:60%"></i><i style="height:60%"></i><i style="height:60%"></i><i style="height:60%"></i><i style="height:60%"></i></div>
+      <div class="tamt exp">₪219</div></div>
+    <div class="rrow"><div class="tile" style="background:rgba(234,179,8,.14)">🚌</div>
+      <div class="tmid"><div class="tname">רב-קו</div><div class="tsub rnext">חודשי · הבא 11/08</div></div>
+      <div class="spark"><i style="height:50%"></i><i style="height:46%"></i><i style="height:55%"></i><i style="height:48%"></i><i style="height:50%"></i></div>
+      <div class="tamt exp">₪142</div></div>
+  </div>
+  <div class="bnav"><div><i>◫</i>בית</div><div><i>⇄</i>עסקאות</div><div><i>◔</i>תקציב</div><div><b><i>↻</i>קבועות</b></div></div>
+</div>
+</div>
+
+<div class="col">
+<div class="cap">תקציב</div>
+<div class="phone">
+  <h2><span>תקציב<small>יולי 2026 · נותרו 12 ימים</small></span><span class="iconbtn">✨</span></h2>
+  <div class="card">
+    <div class="bud-hero">
+      <div class="ring"><div><b>68%</b><span>מנוצל</span></div></div>
+      <div style="flex:1">
+        <div style="font-size:1rem;font-weight:800">₪6,876 <span style="color:var(--mut);font-weight:400">מתוך</span> ₪10,100</div>
+        <div style="font-size:.7rem;color:var(--ink2);margin-top:.3rem">הקצב תקין — צפי לסיום ב-<b class="inc">96%</b> מהתקציב</div>
+        <div class="covtrack"><i style="width:68%;background:var(--grad)"></i><i style="width:32%;background:var(--elev)"></i></div>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="brow"><div class="tile" style="background:rgba(239,68,68,.14)">🛒</div>
+      <div class="bmid"><div class="n">מזון <em>1,842 / 2,200</em></div>
+      <div class="btrack"><div class="bfill ok" style="width:84%"></div><div class="pace" style="inset-inline-start:61%"></div></div></div>
+      <div class="bpct" style="color:#fbbf24">84%</div></div>
+    <div class="brow"><div class="tile" style="background:rgba(249,115,22,.14)">🍽️</div>
+      <div class="bmid"><div class="n">מסעדות <em>910 / 600</em></div>
+      <div class="btrack"><div class="bfill over" style="width:100%"></div><div class="pace" style="inset-inline-start:61%"></div></div></div>
+      <div class="bpct" style="color:#fb7185">152%</div></div>
+    <div class="brow"><div class="tile" style="background:rgba(132,204,22,.14)">⛽</div>
+      <div class="bmid"><div class="n">דלק <em>693 / 900</em></div>
+      <div class="btrack"><div class="bfill ok" style="width:77%"></div><div class="pace" style="inset-inline-start:61%"></div></div></div>
+      <div class="bpct" style="color:#fbbf24">77%</div></div>
+    <div class="brow"><div class="tile" style="background:rgba(6,182,212,.14)">🏠</div>
+      <div class="bmid"><div class="n">דיור <em>5,593 / 6,000</em></div>
+      <div class="btrack"><div class="bfill ok" style="width:93%"></div><div class="pace" style="inset-inline-start:61%"></div></div></div>
+      <div class="bpct" style="color:#34d399">93%</div></div>
+    <div class="brow"><div class="tile" style="background:rgba(234,179,8,.14)">🚌</div>
+      <div class="bmid"><div class="n">תחבורה <em>142 / 400</em></div>
+      <div class="btrack"><div class="bfill ok" style="width:36%"></div><div class="pace" style="inset-inline-start:61%"></div></div></div>
+      <div class="bpct" style="color:#34d399">36%</div></div>
+  </div>
+  <div style="text-align:center;font-size:.7rem;color:var(--mut)">קו לבן על הפס = "צפי להיום" · מעליו — מהר מדי, מתחתיו — בקצב טוב</div>
+  <div class="bnav"><div><i>◫</i>בית</div><div><i>⇄</i>עסקאות</div><div><b><i>◔</i>תקציב</b></div><div><i>⋯</i>עוד</div></div>
+</div>
+</div>
+
+</body>
+</html>
