@@ -433,6 +433,50 @@ function _drawTxTable() {
     <button class="btn-ghost" onclick="_txPage=Math.min(${totalPages-1},_txPage+1);_drawTxTable()" ${_txPage===totalPages-1?'disabled':''}>הבא</button>`
 }
 
+// ===== V2 EDIT-MODAL CONTEXT PANE =====
+// Answers "how much do I spend there anyway?" while editing: 6-month history
+// bars for the vendor, monthly average, and the latest similar transactions.
+function _renderEditTxContext(tx, isNew) {
+  const ctx = document.getElementById('editModalCtx')
+  const grid = document.getElementById('editModalGrid')
+  if (!ctx || !grid) return
+  const vendorKey = resolveVendor(tx.vendor, tx.amount, getTxAliasDay(tx)) || tx.vendor
+  const solo = () => { ctx.style.display = 'none'; ctx.innerHTML = ''; grid.classList.add('editm-solo') }
+  if (isNew || !vendorKey) { solo(); return }
+
+  const all = getTransactions().filter(t =>
+    t.id !== tx.id && t.type !== 'transfer' &&
+    (resolveVendor(t.vendor, t.amount, getTxAliasDay(t)) || t.vendor) === vendorKey)
+  if (!all.length) { solo(); return }
+
+  const now = new Date()
+  const months = []
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
+  }
+  const inMonth = m => t => (t.date || '').startsWith(m)
+  const sums = months.map(m => all.filter(inMonth(m)).reduce((s, t) => s + Math.abs(t.amount), 0)
+    + ((tx.date || '').startsWith(m) ? Math.abs(tx.amount) : 0))
+  const maxSum = Math.max(...sums, 1)
+  const activeMonths = sums.filter(s => s > 0).length
+  const avg = activeMonths ? sums.reduce((a, b) => a + b, 0) / activeMonths : 0
+  const bars = sums.map((s, i) =>
+    `<i style="height:${Math.max(4, (s / maxSum) * 100)}%" class="${i === sums.length - 1 ? 'hot' : ''}" title="${months[i].slice(5)}/${months[i].slice(0, 4)} · ${formatCurrencyPlain(s)}"></i>`).join('')
+  const similar = all.sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 4)
+    .map(t => `<div class="editm-sim"><b>${escHtml(resolveVendor(t.vendor, t.amount, getTxAliasDay(t)) || t.vendor || '—')}</b><span>${formatDate(t.date)} · ${formatCurrency(t.amount)}</span></div>`).join('')
+
+  ctx.style.display = ''
+  grid.classList.remove('editm-solo')
+  ctx.innerHTML = `
+    <h5>${escHtml(vendorKey)} — חצי שנה אחרונה</h5>
+    <div class="editm-spark">${bars}</div>
+    <div class="editm-sim"><b>ממוצע חודשי פעיל</b><span>${formatCurrency(avg)}</span></div>
+    <div class="editm-sim"><b>סה"כ עסקאות</b><span>${all.length + 1}</span></div>
+    <h5 style="margin-top:1rem">עסקאות אחרונות</h5>
+    ${similar}`
+}
+
 // Click-to-filter from a category badge inside the table.
 function filterTxByCategory(catId) {
   const sel = document.getElementById('txCategoryFilter')

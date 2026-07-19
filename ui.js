@@ -60,12 +60,17 @@ function toast(msg, opts = {}) {
 // Promise-based replacement for blocking confirm(). Resolves true/false.
 // ESC / backdrop / cancel → false; Enter / confirm → true. Message is set via
 // textContent (safe for interpolated data).
+// V2 confirm: centered icon-in-halo, bold question, muted context, centered
+// actions with a gradient destructive button. When no explicit title is given,
+// the message's first line is promoted to the title (matches how most call
+// sites phrase the question on line one and the consequences below).
 function confirmDialog(message, opts = {}) {
   const {
     danger = false,
     confirmText = 'אישור',
     cancelText = 'ביטול',
     title = '',
+    icon = '',
   } = opts
   return new Promise(resolve => {
     const lastFocused = document.activeElement
@@ -74,34 +79,40 @@ function confirmDialog(message, opts = {}) {
     overlay.style.zIndex = '1200'
 
     const box = document.createElement('div')
-    box.className = 'modal-box'
-    box.style.width = 'min(420px,95vw)'
+    box.className = 'modal-box confirm2'
     box.setAttribute('role', 'alertdialog')
     box.setAttribute('aria-modal', 'true')
 
-    if (title) {
-      const h = document.createElement('div')
-      h.className = 'modal-header'
-      h.innerHTML = '<h3></h3>'
-      const h3 = h.querySelector('h3')
-      h3.textContent = title
-      h3.id = 'confirmDlgTitle' + Date.now()
-      box.setAttribute('aria-labelledby', h3.id)
-      box.appendChild(h)
+    const lines = String(message || '').split('\n')
+    const headline = title || lines[0] || 'אישור פעולה'
+    const rest = title ? message : lines.slice(1).join('\n')
+
+    const ico = document.createElement('div')
+    ico.className = 'confirm2-ico' + (danger ? ' confirm2-ico-danger' : '')
+    ico.textContent = icon || (danger ? '🗑' : '❔')
+    box.appendChild(ico)
+
+    const h3 = document.createElement('h3')
+    h3.className = 'confirm2-title'
+    h3.textContent = headline
+    h3.id = 'confirmDlgTitle' + Date.now()
+    box.setAttribute('aria-labelledby', h3.id)
+    box.appendChild(h3)
+
+    if (rest && rest.trim()) {
+      const body = document.createElement('div')
+      body.className = 'confirm2-body'
+      body.textContent = rest
+      box.appendChild(body)
     }
 
-    const body = document.createElement('div')
-    body.style.cssText = 'font-size:.92rem;line-height:1.6;margin-bottom:1.25rem;white-space:pre-line'
-    body.textContent = message
-    box.appendChild(body)
-
     const actions = document.createElement('div')
-    actions.style.cssText = 'display:flex;gap:.6rem;justify-content:flex-end'
+    actions.className = 'confirm2-actions'
     const cancelBtn = document.createElement('button')
     cancelBtn.className = 'btn-ghost'
     cancelBtn.textContent = cancelText
     const okBtn = document.createElement('button')
-    okBtn.className = danger ? 'btn-danger' : 'btn-primary'
+    okBtn.className = danger ? 'btn-danger-cta' : 'btn-primary'
     okBtn.textContent = confirmText
     actions.appendChild(cancelBtn)
     actions.appendChild(okBtn)
@@ -127,6 +138,21 @@ function confirmDialog(message, opts = {}) {
     document.body.appendChild(overlay)
     okBtn.focus()
   })
+}
+
+// ===== V2 MODAL HERO =====
+// Shared header band for drill/edit modals: icon tile · name + meta · big
+// number. Pass amountHtml pre-formatted (formatCurrency output is HTML).
+function v2ModalHero({ icon = '📋', tileBg = 'rgba(79,139,255,.13)', name = '', meta = '', amountHtml = '', amountCls = '' }) {
+  return `
+    <div class="mhero2">
+      <div class="mhero2-tile" style="background:${tileBg}">${icon}</div>
+      <div class="mhero2-mid">
+        <div class="mhero2-name">${name}</div>
+        ${meta ? `<div class="mhero2-meta">${meta}</div>` : ''}
+      </div>
+      ${amountHtml ? `<div class="mhero2-amt ${amountCls}">${amountHtml}</div>` : ''}
+    </div>`
 }
 
 // Keeps Tab/Shift+Tab cycling inside `container` (focus trap for modals).

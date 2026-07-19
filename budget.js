@@ -754,7 +754,19 @@ function _renderBudgetRowModal() {
     ? ''
     : `<button class="btn-ghost" onclick="navigateBudgetCatToTx('${catId}','${monthKey}'); closeBudgetRowModal()">↗ פתח במסך עסקאות</button>`
 
+  // V2 hero: category tile + month + actual-vs-budget at a glance.
+  const heroBudget = getBudgetsForMonth(monthKey).find(b => b.categoryId === catId && (b.type || 'expense') === type)
+  const heroHtml = (typeof v2ModalHero === 'function') ? v2ModalHero({
+    icon: cat ? (catIconHTML(cat, 20) || '📋') : '📋',
+    tileBg: cat && cat.color ? cat.color + '22' : 'rgba(79,139,255,.13)',
+    name: escHtml(cat ? cat.name : 'קטגוריה'),
+    meta: `${_budgetFormatMonth(monthKey)} · ${rows.length} עסקאות${excludedCount ? ` · ${excludedCount} מוחרגות` : ''}`,
+    amountHtml: `${formatCurrency(includedTotal)}${heroBudget && heroBudget.amount > 0 ? `<small style="font-size:.72rem;color:var(--text-muted);font-weight:500"> מתוך ${formatCurrencyPlain(heroBudget.amount)}</small>` : ''}`,
+    amountCls: amtCls,
+  }) : ''
+
   body.innerHTML = `
+    ${heroHtml}
     <div style="color:var(--text-muted);font-size:.85rem;margin-bottom:.75rem">${intro}</div>
     <div style="display:flex;justify-content:space-between;gap:.75rem;font-weight:600;margin-bottom:.5rem;flex-wrap:wrap">
       <span>נכלל בחישוב: <span class="${amtCls}">${formatCurrency(includedTotal)}</span></span>

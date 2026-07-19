@@ -1246,7 +1246,19 @@ function _renderDrillModal() {
       </details>`
   })()
 
+  // V2 hero: who this is + the monthly-equivalent commitment, before the knobs.
+  const heroCat = curEntry.categoryId && typeof getCategoryById === 'function' ? getCategoryById(curEntry.categoryId) : null
+  const drillHero = (typeof v2ModalHero === 'function' && curEntry.key) ? v2ModalHero({
+    icon: heroCat ? (catIconHTML(heroCat, 20) || '↻') : '↻',
+    tileBg: heroCat ? heroCat.color + '22' : 'rgba(79,139,255,.13)',
+    name: escHtml(vendor),
+    meta: `${curEntry.cadenceLabel || ''}${curEntry.nextExpected ? ' · הבא ' + formatDate(curEntry.nextExpected) : ''}${curEntry.occurrences ? ' · ' + curEntry.occurrences + ' מופעים' : ''}`,
+    amountHtml: `${curEntry.smoothedMonthly > 0 ? '+' : ''}${formatCurrency(curEntry.smoothedMonthly || 0)}<small style="font-size:.7rem;color:var(--text-muted);font-weight:500">/ח׳</small>`,
+    amountCls: curEntry.smoothedMonthly > 0 ? 'income-color' : 'expense-color',
+  }) : ''
+
   document.getElementById('drillBody').innerHTML = `
+    ${drillHero}
     <div class="period-selector" style="margin-bottom:1rem">
       <div class="period-presets">
         ${rangeBtn('3m', '3 חודשים')}

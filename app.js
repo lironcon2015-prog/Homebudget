@@ -1,4 +1,4 @@
-const APP_VERSION = '1.38.1'
+const APP_VERSION = '1.39.0'
 
 // ===== STORAGE =====
 // Hot keys are cached as parsed objects: getTransactions() etc. used to
@@ -435,6 +435,26 @@ function openEditModal(id) {
     `<option value="${a.id}" ${tx.transferAccountId === a.id ? 'selected' : ''}>${escHtml(a.name)}</option>`).join('')
 
   const showDest = tx.type === 'transfer' ? 'block' : 'none'
+  // V2 hero header: category tile · vendor + meta · big colored amount.
+  const heroEl = document.getElementById('editModalHero')
+  if (heroEl) {
+    if (_editIsNew) heroEl.innerHTML = ''
+    else {
+      const hCat = tx.categoryId ? getCategoryById(tx.categoryId) : null
+      const srcLbl = tx.categorySource && typeof categorySourceLabel === 'function' ? categorySourceLabel(tx.categorySource) : ''
+      const metaBits = [formatDate(tx.date), accs.find(a => a.id === tx.accountId)?.name, srcLbl ? srcLbl + ' ✨' : '']
+        .filter(Boolean).map(escHtml).join(' · ')
+      heroEl.innerHTML = (typeof v2ModalHero === 'function') ? v2ModalHero({
+        icon: hCat ? (catIconHTML(hCat, 20) || '📋') : '📋',
+        tileBg: hCat ? hCat.color + '22' : 'rgba(79,139,255,.13)',
+        name: escHtml(resolveVendor(tx.vendor, tx.amount, getTxAliasDay(tx)) || tx.vendor || '—'),
+        meta: metaBits,
+        amountHtml: formatCurrency(tx.amount),
+        amountCls: tx.type === 'transfer' || tx.type === 'refund' ? '' : (tx.amount > 0 ? 'income-color' : 'expense-color'),
+      }) : ''
+    }
+  }
+  if (typeof _renderEditTxContext === 'function') _renderEditTxContext(tx, _editIsNew)
   document.getElementById('editModalTitle').textContent = _editIsNew ? 'עסקה חדשה' : 'עריכת עסקה'
   document.getElementById('editDeleteBtn').style.display = _editIsNew ? 'none' : 'inline-flex'
   document.getElementById('editModalBody').innerHTML = `
