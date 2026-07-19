@@ -177,6 +177,42 @@ body {
 .mfoot { display:flex; gap:.6rem; padding:1rem 1.4rem 1.3rem; justify-content:flex-end; align-items:center; }
 .mfoot .danger { margin-inline-end:auto; color:var(--expense); }
 
+/* wide modal: form + context pane */
+.modal.wide { width:min(780px,96vw); }
+.mhero { display:flex; align-items:center; gap:1rem; padding:1.3rem 1.4rem 1.1rem; border-bottom:1px solid var(--line); }
+.mhero .tile { width:46px; height:46px; border-radius:15px; font-size:1.2rem; }
+.bigamt { font-size:2rem; font-weight:900; letter-spacing:-1px; font-variant-numeric:tabular-nums; margin-inline-start:auto; }
+.mname { font-size:1.05rem; font-weight:800; }
+.mmeta { font-size:.74rem; color:var(--mut); margin-top:.2rem; }
+.mgrid { display:grid; grid-template-columns:1.15fr .85fr; }
+.mform { padding:1.15rem 1.4rem 1.2rem; }
+.mctx { border-inline-start:1px solid var(--line); padding:1.15rem 1.3rem; background:rgba(255,255,255,.016); }
+.mctx h5 { font-size:.64rem; font-weight:800; letter-spacing:.13em; color:var(--mut); margin:.15rem 0 .55rem; }
+.mctx .gap { height:1rem; }
+.simrow { display:flex; justify-content:space-between; gap:.6rem; font-size:.78rem; padding:.3rem 0; color:var(--ink2); }
+.simrow b { color:var(--ink); font-weight:600; }
+.simrow span { font-variant-numeric:tabular-nums; white-space:nowrap; }
+.ctxspark { display:flex; align-items:flex-end; gap:4px; height:44px; margin:.3rem 0 .2rem; }
+.ctxspark i { flex:1; background:rgba(79,139,255,.32); border-radius:4px 4px 0 0; }
+.ctxspark i.hot { background:var(--blue); }
+.docrow { display:flex; align-items:center; gap:.5rem; font-size:.78rem; color:var(--ink2); background:var(--field); border:1px solid var(--line); border-radius:12px; padding:.5rem .7rem; cursor:pointer; }
+.docrow:hover { border-color:var(--line2); color:var(--ink); }
+
+/* month bars (recurring drill) */
+.mbar { display:flex; align-items:center; gap:.9rem; padding:.34rem 0; font-size:.8rem; }
+.mbar .mo { width:72px; color:var(--ink2); }
+.mbar .trk { flex:1; height:7px; background:var(--field); border-radius:5px; overflow:hidden; }
+.mbar .fl { height:100%; border-radius:5px; background:linear-gradient(90deg,#4f8bff,#8b5cf6); }
+.mbar b { width:84px; text-align:left; font-variant-numeric:tabular-nums; font-weight:700; }
+.mbar.hi b { color:var(--amber); }
+
+/* confirm dialog */
+.confirm { width:min(400px,92vw); text-align:center; padding:1.7rem 1.5rem 1.4rem; }
+.confirm .ico { width:52px; height:52px; border-radius:17px; background:rgba(251,106,134,.12); border:1px solid rgba(251,106,134,.3); display:grid; place-items:center; font-size:1.3rem; margin:0 auto .9rem; }
+.confirm h3 { font-size:1.05rem; font-weight:800; }
+.confirm p { font-size:.8rem; color:var(--ink2); margin:.5rem 0 1.2rem; line-height:1.6; }
+.confirm .danger-cta { background:linear-gradient(120deg,#fb6a86,#f43f5e); border:none; color:#fff; border-radius:14px; padding:.62rem 1.3rem; font:700 .86rem 'Heebo'; cursor:pointer; box-shadow:0 8px 24px rgba(244,63,94,.35); }
+
 /* toast */
 .toast { position:fixed; bottom:1.4rem; inset-inline-end:1.4rem; background:var(--panel2); border:1px solid rgba(45,212,160,.35); border-radius:16px; padding:.75rem 1.1rem; display:flex; gap:.6rem; align-items:center; font-size:.85rem; box-shadow:0 16px 50px rgba(0,0,0,.6); z-index:70; }
 .toast i { font-style:normal; color:var(--income); }
@@ -195,7 +231,7 @@ body {
 </head>
 <body>
 
-<div class="note"><b>V2 — שפה חדשה, לא ליטוש:</b> rail אייקונים במקום sidebar רחב · topbar צף עם חיפוש גלובלי (⌘K), בורר תקופה גלובלי אחד וסטטוס סנכרון · כל מסך נפתח ב-hero עם המספר-שחשוב + גרף · פאנלים מאט (לא זכוכית שקופה) עם צל עמוק · מסך-משנה (drill) בתקציב · מודאל, bulk-bar ו-toast חיים — לחץ "＋ עסקה חדשה" ו"בחר שורות" בעסקאות. הטאב האחרון מגדיר את שפת העיצוב לכל שאר המערכת.</div>
+<div class="note"><b>V2 — שפה חדשה, לא ליטוש:</b> rail אייקונים במקום sidebar רחב · topbar צף עם חיפוש גלובלי (⌘K), בורר תקופה גלובלי אחד וסטטוס סנכרון · כל מסך נפתח ב-hero עם המספר-שחשוב + גרף · פאנלים מאט (לא זכוכית שקופה) עם צל עמוק · מסך-משנה (drill) בתקציב · מודאל, bulk-bar ו-toast חיים — הכל קליקבילי: שורת עסקה ← עריכה עם פאנל קונטקסט · שורת קבועה ← פירוט חיובים · "🗑 מחק" ← דיאלוג אישור · "＋ עסקה חדשה" ← מודאל · "בחר שורות" ← bulk-bar. הטאב "שפה" מגדיר את הכללים לכל שאר המערכת.</div>
 
 <div class="shell">
   <aside class="rail">
@@ -252,37 +288,37 @@ body {
         </div>
         <div class="pbody">
           <div class="dayrow"><b>היום</b><em>שישי, 19 ביולי</em><i></i><s>−₪615.40</s></div>
-          <div class="row">
+          <div class="row" onclick="txModal(true)">
             <div class="tile" style="background:rgba(239,68,68,.13);border-color:rgba(239,68,68,.22)">🛒</div>
             <div><div class="rname">שופרסל דיל</div><div class="rsub">מזון וסופרמרקט · ויזה כאל</div></div>
             <div class="hoverbar"><b>✏️</b><b>💬</b><b>📎</b><b>🗑</b></div>
             <div class="ramt exp">−487.40<small> ₪</small></div>
           </div>
-          <div class="row">
+          <div class="row" onclick="txModal(true)">
             <div class="tile" style="background:rgba(249,115,22,.13);border-color:rgba(249,115,22,.22)">🍽️</div>
             <div><div class="rname">וולט — סושי בר<span class="chip">📎 קבלה</span></div><div class="rsub">מסעדות ובתי קפה · ויזה כאל</div></div>
             <div class="ramt exp">−128.00<small> ₪</small></div>
           </div>
 
           <div class="dayrow"><b>אתמול</b><em>חמישי, 18 ביולי</em><i></i><s>−₪745.20</s></div>
-          <div class="row">
+          <div class="row" onclick="txModal(true)">
             <div class="tile" style="background:rgba(132,204,22,.13);border-color:rgba(132,204,22,.22)">⛽</div>
             <div><div class="rname">פז — יהוד</div><div class="rsub">דלק · ויזה כאל</div></div>
             <div class="ramt exp">−343.20<small> ₪</small></div>
           </div>
-          <div class="row">
+          <div class="row" onclick="txModal(true)">
             <div class="tile" style="background:rgba(6,182,212,.13);border-color:rgba(6,182,212,.22)">⚡</div>
             <div><div class="rname">חברת חשמל<span class="chip">↻ קבועה</span></div><div class="rsub">דיור ושכירות · הוראת קבע</div></div>
             <div class="ramt exp">−402.00<small> ₪</small></div>
           </div>
 
           <div class="dayrow"><b>14 ביולי</b><em>שני</em><i></i><s>+₪16,309</s></div>
-          <div class="row">
+          <div class="row" onclick="txModal(true)">
             <div class="tile" style="background:rgba(45,212,160,.13);border-color:rgba(45,212,160,.25)">💼</div>
             <div><div class="rname">משכורת — אקמי בע"מ</div><div class="rsub">משכורת · עו"ש לאומי</div></div>
             <div class="ramt inc">+21,500.00<small> ₪</small></div>
           </div>
-          <div class="row">
+          <div class="row" onclick="txModal(true)">
             <div class="tile" style="background:rgba(6,182,212,.13);border-color:rgba(6,182,212,.22)">🏠</div>
             <div><div class="rname">שכירות<span class="chip">↻ קבועה</span></div><div class="rsub">דיור ושכירות · עו"ש לאומי</div></div>
             <div class="ramt exp">−5,191.00<small> ₪</small></div>
@@ -321,7 +357,7 @@ body {
           <button class="sec">＋ רישום ידני</button>
         </div>
         <div class="pbody">
-          <div class="rec2">
+          <div class="rec2" onclick="recModal(true)">
             <div class="tile" style="background:rgba(6,182,212,.13);border-color:rgba(6,182,212,.22)">🏠</div>
             <div><div class="rname">שכירות</div><div class="rsub">דיור ושכירות · חיוב ב-1 לחודש · יציב</div></div>
             <div class="spark"><i style="height:86%"></i><i style="height:86%"></i><i style="height:86%"></i><i style="height:86%"></i><i style="height:86%"></i><i class="hot" style="height:90%"></i></div>
@@ -347,14 +383,14 @@ body {
             </div>
           </div>
 
-          <div class="rec2">
+          <div class="rec2" onclick="recModal(true)">
             <div class="tile" style="background:rgba(139,92,246,.13);border-color:rgba(139,92,246,.22)">🛡️</div>
             <div><div class="rname">ביטוח בריאות</div><div class="rsub">ביטוחים · חיוב ב-14 לחודש · יציב</div></div>
             <div class="spark"><i style="height:60%"></i><i style="height:60%"></i><i style="height:60%"></i><i style="height:60%"></i><i style="height:60%"></i><i class="hot" style="height:60%"></i></div>
             <span class="nextpill">הבא · 14/08</span>
             <div class="ramt exp">219<small> ₪/ח׳</small></div>
           </div>
-          <div class="rec2">
+          <div class="rec2" onclick="recModal(true)">
             <div class="tile" style="background:rgba(234,179,8,.13);border-color:rgba(234,179,8,.22)">🚌</div>
             <div><div class="rname">רב-קו</div><div class="rsub">תחבורה · חודשי · יציב</div></div>
             <div class="spark"><i style="height:50%"></i><i style="height:46%"></i><i style="height:55%"></i><i style="height:50%"></i><i style="height:48%"></i><i class="hot" style="height:50%"></i></div>
@@ -542,6 +578,99 @@ body {
   </div>
 </div>
 
+<!-- מסך ביניים: עריכת עסקה עם קונטקסט -->
+<div class="overlay" id="ovTx" onclick="if(event.target===this)txModal(false)">
+  <div class="modal wide">
+    <div class="mhero">
+      <div class="tile" style="background:rgba(249,115,22,.13);border-color:rgba(249,115,22,.25)">🍽️</div>
+      <div>
+        <div class="mname">וולט — סושי בר</div>
+        <div class="mmeta">שישי, 19 ביולי 2026 · ויזה כאל · סווג אוטומטית ✨</div>
+      </div>
+      <div class="bigamt exp">−₪128.00</div>
+      <span class="mx" onclick="txModal(false)" style="align-self:flex-start">✕</span>
+    </div>
+    <div class="mgrid">
+      <div class="mform">
+        <div class="fgrid">
+          <div class="fld" style="grid-column:span 2"><label>ספק / תיאור</label><input value="וולט — סושי בר"></div>
+          <div class="fld"><label>סכום</label><input value="128.00" style="direction:ltr;text-align:end"></div>
+          <div class="fld"><label>תאריך</label><input value="19/07/2026"></div>
+          <div class="fld"><label>קטגוריה</label><select><option>🍽️ מסעדות ובתי קפה</option></select></div>
+          <div class="fld"><label>חשבון</label><select><option>ויזה כאל</option></select></div>
+          <div class="fld" style="grid-column:span 2"><label>הערה</label><input placeholder="אופציונלי…"></div>
+        </div>
+        <div class="mfoot" style="padding:1.1rem 0 0">
+          <button class="tert danger" onclick="confirmDlg(true)">🗑 מחק</button>
+          <button class="sec" onclick="txModal(false)">ביטול</button>
+          <button class="cta" onclick="txModal(false);toastDemo()">שמור</button>
+        </div>
+      </div>
+      <div class="mctx">
+        <h5>וולט — חצי שנה אחרונה</h5>
+        <div class="ctxspark"><i style="height:34%"></i><i style="height:52%"></i><i style="height:40%"></i><i style="height:66%"></i><i style="height:48%"></i><i class="hot" style="height:100%"></i></div>
+        <div class="simrow"><b>ממוצע חודשי</b><span>₪211</span></div>
+        <div class="simrow" style="color:var(--amber)"><b style="color:var(--amber)">יולי</b><span>₪318 · ▲ 51%</span></div>
+        <div class="gap"></div>
+        <h5>עסקאות דומות</h5>
+        <div class="simrow"><b>וולט — פיצה</b><span>12/07 · −₪96.50</span></div>
+        <div class="simrow"><b>וולט — המבורגר</b><span>28/06 · −₪93.50</span></div>
+        <div class="simrow"><b>וולט — סושי בר</b><span>14/06 · −₪122.00</span></div>
+        <div class="gap"></div>
+        <h5>מסמכים</h5>
+        <div class="docrow">📎 קבלה — וולט 19.07.pdf <span style="margin-inline-start:auto;opacity:.6">☁✓</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- מסך ביניים: פירוט חיובים של הוצאה קבועה -->
+<div class="overlay" id="ovRec" onclick="if(event.target===this)recModal(false)">
+  <div class="modal wide" style="width:min(620px,95vw)">
+    <div class="mhero">
+      <div class="tile" style="background:rgba(6,182,212,.13);border-color:rgba(6,182,212,.25)">🏠</div>
+      <div>
+        <div class="mname">שכירות</div>
+        <div class="mmeta">דיור ושכירות · חיוב ב-1 לחודש · הוראת קבע · עו"ש לאומי</div>
+      </div>
+      <div class="bigamt">₪5,191<small style="font-size:.85rem;color:var(--mut);font-weight:500">/ח׳</small></div>
+      <span class="mx" onclick="recModal(false)" style="align-self:flex-start">✕</span>
+    </div>
+    <div style="display:flex;gap:2rem;padding:1rem 1.4rem .2rem">
+      <div class="hstat"><div class="k">שולם ב-12 ח׳</div><div class="v">₪61,932</div></div>
+      <div class="hstat"><div class="k">ממוצע</div><div class="v">₪5,161</div></div>
+      <div class="hstat"><div class="k">יציבות</div><div class="v" style="color:var(--income)">±1.2%</div></div>
+      <div class="seg2" style="margin-inline-start:auto;align-self:center"><span class="on">חיובים</span><span>הגדרות</span></div>
+    </div>
+    <div style="padding:.6rem 1.4rem 1.2rem">
+      <div class="mbar"><span class="mo">יולי 26</span><div class="trk"><div class="fl" style="width:97%"></div></div><b>₪5,191</b></div>
+      <div class="mbar"><span class="mo">יוני 26</span><div class="trk"><div class="fl" style="width:96%"></div></div><b>₪5,148</b></div>
+      <div class="mbar hi"><span class="mo">מאי 26</span><div class="trk"><div class="fl" style="width:100%;background:linear-gradient(90deg,#fbbf24,#f97316)"></div></div><b>₪5,344 ▲</b></div>
+      <div class="mbar"><span class="mo">אפריל 26</span><div class="trk"><div class="fl" style="width:96%"></div></div><b>₪5,148</b></div>
+      <div class="mbar"><span class="mo">מרץ 26</span><div class="trk"><div class="fl" style="width:95%"></div></div><b>₪5,102</b></div>
+      <div class="mbar"><span class="mo">פברואר 26</span><div class="trk"><div class="fl" style="width:95%"></div></div><b>₪5,102</b></div>
+      <div style="display:flex;gap:.5rem;margin-top:1rem">
+        <button class="sec" style="font-size:.78rem">✏️ קבע סכום ידני</button>
+        <button class="sec" style="font-size:.78rem">🙈 הסתר מהרשימה</button>
+        <button class="tert" style="margin-inline-start:auto" onclick="recModal(false)">סגור</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- דיאלוג אישור — היררכיה: פעולה > הקשר > השלכות -->
+<div class="overlay" id="ovConfirm" onclick="if(event.target===this)confirmDlg(false)">
+  <div class="modal confirm">
+    <div class="ico">🗑</div>
+    <h3>למחוק את העסקה?</h3>
+    <p>וולט — סושי בר · −₪128.00 · 19/07<br>הפעולה תעדכן את הסיכומים ואת התקציב. ניתן לשחזר מגיבוי מקומי.</p>
+    <div style="display:flex;gap:.6rem;justify-content:center">
+      <button class="sec" onclick="confirmDlg(false)">ביטול</button>
+      <button class="danger-cta" onclick="confirmDlg(false);txModal(false)">מחק עסקה</button>
+    </div>
+  </div>
+</div>
+
 <div class="bulk" id="bulkbar" style="display:none">
   <b>3 נבחרו</b>
   <button class="sec" style="padding:.4rem .85rem;font-size:.76rem">שנה קטגוריה</button>
@@ -561,13 +690,16 @@ function go(s, el) {
   document.getElementById('crumb').innerHTML = names[s] + ' <em>· יולי 2026</em>'
 }
 function modal(on) { document.getElementById('ov').classList.toggle('on', on) }
+function txModal(on) { document.getElementById('ovTx').classList.toggle('on', on) }
+function recModal(on) { document.getElementById('ovRec').classList.toggle('on', on) }
+function confirmDlg(on) { document.getElementById('ovConfirm').classList.toggle('on', on) }
 function bulk(on = true) { document.getElementById('bulkbar').style.display = on ? 'flex' : 'none' }
 function toastDemo() {
   const t = document.getElementById('toast')
   t.style.display = 'flex'
   setTimeout(() => t.style.display = 'none', 2600)
 }
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { modal(false); bulk(false) } })
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { modal(false); txModal(false); recModal(false); confirmDlg(false); bulk(false) } })
 </script>
 </body>
 </html>
