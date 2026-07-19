@@ -5,10 +5,11 @@
 // touches this layer; it exists so "restore" is always possible after a bad
 // sync, a destructive restore, or storage corruption.
 //
-// Retention: the newest SNAP_KEEP_RECENT snapshots, plus the newest snapshot
-// of each calendar day for the last SNAP_KEEP_DAILY_DAYS days, plus every
-// 'pre-restore' snapshot from the last SNAP_KEEP_DAILY_DAYS days (those are
-// the "undo my restore" lifeline).
+// Retention: nothing outlives SNAP_RETENTION_DAYS (one week) except a small
+// safety floor — the 2 newest snapshots survive regardless of age, so a
+// dormant install always has something to restore from. Inside the window:
+// the newest SNAP_KEEP_RECENT, the first snapshot of each day, and every
+// 'pre-restore' snapshot (the "undo my restore" lifeline).
 //
 // Storage layout: two stores so listing stays cheap —
 //   meta:    { id, createdAt, reason, txCount, accCount, bytes }
@@ -16,7 +17,8 @@
 
 const SNAP_DB_NAME = 'finSnapshots'
 const SNAP_KEEP_RECENT = 10
-const SNAP_KEEP_DAILY_DAYS = 7
+const SNAP_RETENTION_DAYS = 7
+const SNAP_SAFETY_FLOOR = 2
 const SNAP_DEBOUNCE_MS = 30000
 
 let _snapDebounceTimer = null
@@ -95,11 +97,12 @@ async function _snapPrune(db) {
   const metas = (await _snapReq(db.transaction('meta').objectStore('meta').getAll()) || [])
     .sort((a, b) => b.createdAt - a.createdAt)
   const keep = new Set()
-  metas.slice(0, SNAP_KEEP_RECENT).forEach(m => keep.add(m.id))
-  const dailyCut = Date.now() - SNAP_KEEP_DAILY_DAYS * 86400000
+  metas.slice(0, SNAP_SAFETY_FLOOR).forEach(m => keep.add(m.id))
+  const cutoff = Date.now() - SNAP_RETENTION_DAYS * 86400000
+  const inWindow = metas.filter(m => m.createdAt >= cutoff)
+  inWindow.slice(0, SNAP_KEEP_RECENT).forEach(m => keep.add(m.id))
   const seenDays = new Set()
-  for (const m of metas) {
-    if (m.createdAt < dailyCut) continue
+  for (const m of inWindow) {
     if (String(m.reason || '').startsWith('pre-restore')) { keep.add(m.id); continue }
     const day = new Date(m.createdAt).toDateString()
     if (!seenDays.has(day)) { seenDays.add(day); keep.add(m.id) }
@@ -154,11 +157,13 @@ const _SNAP_REASON_LABEL = {
 async function renderLocalSnapshots() {
   const el = document.getElementById('localSnapshotsList')
   if (!el) return
+  const summary = document.getElementById('localSnapshotsSummary')
   let metas = []
   try { metas = await listLocalSnapshots() } catch (e) {
     el.innerHTML = '<p style="color:var(--text-muted);font-size:.85rem">גיבוי מקומי לא זמין בדפדפן זה.</p>'
     return
   }
+  if (summary) summary.textContent = `🗂 הצג רשימת גיבויים (${metas.length})`
   if (metas.length === 0) {
     el.innerHTML = '<p style="color:var(--text-muted);font-size:.85rem">אין עדיין גיבויים מקומיים — נוצרים אוטומטית אחרי כל שינוי.</p>'
     return

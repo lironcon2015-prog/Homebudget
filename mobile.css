@@ -292,8 +292,33 @@ html.m-ui .prop-summary-sub { font-size: .66rem; }
 html.m-ui .m-prop-pay {
   background: var(--bg-surface); border: 1px solid rgba(255,255,255,.06); border-radius: 14px;
   padding: .75rem .8rem; margin-bottom: .55rem; cursor: pointer;
+  position: relative; overflow: hidden;
 }
+html.m-ui .m-prop-pay::before { content: ''; position: absolute; inset-inline-start: 0; top: 0; bottom: 0; width: 3px; }
+html.m-ui .m-pp-paid::before { background: #22c55e; }
+html.m-ui .m-pp-up::before   { background: #f59e0b; }
+html.m-ui .m-pp-late::before { background: #ef4444; }
+html.m-ui .m-pp-fut::before  { background: #475569; }
+html.m-ui .m-pp-warn::before { background: #f59e0b; }
 html.m-ui .m-prop-pay:active { background: rgba(255,255,255,.03); }
+html.m-ui .m-pp-dates { display: flex; justify-content: space-between; gap: .5rem; }
+html.m-ui .m-pp-dates b { color: var(--text-primary); font-weight: 600; }
+html.m-ui .m-pp-bar { height: 4px; border-radius: 3px; background: rgba(148,163,184,.15); overflow: hidden; display: flex; margin: .4rem 0 .1rem; }
+html.m-ui .m-pp-bar i { display: block; height: 100%; }
+html.m-ui .m-pp-beq { background: #22c55e; }
+html.m-ui .m-pp-bmo { background: #3b82f6; }
+html.m-ui .m-pp-chips { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .4rem; }
+html.m-ui .m-pp-chip {
+  background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.07); border-radius: 999px;
+  padding: .08rem .5rem; font-size: .68rem; color: var(--text-secondary);
+}
+html.m-ui .m-pp-tabs { display: flex; background: rgba(255,255,255,.05); border-radius: 10px; padding: 3px; margin-bottom: .9rem; }
+html.m-ui .m-pp-tab {
+  flex: 1; text-align: center; font-size: .8rem; padding: .4rem 0; border-radius: 8px;
+  border: none; background: transparent; color: var(--text-secondary); font-family: inherit;
+}
+html.m-ui .m-pp-tab.on { background: var(--brand-gradient); color: #fff; font-weight: 600; }
+html.m-ui .m-pp-docrow { font-size: .85rem; color: var(--text-secondary); padding: .45rem 0; border-bottom: 1px solid rgba(255,255,255,.05); }
 html.m-ui .m-prop-mismatch { border-color: rgba(244,63,94,.4); }
 html.m-ui .m-prop-pay-top { display: flex; align-items: center; gap: .5rem; }
 html.m-ui .m-prop-pay-type { flex: 1; font-weight: 600; font-size: .9rem; }

@@ -13,9 +13,15 @@ const PROPERTY_TRACKS = {
 
 const PROPERTY_TYPES = {
   signing: { label: 'חתימה',     icon: '✍️' },
-  payment: { label: 'תשלום',     icon: '💸' },
+  payment: { label: 'תשלום',     icon: '' },
   tax:     { label: 'מס רכישה',  icon: '🧾' },
-  other:   { label: 'אחר',       icon: '•'  },
+  other:   { label: 'אחר',       icon: '' },
+}
+// icon-or-nothing — several types render without an icon on purpose
+function _propTypeText(row) {
+  const type = PROPERTY_TYPES[row.type] || PROPERTY_TYPES.other
+  const num = row.type === 'payment' && row.paymentNumber ? ` #${row.paymentNumber}` : ''
+  return `${type.icon ? type.icon + ' ' : ''}${type.label}${num}`
 }
 
 function getProperty() {
@@ -132,6 +138,7 @@ function renderProperty() {
     ${_propMortgageCard(t, mort, mortgageRemaining, monthsLeft, p)}
     ${_propDocsCard()}
   `
+  _syncPropDrawer()
 }
 
 function addPropCost() {
@@ -258,22 +265,38 @@ function _propSummaryCards(t) {
     </div>`
 }
 
+// Sorted view shared by the table and the drawer's "next row" navigation.
+function _propSortedPays() {
+  return getPropertyPayments().slice().sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''))
+}
+
+function _propSplitCell(eq, mo, track, mismatchGap) {
+  if (eq <= 0 && mo <= 0) {
+    return `<div class="prop-split-nums"><span style="color:var(--text-muted)">${mismatchGap ? '' : 'טרם שולם'}</span></div><div class="prop-bar"></div>
+      ${mismatchGap ? `<div class="prop-warn-sub">⚠ חסר פיצול הון/משכנתא</div>` : ''}`
+  }
+  const sum = eq + mo
+  const trackLabel = PROPERTY_TRACKS[track]?.label
+  return `
+    <div class="prop-split-nums"><span class="ps-eq">הון ${eq.toLocaleString('en-US')}</span><span class="ps-mo">משכ׳ ${mo.toLocaleString('en-US')}</span></div>
+    <div class="prop-bar"><i class="pb-eq" style="width:${(eq / sum * 100).toFixed(1)}%"></i><i class="pb-mo" style="width:${(mo / sum * 100).toFixed(1)}%"></i></div>
+    ${trackLabel && track ? `<div class="prop-track-sub">מסלול: ${trackLabel}</div>` : ''}
+    ${mismatchGap ? `<div class="prop-warn-sub">⚠ הון+משכנתא ≠ שולם (${mismatchGap > 0 ? 'חסר' : 'עודף'} ${Math.abs(mismatchGap).toLocaleString('en-US')})</div>` : ''}`
+}
+
 function _propPaymentsTable(t) {
-  const rows = t.pays.length === 0
-    ? `<tr><td colspan="11" style="text-align:center;color:var(--text-muted);padding:2rem">אין תשלומים. הוסף שורה ↓</td></tr>`
-    : t.pays
-        .slice()
-        .sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''))
-        .map(_propRow).join('')
+  const sorted = t.pays.slice().sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''))
+  const rows = sorted.length === 0
+    ? `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:2rem">אין תשלומים. הוסף שורה ↑</td></tr>`
+    : sorted.map(_propRow).join('')
 
   const totalsRow = `
     <tr class="prop-totals-row">
-      <td colspan="4" style="text-align:left;font-weight:600">סך הכל</td>
-      <td>${formatCurrency(t.totalDue)}</td>
-      <td>${formatCurrency(t.totalPaid)}</td>
-      <td>${formatCurrency(t.totalEquity)}</td>
-      <td>${formatCurrency(t.totalMortgage)}</td>
-      <td colspan="3"></td>
+      <td colspan="2">סך הכל</td>
+      <td class="prop-amt">${formatCurrency(t.totalDue)}</td>
+      <td class="prop-amt prop-amt-paid">${formatCurrency(t.totalPaid)}</td>
+      <td class="prop-split">${_propSplitCell(t.totalEquity, t.totalMortgage, '', 0)}</td>
+      <td></td>
     </tr>`
 
   return `
@@ -282,29 +305,22 @@ function _propPaymentsTable(t) {
         <span>טבלת תשלומים (מהקבלן/יזם)</span>
         <button class="btn-primary" onclick="addPropertyPayment()" style="padding:.4rem .9rem;font-size:.85rem">+ הוסף שורה</button>
       </div>
-      <div style="overflow-x:auto">
-        <table class="data-table prop-table">
-          <thead><tr>
-            <th>סטטוס</th>
-            <th>מועד מתוכנן</th>
-            <th>תאריך תשלום</th>
-            <th>סוג</th>
-            <th>סכום</th>
-            <th>שולם בפועל</th>
-            <th>הון עצמי</th>
-            <th>משכנתא</th>
-            <th>מסלול</th>
-            <th style="text-align:center;">הערות</th>
-            <th></th>
-          </tr></thead>
-          <tbody>
-            ${rows}
-            ${totalsRow}
-          </tbody>
-        </table>
-      </div>
+      <table class="data-table prop-rtable">
+        <thead><tr>
+          <th>סטטוס · סוג</th>
+          <th>מועדים</th>
+          <th>סכום</th>
+          <th>שולם בפועל</th>
+          <th>הון ↔ משכנתא</th>
+          <th style="text-align:left">פעולות</th>
+        </tr></thead>
+        <tbody>
+          ${rows}
+          ${totalsRow}
+        </tbody>
+      </table>
       <div style="font-size:.75rem;color:var(--text-muted);margin-top:.6rem">
-        💡 הזן את "שולם בפועל" + "הון עצמי" — חלק המשכנתא יחושב אוטומטית. אם הון+משכנתא ≠ שולם, השורה תודגש.
+        💡 לחץ על שורה לעריכה. בהזנת "שולם בפועל" + "הון עצמי" — חלק המשכנתא מחושב אוטומטית.
       </div>
     </div>`
 }
@@ -323,51 +339,150 @@ async function editPropertyNote(id) {
 
 function _propRow(row) {
   const st = _propertyStatus(row)
-  const typeOpts = Object.entries(PROPERTY_TYPES)
-    .map(([k, v]) => `<option value="${k}" ${row.type===k?'selected':''}>${v.label}</option>`).join('')
-  const trackOpts = Object.entries(PROPERTY_TRACKS)
-    .map(([k, v]) => `<option value="${k}" ${row.track===k?'selected':''}>${v.label}</option>`).join('')
-
-  const sum = (Number(row.equity) || 0) + (Number(row.mortgage) || 0)
+  const eq = Number(row.equity) || 0
+  const mo = Number(row.mortgage) || 0
   const paid = Number(row.paidAmount) || 0
-  const mismatch = paid > 0 && Math.abs(sum - paid) > 1
+  const mismatch = paid > 0 && Math.abs(eq + mo - paid) > 1
 
   let variance = ''
   if (row.dueDate && row.paidDate && row.dueDate !== row.paidDate) {
     const days = Math.round((new Date(row.paidDate) - new Date(row.dueDate)) / 86400000)
-    if (days !== 0) {
-      const sign = days > 0 ? '+' : ''
-      variance = `<div style="font-size:.7rem;color:${days>0?'var(--expense)':'var(--income)'};margin-top:.15rem">${sign}${days} ימים</div>`
-    }
+    if (days !== 0) variance = ` <span class="prop-var" style="color:${days > 0 ? 'var(--expense)' : 'var(--income)'}">${days > 0 ? '+' : ''}${days} ימים</span>`
   }
 
-  const num = (k, val) => `<input type="text" inputmode="numeric" class="prop-input" value="${val ? Number(val).toLocaleString('en-US') : ''}" onfocus="this.value=this.value.replace(/,/g,'')" onblur="this.value=Number(this.value.replace(/,/g,'')||0).toLocaleString('en-US'); onPropertyRowChange('${row.id}','${k}',this.value.replace(/,/g,''))" placeholder="0">`
-  const date = (k, val) => `<input type="text" inputmode="numeric" maxlength="10" placeholder="dd/mm/yyyy" class="prop-input" value="${_isoToDmy(val||'')}" oninput="_onDateMaskInput(this)" onchange="onPropertyRowChange('${row.id}','${k}',_dmyToIso(this.value))" style="min-width: 8.5rem; text-align: center;">`
-  
-  const hasNote = !!row.notes && row.notes.trim() !== ''
-  const noteBtn = `<button class="btn-ghost" style="padding: 0.15rem 0; width: 100%; font-size: 1.15rem; line-height: 1; min-height: unset; border: none; background: transparent;" onclick="editPropertyNote('${row.id}')" title="${hasNote ? row.notes.replace(/"/g,'&quot;') : 'הוסף הערה'}">${hasNote ? '💬' : '-'}</button>`
   const docCount = propDocCountForPayment(row.id)
-  const docBtn = docCount > 0
-    ? `<button class="btn-ghost prop-doc-btn" onclick="propDocShowForPayment('${row.id}')" title="הצג ${docCount} מסמכים מקושרים">📎${docCount}</button>`
-    : `<button class="btn-ghost prop-doc-btn prop-doc-btn-empty" onclick="propDocBrowse('${row.id}')" title="צרף מסמך לתשלום זה">📎+</button>`
+  const docChip = docCount > 0
+    ? `<span class="prop-chip" onclick="propDocShowForPayment('${row.id}')" title="הצג ${docCount} מסמכים מקושרים">📎${docCount}</span>`
+    : `<span class="prop-chip prop-chip-dim" onclick="propDocBrowse('${row.id}')" title="צרף מסמך לתשלום זה">📎+</span>`
+  const hasNote = !!row.notes && row.notes.trim() !== ''
+  const noteChip = hasNote ? `<span class="prop-chip" title="${escHtml(row.notes)}">💬</span>` : ''
 
   return `
-    <tr class="${mismatch ? 'prop-row-mismatch' : ''}">
-      <td><span class="prop-status ${st.cls}">${st.label}</span></td>
-      <td>${date('dueDate', row.dueDate)}</td>
-      <td>${date('paidDate', row.paidDate)}${variance}</td>
-      <td>
-        <select class="prop-input" onchange="onPropertyRowChange('${row.id}','type',this.value)">${typeOpts}</select>
-        <input type="number" class="prop-input" min="0" step="1" value="${row.paymentNumber||''}" onchange="onPropertyRowChange('${row.id}','paymentNumber',this.value)" placeholder="מספר" style="margin-top:.3rem;width:100%">
+    <tr class="prop-rrow ${mismatch ? 'prop-row-mismatch' : ''} ${_propDrawerRowId === row.id ? 'prop-row-selected' : ''}" onclick="openPropDrawer('${row.id}')">
+      <td><span class="prop-status ${st.cls}">${st.label}</span><div class="prop-type-sub">${_propTypeText(row)}</div></td>
+      <td class="prop-dates">
+        <div><span class="prop-dt-lbl">מתוכנן</span> ${formatDate(row.dueDate) || '—'}</div>
+        <div><span class="prop-dt-lbl">שולם</span> ${row.paidDate ? formatDate(row.paidDate) : '—'}${variance}</div>
       </td>
-      <td>${num('amount', row.amount)}</td>
-      <td>${num('paidAmount', row.paidAmount)}</td>
-      <td>${num('equity', row.equity)}</td>
-      <td>${num('mortgage', row.mortgage)}</td>
-      <td><select class="prop-input" onchange="onPropertyRowChange('${row.id}','track',this.value)">${trackOpts}</select></td>
-      <td style="text-align:center; vertical-align: middle;">${noteBtn}${docBtn}</td>
-      <td><button class="btn-ghost" onclick="deletePropertyPayment('${row.id}')" style="font-size:.75rem;padding:.25rem .55rem;color:var(--expense)" title="מחק שורה">🗑</button></td>
+      <td class="prop-amt">${formatCurrency(row.amount)}</td>
+      <td class="prop-amt ${paid > 0 ? 'prop-amt-paid' : ''}">${paid > 0 ? formatCurrency(paid) : '—'}</td>
+      <td class="prop-split">${_propSplitCell(eq, mo, row.track, mismatch ? paid - (eq + mo) : 0)}</td>
+      <td class="prop-racts" onclick="event.stopPropagation()">${docChip}${noteChip}</td>
     </tr>`
+}
+
+// ===== EDIT DRAWER (desktop) =====
+// The table is read-only; a row click opens this side panel with the full
+// editable field set. Lives outside #propertyBody so renderProperty() can
+// repaint the table under it without touching focused inputs.
+let _propDrawerRowId = null
+
+function _ensurePropDrawer() {
+  let el = document.getElementById('propDrawer')
+  if (el) return el
+  el = document.createElement('div')
+  el.id = 'propDrawer'
+  el.className = 'prop-drawer'
+  document.body.appendChild(el)
+  return el
+}
+
+function openPropDrawer(id) {
+  const row = getPropertyPayments().find(x => x.id === id)
+  if (!row) return
+  _propDrawerRowId = id
+  const el = _ensurePropDrawer()
+  el.innerHTML = _propDrawerHtml(row)
+  el.classList.add('open')
+  renderProperty()
+}
+
+function closePropDrawer() {
+  const el = document.getElementById('propDrawer')
+  if (el) el.classList.remove('open')
+  if (_propDrawerRowId) { _propDrawerRowId = null; renderProperty() }
+}
+
+function openPropDrawerNext() {
+  const sorted = _propSortedPays()
+  const idx = sorted.findIndex(x => x.id === _propDrawerRowId)
+  if (idx >= 0 && idx < sorted.length - 1) openPropDrawer(sorted[idx + 1].id)
+  else closePropDrawer()
+}
+
+async function propDrawerDelete(id) {
+  closePropDrawer()
+  deletePropertyPayment(id)
+}
+
+function _propDrawerHtml(row) {
+  const typeOpts = Object.entries(PROPERTY_TYPES)
+    .map(([k, v]) => `<option value="${k}" ${row.type === k ? 'selected' : ''}>${v.label}</option>`).join('')
+  const trackOpts = Object.entries(PROPERTY_TRACKS)
+    .map(([k, v]) => `<option value="${k}" ${row.track === k ? 'selected' : ''}>${v.label}</option>`).join('')
+  const id = row.id
+  const dateF = (k, val, lbl) => `<div class="prop-fld"><label>${lbl}</label>
+    <input type="text" inputmode="numeric" maxlength="10" placeholder="dd/mm/yyyy" value="${_isoToDmy(val || '')}" oninput="_onDateMaskInput(this)" onchange="onPropertyRowChange('${id}','${k}',_dmyToIso(this.value))" data-field="${k}"></div>`
+  const numF = (k, val, lbl) => `<div class="prop-fld"><label>${lbl}</label>
+    <input type="number" inputmode="decimal" min="0" value="${val || ''}" placeholder="0" onchange="onPropertyRowChange('${id}','${k}',this.value)" data-field="${k}"></div>`
+  const hasNext = (() => { const s = _propSortedPays(); const i = s.findIndex(x => x.id === id); return i >= 0 && i < s.length - 1 })()
+
+  return `
+    <div class="prop-drawer-head">
+      <h3>✏️ עריכת ${_propTypeText(row)}</h3>
+      <button class="modal-close" aria-label="סגור" onclick="closePropDrawer()">✕</button>
+    </div>
+    <div class="prop-fgrid">
+      ${dateF('dueDate', row.dueDate, 'מועד מתוכנן')}
+      ${dateF('paidDate', row.paidDate, 'תאריך תשלום בפועל')}
+      <div class="prop-fld"><label>סוג</label>
+        <select onchange="onPropertyRowChange('${id}','type',this.value)" data-field="type">${typeOpts}</select></div>
+      ${numF('paymentNumber', row.paymentNumber, 'מספר תשלום')}
+      ${numF('amount', row.amount, 'סכום')}
+      ${numF('paidAmount', row.paidAmount, 'שולם בפועל')}
+      ${numF('equity', row.equity, 'הון עצמי')}
+      ${numF('mortgage', row.mortgage, 'משכנתא')}
+      <div class="prop-fld"><label>מסלול</label>
+        <select onchange="onPropertyRowChange('${id}','track',this.value)" data-field="track">${trackOpts}</select></div>
+      <div class="prop-fld"><label>הערות</label>
+        <input type="text" value="${escHtml(row.notes || '')}" placeholder="—" onchange="onPropertyRowChange('${id}','notes',this.value)" data-field="notes"></div>
+    </div>
+    <div class="prop-drawer-docs" id="propDrawerDocs">${_propDrawerDocsHtml(id)}</div>
+    <div class="prop-drawer-btns">
+      ${hasNext ? `<button class="btn-primary" onclick="openPropDrawerNext()">שמור ופתח את הבא ↓</button>` : ''}
+      <button class="btn-ghost" onclick="closePropDrawer()">${hasNext ? 'סגור' : 'שמור וסגור'}</button>
+      <button class="btn-ghost" style="color:var(--expense)" onclick="propDrawerDelete('${id}')" title="מחק שורה">🗑</button>
+    </div>`
+}
+
+function _propDrawerDocsHtml(id) {
+  const docs = (typeof getPropertyDocs === 'function' ? getPropertyDocs() : []).filter(d => d.linkedPaymentId === id)
+  const items = docs.map(d => {
+    const c = _pdCat(d.docType)
+    return `<div class="prop-drawer-doc" onclick="propDocView('${d.id}')">${c.icon} ${escHtml(_pdDisplayName(d))}${d.driveFileId ? ' <span style="opacity:.6">☁✓</span>' : ''}</div>`
+  }).join('')
+  return `
+    <div class="prop-drawer-docs-title">📎 מסמכים מקושרים${docs.length ? ` (${docs.length})` : ''}</div>
+    ${items || '<div style="font-size:.75rem;color:var(--text-muted)">אין מסמכים מקושרים</div>'}
+    <div class="prop-drawer-doc" style="color:var(--accent)" onclick="propDocBrowse('${id}')">＋ צרף מסמך</div>`
+}
+
+// Values may change under the drawer (auto-fill of mortgage/equity) — refresh
+// unfocused inputs and the docs list without rebuilding focused ones.
+function _syncPropDrawer() {
+  const el = document.getElementById('propDrawer')
+  if (!el || !_propDrawerRowId) return
+  const row = getPropertyPayments().find(x => x.id === _propDrawerRowId)
+  if (!row) { closePropDrawer(); return }
+  el.querySelectorAll('[data-field]').forEach(inp => {
+    if (inp === document.activeElement) return
+    const k = inp.dataset.field
+    if (k === 'dueDate' || k === 'paidDate') inp.value = _isoToDmy(row[k] || '')
+    else if (k === 'notes' || k === 'type' || k === 'track') inp.value = row[k] || (k === 'notes' ? '' : inp.value)
+    else inp.value = row[k] || ''
+  })
+  const docsEl = document.getElementById('propDrawerDocs')
+  if (docsEl) docsEl.innerHTML = _propDrawerDocsHtml(_propDrawerRowId)
 }
 
 function _propMortgageCard(t, mort, mortgageRemaining, monthsLeft, p) {
