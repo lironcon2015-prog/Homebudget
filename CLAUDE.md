@@ -97,6 +97,16 @@
 ### Cache invalidation
 יש caches עם TTL 500ms ב-`core.js`: `_plAcctIdsCache`, `_savingsCatCache`, `_capitalIncomeCatCache`, `_vendorAliasIdx`. אחרי שינוי מקור (חשבונות/קטגוריות/aliases) חובה לקרוא ל-`invalidate*Cache` המתאים, אחרת הטבלאות ב-UI מסתכנות בסטייל במשך חצי שנייה.
 
+### V2 design language (מאז 1.37.0)
+"מאט כהה · אקסנט אחד · מספרים קודם". שמות הטוקנים ב-`style.css` לא השתנו — רק
+הערכים: משטחים אטומים (`--bg-surface:#0c0d11`, `--bg-elevated:#12131a`, בלי
+backdrop-blur על כרטיסים), אקסנט `#4f8bff→#8b5cf6` שמור ל-CTA ראשי ול-active
+בלבד, `--income:#2dd4a0`, `--expense:#fb6a86`, רדיוסים 14/22/24. ה-sidebar הוא
+rail אייקונים 96px בדסקטופ (`--sidebar-w`) שחוזר להיות drawer שורות ב-≤900px.
+`--bg-elev` הוא alias ל-`--bg-elevated`. `body` עם `tabular-nums` גלובלי.
+מודאלים: פאנל `--bg-elevated` אטום + overlay מטושטש. מסמכי העיצוב:
+`mockups/premium-v2-desktop.html` (כולל טאב "שפה") ו-`premium-v2-mobile.html`.
+
 ### Convention: modal class = `.open`
 כל ה-modals פועלים לפי `.open` (לא `.show`). כך גם `#sidebar`/`#sidebarOverlay`.
 

@@ -65,7 +65,7 @@ html.m-ui .m-period-custom { margin-top: 1rem; }
 html.m-ui .m-hero {
   position: relative; overflow: hidden; border-radius: 22px; padding: 1.25rem 1.3rem;
   margin-bottom: .9rem; border: 1px solid rgba(255,255,255,.1);
-  background: linear-gradient(135deg, rgba(59,130,246,.20), rgba(139,92,246,.10));
+  background: linear-gradient(135deg, rgba(79,139,255,.20), rgba(139,92,246,.10));
   backdrop-filter: blur(20px);
   box-shadow: inset 0 1px 1px rgba(255,255,255,.10), 0 8px 30px rgba(0,0,0,.4);
 }
@@ -170,7 +170,7 @@ html.m-ui .m-chip-btn {
   flex: 0 0 auto; padding: .5rem .9rem; border-radius: 12px; font-size: .82rem; font-weight: 600;
   border: 1px solid rgba(255,255,255,.06); background: var(--bg-surface); color: var(--text-secondary);
 }
-html.m-ui .m-chip-btn.active { background: rgba(59,130,246,.18); color: #fff; border-color: rgba(59,130,246,.4); }
+html.m-ui .m-chip-btn.active { background: rgba(79,139,255,.18); color: #fff; border-color: rgba(79,139,255,.4); }
 
 html.m-ui .m-tx-summary { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .7rem; }
 html.m-ui .m-sum-chip {
@@ -209,7 +209,7 @@ html.m-ui .m-more-label { flex: 1; }
 html.m-ui .m-more-chev { color: var(--text-muted); font-size: 1.3rem; }
 html.m-ui .m-more-status {
   font-size: .8rem; font-weight: 700; color: var(--accent);
-  padding: .15rem .55rem; border-radius: 9px; background: rgba(59,130,246,.14);
+  padding: .15rem .55rem; border-radius: 9px; background: rgba(79,139,255,.14);
 }
 html.m-ui .m-more-status.pos { color: var(--income); background: rgba(16,185,129,.14); }
 
@@ -241,7 +241,7 @@ html.m-ui .fab {
   inset-inline-start: 0; inset-inline-end: 0; margin-inline: auto;
   width: 56px; height: 56px; border-radius: 50%; border: none; color: #fff; font-size: 1.85rem; line-height: 1;
   background: linear-gradient(135deg, var(--accent), #8b5cf6);
-  box-shadow: 0 8px 22px rgba(59,130,246,.5), 0 0 0 5px var(--bg-base);
+  box-shadow: 0 8px 22px rgba(79,139,255,.5), 0 0 0 5px var(--bg-base);
 }
 html.m-ui .fab:active { transform: scale(.92); }
 
@@ -306,7 +306,7 @@ html.m-ui .m-pp-dates b { color: var(--text-primary); font-weight: 600; }
 html.m-ui .m-pp-bar { height: 4px; border-radius: 3px; background: rgba(148,163,184,.15); overflow: hidden; display: flex; margin: .4rem 0 .1rem; }
 html.m-ui .m-pp-bar i { display: block; height: 100%; }
 html.m-ui .m-pp-beq { background: #22c55e; }
-html.m-ui .m-pp-bmo { background: #3b82f6; }
+html.m-ui .m-pp-bmo { background: #4f8bff; }
 html.m-ui .m-pp-chips { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .4rem; }
 html.m-ui .m-pp-chip {
   background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.07); border-radius: 999px;
