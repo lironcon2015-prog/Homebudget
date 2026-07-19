@@ -729,9 +729,13 @@ function _gmailEnsureToken() {
         client_id: DRIVE_CLIENT_ID,
         scope: GMAIL_DOC_SCOPE,
         callback: resp => {
-          const ok = !resp.error
+          let ok = !resp.error
           if (!ok) toast('התחברות ל-Gmail נכשלה: ' + resp.error, { type: 'error' })
-          else _gmailToken = resp.access_token
+          else if (!String(resp.scope || '').includes('gmail.readonly')) {
+            // User approved the dialog but unchecked the Gmail checkbox.
+            ok = false
+            toast('לא אושרה גישת קריאה ל-Gmail — נסה שוב וסמן את תיבת ההרשאה', { type: 'error' })
+          } else _gmailToken = resp.access_token
           if (_gmailResolve) { _gmailResolve(ok); _gmailResolve = null }
         },
       })
@@ -745,7 +749,25 @@ function _gmailEnsureToken() {
 async function _gmailReq(url) {
   const r = await fetch(url, { headers: { Authorization: 'Bearer ' + _gmailToken } })
   if (r.status === 401) { _gmailToken = null; throw new Error('פג תוקף חיבור Gmail — נסה שוב') }
-  if (!r.ok) throw new Error('Gmail API: HTTP ' + r.status)
+  if (!r.ok) {
+    // Surface the REAL blocker — a bare 403 sends the user hunting in the
+    // wrong place. The common cases: API disabled in the Cloud project vs.
+    // a token that's missing the scope.
+    let detail = '', reason = ''
+    try {
+      const e = await r.json()
+      detail = e.error?.message || ''
+      reason = (e.error?.errors?.[0]?.reason || e.error?.status || '')
+    } catch {}
+    if (r.status === 403 && (/accessNotConfigured|SERVICE_DISABLED/i.test(reason) || /has not been used|is disabled/i.test(detail))) {
+      throw new Error('Gmail API לא מופעל בפרויקט Google Cloud של האפליקציה. יש להפעיל: console.cloud.google.com → APIs & Services → Library → Gmail API → Enable, ולנסות שוב אחרי כמה דקות')
+    }
+    if (r.status === 403 && /insufficient|PERMISSION_DENIED|forbidden/i.test(reason + ' ' + detail)) {
+      _gmailToken = null
+      throw new Error('חסרה הרשאת קריאה ל-Gmail — לחץ שוב על "סריקת מייל" ואשר את הגישה במסך ההתחברות')
+    }
+    throw new Error('Gmail API: HTTP ' + r.status + (detail ? ' — ' + detail : ''))
+  }
   return r.json()
 }
 
