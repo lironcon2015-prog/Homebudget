@@ -1,4 +1,4 @@
-const APP_VERSION = '1.34.0'
+const APP_VERSION = '1.35.0'
 
 // ===== STORAGE =====
 // Hot keys are cached as parsed objects: getTransactions() etc. used to
@@ -316,8 +316,10 @@ function collectBackupData() {
     property:            DB.get('finProperty', null),
     propertyPayments:    DB.get('finPropertyPayments', []),
     propertyManualMortgage: DB.get('finPropertyManualMortgage', []),
-    // Doc METADATA only — the file blobs live in IndexedDB and stay device-local.
+    // Doc METADATA only — blobs live in IndexedDB + the Drive docs folder.
     propertyDocs:        DB.get('finPropertyDocs', []),
+    propertyDocCats:     DB.get('finPropertyDocCats', []),
+    gmailDocSeen:        DB.get('finGmailDocSeen', []),
     feedback:            DB.get('finFeedback', []),
     reconciliation:      DB.getObj('finReconciliation', {}),
     dismissedAnomalies:  DB.get('finDismissedAnomalies', []),
@@ -360,6 +362,8 @@ function applyBackupData(data) {
   if (data.propertyPayments)   DB.set('finPropertyPayments',        data.propertyPayments)
   if (data.propertyManualMortgage) DB.set('finPropertyManualMortgage', data.propertyManualMortgage)
   if (data.propertyDocs)       DB.set('finPropertyDocs',            data.propertyDocs)
+  if (data.propertyDocCats)    DB.set('finPropertyDocCats',         data.propertyDocCats)
+  if (data.gmailDocSeen)       DB.set('finGmailDocSeen',            data.gmailDocSeen)
   if (data.feedback)           DB.set('finFeedback',                data.feedback)
   if (data.reconciliation)     DB.set('finReconciliation',          data.reconciliation)
   // Dismissed anomalies are monotonic (once marked OK, stays OK) — UNION with

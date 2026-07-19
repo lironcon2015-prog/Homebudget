@@ -82,12 +82,17 @@
 אבל **פירוט הקטגוריות** (גם בדשבורד וגם בניתוח) משתמש ב-`analysisExpenseAmount` (+`ccAccountsWithDetail`) כדי לקבל פיזור מדויק: שורת התשלום המרוכז של כרטיס נשמטת רק אם לאותו כרטיס יש פירוט עסקאות בתקופה (אז מוצג הפירוט במקום); כרטיס ללא פירוט — הלאמפ נשאר.
 
 ### Property documents (propertyDocs.js)
-מסמכי משכנתא/נכס: ה-blobs ב-IndexedDB (`finPropertyDocFiles`) — מקומיים למכשיר;
-המטא-דאטה ב-localStorage `finPropertyDocs` (נכלל בגיבויים/Drive). העלאה דרך
-בחירה/גרירה/הדבקה; תמונות נדחסות ל-JPEG לפני שמירה. עם מפתח Gemini כל מסמך
-מסווג אוטומטית (סוג/תאריך/סכום/מס' תשלום) ומקושר לשורה בטבלת התשלומים
-(`linkedPaymentId`). מסמך שהמטא-דאטה שלו סונכרן אך הקובץ חסר במכשיר מוצג
-עם הודעת "לא נמצא במכשיר זה".
+מסמכי משכנתא/נכס: ה-blobs ב-IndexedDB (`finPropertyDocFiles`) + מסתנכרנים
+לתיקיית Drive גלויה ("HomeBudget מסמכים", scope `drive.file` של drive.js —
+`driveFileId` על המטא-דאטה; מכשיר שני מוריד on-demand). המטא-דאטה ב-localStorage
+`finPropertyDocs` (נכלל בגיבויים/Drive). העלאה דרך בחירה/גרירה/הדבקה; תמונות
+נדחסות ל-JPEG לפני שמירה. עם מפתח Gemini כל מסמך מסווג אוטומטית ומקושר
+לתשלום (`linkedPaymentId`) לפי מס' תשלום → זהות סכום → קרבת תאריך (≤14 יום,
+רק לסוגי מסמכי-תשלום). קטגוריות: מובנות (`PROP_DOC_BUILTIN_CATS`, כולל
+'general') + מותאמות אישית ב-`finPropertyDocCats`; קטגוריה שנמחקה → הדוקים
+עוברים ל-'general'. ייבוא מ-Gmail: תווית (ברירת מחדל "HomeBudget", נשמרת
+ב-`finGmailDocLabel` מקומי), scope `gmail.readonly` נפרד, message ids שעובדו
+ב-`finGmailDocSeen` (מסונכרן).
 
 ### Cache invalidation
 יש caches עם TTL 500ms ב-`core.js`: `_plAcctIdsCache`, `_savingsCatCache`, `_capitalIncomeCatCache`, `_vendorAliasIdx`. אחרי שינוי מקור (חשבונות/קטגוריות/aliases) חובה לקרוא ל-`invalidate*Cache` המתאים, אחרת הטבלאות ב-UI מסתכנות בסטייל במשך חצי שנייה.
