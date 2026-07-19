@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>מוקאפ — כרטיסי תשלומים (מובייל)</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap');
+:root {
+  --bg-base:#09090b; --bg-surface:rgba(255,255,255,.03); --bg-elev:rgba(255,255,255,.055);
+  --border:rgba(255,255,255,.06); --border-bright:rgba(255,255,255,.12);
+  --text-primary:#fafafa; --text-secondary:#94a3b8; --text-muted:rgba(255,255,255,.28);
+  --accent:#3b82f6; --income:#10b981; --expense:#f43f5e;
+  --brand-gradient:linear-gradient(135deg,#3b82f6 0%,#8b5cf6 100%);
+}
+* { box-sizing:border-box; margin:0; }
+body { background:#040405; color:var(--text-primary); font-family:'Heebo',sans-serif; padding:1.5rem; display:flex; gap:2rem; justify-content:center; flex-wrap:wrap; align-items:flex-start; }
+.note {
+  width:100%; max-width:850px; margin-bottom:.5rem; padding:.8rem 1.1rem; border-radius:12px;
+  background:rgba(59,130,246,.08); border:1px solid rgba(59,130,246,.25); font-size:.85rem; line-height:1.7;
+}
+.note b { color:#60a5fa; }
+.phone {
+  width:390px; background:var(--bg-base); border:6px solid #1c1c1f; border-radius:34px;
+  padding:1rem .9rem 1.2rem; box-shadow:0 24px 60px rgba(0,0,0,.7); position:relative; overflow:hidden;
+}
+.phone .cap { position:absolute; top:-2.1rem; right:0; font-size:.75rem; color:var(--text-muted); }
+.frame-label { text-align:center; font-size:.75rem; color:var(--text-muted); margin-bottom:.7rem; }
+h2 { font-size:1.05rem; margin:.2rem .2rem .8rem; display:flex; justify-content:space-between; align-items:center; }
+.addbtn { width:34px; height:34px; border-radius:50%; background:var(--bg-elev); border:1px solid var(--border-bright); color:var(--text-primary); font-size:1.1rem; }
+
+.pcard {
+  background:var(--bg-surface); border:1px solid rgba(255,255,255,.05); border-radius:14px;
+  padding:.75rem .9rem; margin-bottom:.6rem; position:relative; overflow:hidden;
+  box-shadow:inset 0 1px 1px rgba(255,255,255,.06);
+}
+.pcard::before { content:''; position:absolute; inset-inline-start:0; top:0; bottom:0; width:3px; }
+.pc-paid::before { background:#22c55e; } .pc-up::before { background:#f59e0b; }
+.pc-fut::before { background:#475569; } .pc-warn::before { background:#f59e0b; }
+.top { display:flex; align-items:center; gap:.5rem; }
+.st { padding:.12rem .5rem; border-radius:999px; font-size:.66rem; font-weight:600; }
+.st-paid { background:rgba(34,197,94,.15); color:#4ade80; } .st-up { background:rgba(245,158,11,.18); color:#fbbf24; }
+.st-fut { background:rgba(148,163,184,.15); color:#94a3b8; }
+.ttl { font-size:.86rem; font-weight:600; flex:1; }
+.amt { font-size:1rem; font-weight:800; }
+.mid { display:flex; justify-content:space-between; font-size:.72rem; color:var(--text-secondary); margin:.4rem 0 .35rem; }
+.mid b { color:var(--text-primary); font-weight:600; }
+.bar { height:4px; border-radius:3px; background:rgba(255,255,255,.07); overflow:hidden; display:flex; margin-bottom:.35rem; }
+.bar i { display:block; height:100%; } .beq { background:#22c55e; } .bmo { background:#3b82f6; }
+.foot { display:flex; gap:.4rem; align-items:center; font-size:.68rem; color:var(--text-muted); }
+.chip { background:var(--bg-elev); border:1px solid var(--border); border-radius:999px; padding:.08rem .5rem; }
+.warn { color:#fbbf24; }
+
+.sheet-phone .dim { position:absolute; inset:0; background:rgba(0,0,0,.55); border-radius:28px; }
+.sheet {
+  position:relative; z-index:2; margin-top:4.5rem; background:#141417; border:1px solid var(--border-bright);
+  border-radius:22px 22px 26px 26px; padding:1rem 1rem 1.2rem; box-shadow:0 -12px 40px rgba(0,0,0,.6);
+}
+.grab { width:44px; height:4px; border-radius:2px; background:rgba(255,255,255,.18); margin:0 auto .8rem; }
+.sheet h3 { font-size:.95rem; margin-bottom:.9rem; display:flex; justify-content:space-between; }
+.seg { display:flex; background:var(--bg-elev); border-radius:10px; padding:3px; margin-bottom:.9rem; }
+.seg span { flex:1; text-align:center; font-size:.75rem; padding:.35rem 0; border-radius:8px; color:var(--text-secondary); }
+.seg .on { background:var(--brand-gradient); color:#fff; font-weight:600; }
+.f2 { display:grid; grid-template-columns:1fr 1fr; gap:.55rem .6rem; }
+.fld label { display:block; font-size:.66rem; color:var(--text-muted); margin-bottom:.18rem; }
+.fld input { width:100%; background:var(--bg-elev); border:1px solid var(--border-bright); color:var(--text-primary); border-radius:9px; padding:.5rem .55rem; font-family:inherit; font-size:.9rem; }
+.docs { margin-top:.8rem; font-size:.78rem; color:var(--text-secondary); }
+.docs .d { display:flex; gap:.4rem; padding:.28rem 0; }
+.btn { width:100%; margin-top:.9rem; background:var(--brand-gradient); border:none; color:#fff; border-radius:12px; padding:.7rem; font-family:inherit; font-size:.9rem; font-weight:700; }
+</style>
+</head>
+<body>
+
+<div class="note">
+  <b>מובייל:</b> נשאר עיקרון הכרטיסים (אין גלילה אופקית גם היום), אבל הכרטיס משודרג: פס סטטוס צבעוני בצד, שני הסכומים החשובים בולטים, פס יחס הון/משכנתא, וצ'יפים של 📎 מסמכים והערות. הקשה על כרטיס פותחת bottom-sheet עריכה עם <b>טאבים "פרטים / מסמכים"</b> — אותם שדות בדיוק, שום מידע לא הולך לאיבוד.
+</div>
+
+<div class="phone">
+  <div class="frame-label">מסך התשלומים</div>
+  <h2>תשלומים (מהקבלן/יזם) <button class="addbtn">＋</button></h2>
+
+  <div class="pcard pc-paid">
+    <div class="top"><span class="st st-paid">שולם</span><span class="ttl">💸 תשלום #4</span><span class="amt">₪120,000</span></div>
+    <div class="mid"><span>מתוכנן <b>10/07/26</b></span><span>שולם <b>12/07/26</b> (₪120,000)</span></div>
+    <div class="bar"><i class="beq" style="width:33%"></i><i class="bmo" style="width:67%"></i></div>
+    <div class="foot"><span class="chip" style="color:#4ade80">הון 40K</span><span class="chip" style="color:#60a5fa">משכ׳ 80K</span><span class="chip">פריים</span><span class="chip">📎1</span></div>
+  </div>
+
+  <div class="pcard pc-warn">
+    <div class="top"><span class="st st-paid">שולם</span><span class="ttl">💸 תשלום #5</span><span class="amt">₪95,000</span></div>
+    <div class="mid"><span>מתוכנן <b>01/09/26</b></span><span>שולם <b>03/09/26</b> (₪95,000)</span></div>
+    <div class="bar"><i class="beq" style="width:32%"></i><i class="bmo" style="width:63%"></i></div>
+    <div class="foot"><span class="chip" style="color:#4ade80">הון 30K</span><span class="chip" style="color:#60a5fa">משכ׳ 60K</span><span class="warn">⚠ הון+משכ׳ ≠ שולם</span></div>
+  </div>
+
+  <div class="pcard pc-up">
+    <div class="top"><span class="st st-up">קרוב</span><span class="ttl">💸 תשלום #6</span><span class="amt">₪120,000</span></div>
+    <div class="mid"><span>מתוכנן <b>05/08/26</b></span><span>בעוד 17 ימים</span></div>
+    <div class="foot"><span class="chip">📎+ צרף שובר</span><span class="chip">💬</span></div>
+  </div>
+
+  <div class="pcard pc-fut">
+    <div class="top"><span class="st st-fut">עתידי</span><span class="ttl">💸 תשלום #7</span><span class="amt">₪150,000</span></div>
+    <div class="mid"><span>מתוכנן <b>01/12/26</b></span><span></span></div>
+  </div>
+</div>
+
+<div class="phone sheet-phone">
+  <div class="frame-label">הקשה על כרטיס ← עריכה</div>
+  <div class="dim"></div>
+  <div class="sheet">
+    <div class="grab"></div>
+    <h3>✏️ תשלום #4 <span style="color:var(--text-muted)">✕</span></h3>
+    <div class="seg"><span class="on">פרטים</span><span>מסמכים (1)</span></div>
+    <div class="f2">
+      <div class="fld"><label>מועד מתוכנן</label><input value="10/07/2026"></div>
+      <div class="fld"><label>שולם בתאריך</label><input value="12/07/2026"></div>
+      <div class="fld"><label>סכום</label><input value="120,000"></div>
+      <div class="fld"><label>שולם בפועל</label><input value="120,000"></div>
+      <div class="fld"><label>הון עצמי</label><input value="40,000"></div>
+      <div class="fld"><label>משכנתא</label><input value="80,000"></div>
+      <div class="fld"><label>מסלול</label><input value="פריים"></div>
+      <div class="fld"><label>הערות</label><input placeholder="—"></div>
+    </div>
+    <div class="docs">
+      <div class="d">🧾 שובר תשלום 4 — בנק לאומי <span style="margin-inline-start:auto">☁✓</span></div>
+      <div class="d" style="color:var(--accent)">＋ צרף מסמך / 📷 צלם שובר</div>
+    </div>
+    <button class="btn">שמור</button>
+  </div>
+</div>
+
+</body>
+</html>

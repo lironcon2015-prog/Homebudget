@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>מוקאפ — טבלת תשלומים ללא גלילה (דסקטופ)</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap');
+:root {
+  --bg-base:#09090b; --bg-surface:rgba(255,255,255,.03); --bg-elev:rgba(255,255,255,.055);
+  --bg-hover:rgba(255,255,255,.08); --border:rgba(255,255,255,.06); --border-bright:rgba(255,255,255,.12);
+  --text-primary:#fafafa; --text-secondary:#94a3b8; --text-muted:rgba(255,255,255,.28);
+  --accent:#3b82f6; --income:#10b981; --expense:#f43f5e;
+  --brand-gradient:linear-gradient(135deg,#3b82f6 0%,#8b5cf6 100%);
+}
+* { box-sizing:border-box; margin:0; }
+body { background:var(--bg-base); color:var(--text-primary); font-family:'Heebo',sans-serif; padding:2rem; }
+.note {
+  max-width:1200px; margin:0 auto 1.25rem; padding:.8rem 1.1rem; border-radius:12px;
+  background:rgba(59,130,246,.08); border:1px solid rgba(59,130,246,.25); font-size:.85rem; line-height:1.7;
+}
+.note b { color:#60a5fa; }
+.wrap { display:flex; gap:1.25rem; max-width:1200px; margin:0 auto; align-items:flex-start; }
+.card {
+  background:var(--bg-surface); border:1px solid rgba(255,255,255,.04); border-radius:16px; padding:1.25rem;
+  box-shadow:inset 0 1px 1px rgba(255,255,255,.08), 0 4px 24px rgba(0,0,0,.5);
+}
+.main { flex:1; min-width:0; }
+.card-title { display:flex; justify-content:space-between; align-items:center; font-weight:700; margin-bottom:1rem; }
+.btn-primary { background:var(--brand-gradient); color:#fff; border:none; border-radius:10px; padding:.45rem 1rem; font-family:inherit; font-size:.85rem; font-weight:600; cursor:pointer; }
+.btn-ghost { background:transparent; color:var(--text-secondary); border:1px solid var(--border-bright); border-radius:10px; padding:.4rem .9rem; font-family:inherit; font-size:.82rem; cursor:pointer; }
+
+table { width:100%; border-collapse:collapse; font-size:.85rem; }
+th { text-align:right; color:var(--text-muted); font-weight:500; font-size:.74rem; padding:.45rem .6rem; border-bottom:1px solid var(--border-bright); }
+td { padding:.65rem .6rem; border-bottom:1px solid var(--border); vertical-align:middle; }
+tr.rowx { cursor:pointer; transition:background .12s; }
+tr.rowx:hover { background:var(--bg-hover); }
+tr.selected { background:rgba(59,130,246,.09); box-shadow:inset 3px 0 0 var(--accent); }
+
+.st { display:inline-block; padding:.14rem .55rem; border-radius:999px; font-size:.7rem; font-weight:600; white-space:nowrap; }
+.st-paid { background:rgba(34,197,94,.15); color:#4ade80; } .st-up { background:rgba(245,158,11,.18); color:#fbbf24; }
+.st-fut { background:rgba(148,163,184,.15); color:#94a3b8; } .st-late { background:rgba(239,68,68,.18); color:#f87171; }
+.typ { font-size:.78rem; color:var(--text-secondary); margin-top:.25rem; white-space:nowrap; }
+
+.dates div { white-space:nowrap; font-size:.8rem; }
+.dates .lbl { color:var(--text-muted); font-size:.68rem; }
+.var { font-size:.68rem; color:var(--expense); }
+.amt { font-weight:700; white-space:nowrap; }
+.amt-paid { color:#4ade80; }
+.amt-sub { font-size:.7rem; color:var(--text-muted); font-weight:400; }
+
+.split { min-width:150px; }
+.split-nums { display:flex; justify-content:space-between; font-size:.72rem; margin-bottom:.25rem; white-space:nowrap; gap:.6rem; }
+.split-nums .eq { color:#4ade80; } .split-nums .mo { color:#60a5fa; }
+.bar { height:5px; border-radius:3px; background:rgba(255,255,255,.07); overflow:hidden; display:flex; }
+.bar i { display:block; height:100%; } .bar .beq { background:#22c55e; } .bar .bmo { background:#3b82f6; }
+.track { font-size:.66rem; color:var(--text-muted); margin-top:.25rem; }
+.warn { color:#fbbf24; font-size:.68rem; margin-top:.2rem; }
+.acts { white-space:nowrap; text-align:left; }
+.chip { display:inline-block; background:var(--bg-elev); border:1px solid var(--border); border-radius:999px; padding:.1rem .5rem; font-size:.72rem; color:var(--text-secondary); margin-inline-start:.25rem; }
+.totals td { font-weight:700; border-top:2px solid var(--border-bright); border-bottom:none; background:var(--bg-elev); font-size:.82rem; }
+
+.drawer { width:340px; flex-shrink:0; position:relative; }
+.drawer::before { content:'← נפתח בלחיצה על שורה'; position:absolute; top:-1.4rem; right:0; font-size:.72rem; color:var(--text-muted); }
+.drawer h3 { font-size:1rem; margin-bottom:1rem; display:flex; justify-content:space-between; }
+.f2 { display:grid; grid-template-columns:1fr 1fr; gap:.6rem .7rem; margin-bottom:.6rem; }
+.fld label { display:block; font-size:.68rem; color:var(--text-muted); margin-bottom:.2rem; }
+.fld input, .fld select { width:100%; background:var(--bg-elev); border:1px solid var(--border-bright); color:var(--text-primary); border-radius:8px; padding:.42rem .55rem; font-family:inherit; font-size:.85rem; }
+.docs { margin-top:.9rem; border-top:1px solid var(--border); padding-top:.7rem; }
+.docs .d { display:flex; align-items:center; gap:.45rem; font-size:.78rem; padding:.3rem 0; color:var(--text-secondary); }
+.saverow { display:flex; gap:.5rem; margin-top:1rem; }
+.saverow .btn-primary { flex:1; }
+.close { color:var(--text-muted); cursor:pointer; font-size:1rem; }
+</style>
+</head>
+<body>
+
+<div class="note">
+  <b>הפתרון:</b> במקום 11 עמודות עם שדות קלט (שמחייבות גלילה אופקית) — טבלת <b>קריאה</b> קומפקטית של 6 עמודות שנכנסת בכל רוחב מסך, עם מידע "מוערם" בתוך התאים (תאריכים זה מעל זה, הון+משכנתא כמספרים + פס יחס). <b>לחיצה על שורה פותחת חלונית עריכה</b> בצד — כל 11 השדות המקוריים, גדולים ונוחים, כולל המסמכים המקושרים. אפס אובדן מידע, אפס גלילה. עריכה רציפה: "שמור ופתח את הבא" עובר לשורה הבאה.
+</div>
+
+<div class="wrap">
+  <div class="card main">
+    <div class="card-title">
+      <span>טבלת תשלומים (מהקבלן/יזם)</span>
+      <button class="btn-primary">+ הוסף שורה</button>
+    </div>
+    <table>
+      <thead><tr>
+        <th>סטטוס · סוג</th><th>מועדים</th><th>סכום</th><th>שולם בפועל</th><th>הון ↔ משכנתא</th><th style="text-align:left">פעולות</th>
+      </tr></thead>
+      <tbody>
+        <tr class="rowx">
+          <td><span class="st st-paid">שולם</span><div class="typ">✍️ חתימה</div></td>
+          <td class="dates"><div><span class="lbl">מתוכנן</span> 15/01/25</div><div><span class="lbl">שולם</span> 15/01/25</div></td>
+          <td class="amt">₪200,000</td>
+          <td class="amt amt-paid">₪200,000</td>
+          <td class="split">
+            <div class="split-nums"><span class="eq">הון 200,000</span><span class="mo">משכ׳ 0</span></div>
+            <div class="bar"><i class="beq" style="width:100%"></i></div>
+          </td>
+          <td class="acts"><span class="chip">📎2</span><span class="chip">💬</span></td>
+        </tr>
+        <tr class="rowx selected">
+          <td><span class="st st-paid">שולם</span><div class="typ">💸 תשלום #4</div></td>
+          <td class="dates"><div><span class="lbl">מתוכנן</span> 10/07/26</div><div><span class="lbl">שולם</span> 12/07/26 <span class="var">+2 ימים</span></div></td>
+          <td class="amt">₪120,000</td>
+          <td class="amt amt-paid">₪120,000</td>
+          <td class="split">
+            <div class="split-nums"><span class="eq">הון 40,000</span><span class="mo">משכ׳ 80,000</span></div>
+            <div class="bar"><i class="beq" style="width:33%"></i><i class="bmo" style="width:67%"></i></div>
+            <div class="track">מסלול: פריים</div>
+          </td>
+          <td class="acts"><span class="chip">📎1</span></td>
+        </tr>
+        <tr class="rowx" style="box-shadow:inset 3px 0 0 #f59e0b">
+          <td><span class="st st-paid">שולם</span><div class="typ">💸 תשלום #5</div></td>
+          <td class="dates"><div><span class="lbl">מתוכנן</span> 01/09/26</div><div><span class="lbl">שולם</span> 03/09/26</div></td>
+          <td class="amt">₪95,000</td>
+          <td class="amt amt-paid">₪95,000</td>
+          <td class="split">
+            <div class="split-nums"><span class="eq">הון 30,000</span><span class="mo">משכ׳ 60,000</span></div>
+            <div class="bar"><i class="beq" style="width:32%"></i><i class="bmo" style="width:63%"></i></div>
+            <div class="warn">⚠ הון+משכנתא ≠ שולם (חסר 5,000)</div>
+          </td>
+          <td class="acts"><span class="chip">📎+</span></td>
+        </tr>
+        <tr class="rowx">
+          <td><span class="st st-late">מאחר</span><div class="typ">🧾 מס רכישה</div></td>
+          <td class="dates"><div><span class="lbl">מתוכנן</span> 01/06/26</div><div><span class="lbl">שולם</span> —</div></td>
+          <td class="amt">₪48,000</td>
+          <td class="amt amt-sub">—</td>
+          <td class="split"><div class="split-nums"><span class="amt-sub">טרם שולם</span></div><div class="bar"></div></td>
+          <td class="acts"><span class="chip">📎+</span></td>
+        </tr>
+        <tr class="rowx">
+          <td><span class="st st-up">קרוב</span><div class="typ">💸 תשלום #6</div></td>
+          <td class="dates"><div><span class="lbl">מתוכנן</span> 05/08/26</div><div><span class="lbl">שולם</span> —</div></td>
+          <td class="amt">₪120,000</td>
+          <td class="amt amt-sub">—</td>
+          <td class="split"><div class="split-nums"><span class="amt-sub">טרם שולם</span></div><div class="bar"></div></td>
+          <td class="acts"><span class="chip">💬</span></td>
+        </tr>
+        <tr class="rowx">
+          <td><span class="st st-fut">עתידי</span><div class="typ">💸 תשלום #7</div></td>
+          <td class="dates"><div><span class="lbl">מתוכנן</span> 01/12/26</div><div><span class="lbl">שולם</span> —</div></td>
+          <td class="amt">₪150,000</td>
+          <td class="amt amt-sub">—</td>
+          <td class="split"><div class="split-nums"><span class="amt-sub">טרם שולם</span></div><div class="bar"></div></td>
+          <td class="acts"></td>
+        </tr>
+        <tr class="totals">
+          <td colspan="2">סך הכל</td>
+          <td class="amt">₪733,000</td>
+          <td class="amt amt-paid">₪415,000</td>
+          <td class="split">
+            <div class="split-nums"><span class="eq">הון 270,000</span><span class="mo">משכ׳ 140,000</span></div>
+            <div class="bar"><i class="beq" style="width:66%"></i><i class="bmo" style="width:34%"></i></div>
+          </td>
+          <td></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card drawer">
+    <h3>✏️ עריכת תשלום #4 <span class="close">✕</span></h3>
+    <div class="f2">
+      <div class="fld"><label>מועד מתוכנן</label><input value="10/07/2026"></div>
+      <div class="fld"><label>תאריך תשלום בפועל</label><input value="12/07/2026"></div>
+      <div class="fld"><label>סוג</label><select><option>תשלום</option></select></div>
+      <div class="fld"><label>מספר תשלום</label><input value="4"></div>
+      <div class="fld"><label>סכום</label><input value="120,000"></div>
+      <div class="fld"><label>שולם בפועל</label><input value="120,000"></div>
+      <div class="fld"><label>הון עצמי</label><input value="40,000"></div>
+      <div class="fld"><label>משכנתא</label><input value="80,000"></div>
+      <div class="fld"><label>מסלול</label><select><option>פריים</option></select></div>
+      <div class="fld"><label>הערות</label><input placeholder="—"></div>
+    </div>
+    <div class="docs">
+      <div style="font-size:.72rem;color:var(--text-muted);margin-bottom:.2rem">📎 מסמכים מקושרים</div>
+      <div class="d">🧾 שובר תשלום 4 — בנק לאומי <span style="margin-inline-start:auto">☁✓</span></div>
+      <div class="d" style="color:var(--accent);cursor:pointer">＋ צרף מסמך</div>
+    </div>
+    <div class="saverow">
+      <button class="btn-primary">שמור ופתח את הבא ↓</button>
+      <button class="btn-ghost">שמור</button>
+      <button class="btn-ghost" style="color:var(--expense)">🗑</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
