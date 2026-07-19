@@ -396,22 +396,37 @@ function renderBudgetScreen() {
       <button class="btn-ghost" onclick="shiftBudgetScreenMonth(1)">חודש הבא →</button>
     </div>`
 
+  // V2 hero — utilization ring + pace projection for the current month.
+  const utilPct = expBudget > 0 ? Math.round((expActual / expBudget) * 100) : 0
+  const ringPct = Math.min(100, utilPct)
+  let paceLine = ''
+  if (isCurrent && expBudget > 0) {
+    const now = new Date()
+    const daysIn = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+    const dayNum = now.getDate()
+    const daysLeft = daysIn - dayNum
+    const projPct = Math.round(((expActual * daysIn) / Math.max(1, dayNum)) / expBudget * 100)
+    const projCls = projPct <= 100 ? 'income-color' : projPct <= 112 ? 'budget-pace-amber' : 'expense-color'
+    const projTxt = projPct <= 100 ? 'הקצב תקין' : projPct <= 112 ? 'הקצב מעט גבוה' : 'צפויה חריגה'
+    paceLine = `נותרו ${daysLeft} ימים · ${projTxt} — צפי לסיום ב-<b class="${projCls}">${projPct}%</b> מהתקציב`
+  } else if (isPast) {
+    paceLine = utilPct > 100 ? `החודש נסגר בחריגה של ${formatCurrency(Math.abs(expRem))}` : `החודש נסגר עם עודף של ${formatCurrency(Math.abs(expRem))}`
+  }
+  const overCount = computeBudgetStatus(monthKey).filter(r => r.type !== 'income' && r.budget > 0 && r.actual > r.budget).length
   const summary = `
-    <div class="budget-summary-grid">
-      <div class="budget-summary-card">
-        <div class="budget-label">הוצאות (בפועל / תקציב)</div>
-        <div class="budget-val"><span class="expense-color">${formatCurrency(expActual)}</span> / ${formatCurrency(expBudget)}</div>
-        <div class="budget-sub">${expRem>=0?'נותר ':'חריגה '}${formatCurrency(Math.abs(expRem))}</div>
+    <div class="card txh bud2-hero">
+      <div class="bud2-ring" style="--p:${ringPct}"><div><b>${utilPct}%</b><span>מנוצל</span></div></div>
+      <div class="txh-lead" style="flex:1;min-width:220px">
+        <div class="txh-k">הוצאות מול תקציב</div>
+        <div class="txh-v" style="font-size:1.9rem"><span class="expense-color">${formatCurrency(expActual)}</span> <span class="bud2-of">מתוך ${formatCurrency(expBudget)}</span></div>
+        <div class="txh-sub">${paceLine || `${expRem >= 0 ? 'נותר ' : 'חריגה '}${formatCurrency(Math.abs(expRem))}`}</div>
+        <div class="rec2-cov-track" style="margin-top:.7rem;max-width:420px"><i style="width:${ringPct}%;background:var(--brand-gradient)"></i><i style="width:${100 - ringPct}%;background:var(--bg-input)"></i></div>
       </div>
-      <div class="budget-summary-card">
-        <div class="budget-label">הכנסות (בפועל / יעד)</div>
-        <div class="budget-val"><span class="income-color">${formatCurrency(incActual)}</span> / ${formatCurrency(incBudget)}</div>
-        <div class="budget-sub">${incRem<=0?'מעל היעד ':'חסר '}${formatCurrency(Math.abs(incRem))}</div>
-      </div>
-      <div class="budget-summary-card">
-        <div class="budget-label">נטו</div>
-        <div class="budget-val ${netActual>=0?'income-color':'expense-color'}">${formatCurrency(netActual)}</div>
-        <div class="budget-sub">מתוכנן: <span class="${netBudget>=0?'income-color':'expense-color'}">${formatCurrency(netBudget)}</span></div>
+      <div class="txh-side">
+        <div class="txh-stat"><div class="k">נותר לניצול</div><div class="v">${formatCurrency(Math.max(0, expRem))}</div></div>
+        <div class="txh-stat"><div class="k">הכנסות (בפועל / יעד)</div><div class="v"><span class="income-color">${formatCurrency(incActual)}</span> <span class="bud2-of">/ ${formatCurrency(incBudget)}</span></div></div>
+        <div class="txh-stat"><div class="k">נטו</div><div class="v ${netActual >= 0 ? 'income-color' : 'expense-color'}">${formatCurrency(netActual)}</div></div>
+        ${overCount > 0 ? `<div class="txh-stat"><div class="k">חריגות</div><div class="v expense-color">${overCount}</div></div>` : ''}
       </div>
     </div>`
 
@@ -526,12 +541,24 @@ function _renderBudgetScreenTable(monthKey, readOnly) {
       : `class="budget-screen-cat budget-screen-cat-link" role="link" tabindex="0" onclick="${onClick}"`
     const tag = residualTag ? ` <span class="budget-unforeseen-tag" title="${residualTitle}">${residualTag}</span>` : ''
     const linkTitle = noClick ? '' : (residual ? residualTitle : 'ערוך אילו עסקאות נכללות בשורה זו')
+    // V2: expected-by-today pace tick (current month, budgeted expense rows).
+    const paceTick = (!readOnly && type === 'expense' && budget > 0 && monthKey === _ym(new Date()))
+      ? (() => {
+          const now = new Date()
+          const daysIn = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+          return `<div class="budget-pace-tick" style="inset-inline-start:${Math.round((now.getDate() / daysIn) * 100)}%" title="צפי להיום לפי קצב אחיד"></div>`
+        })()
+      : ''
+    const pctChip = budget > 0
+      ? `<span class="budget-row-pct ${cls}">${Math.round(rawPct)}%</span>`
+      : '<span class="budget-row-pct"></span>'
     return `
       <div class="budget-screen-row ${residualRowCls} ${cls}">
         <span ${catAttrs}${linkTitle ? ` title="${linkTitle}"` : ''}>${catIconHTML(c) || '📋'} ${escHtml(c.name)}${tag}</span>
         <span class="budget-screen-actual-wrap"${onClick ? ` onclick="${onClick}" style="cursor:pointer"` : ''}>${actualCell}</span>
         ${input}
-        <div class="budget-screen-bar-track"><div class="budget-screen-bar-fill" style="width:${pct}%"></div></div>
+        <div class="budget-screen-bar-track">${paceTick}<div class="budget-screen-bar-fill" style="width:${pct}%"></div></div>
+        ${pctChip}
       </div>`
   }
 

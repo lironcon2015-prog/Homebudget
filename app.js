@@ -1,4 +1,4 @@
-const APP_VERSION = '1.37.0'
+const APP_VERSION = '1.38.0'
 
 // ===== STORAGE =====
 // Hot keys are cached as parsed objects: getTransactions() etc. used to
@@ -435,6 +435,7 @@ function openEditModal(id) {
     `<option value="${a.id}" ${tx.transferAccountId === a.id ? 'selected' : ''}>${escHtml(a.name)}</option>`).join('')
 
   const showDest = tx.type === 'transfer' ? 'block' : 'none'
+  if (typeof _renderEditTxContext === 'function') _renderEditTxContext(tx, _editIsNew)
   document.getElementById('editModalTitle').textContent = _editIsNew ? 'עסקה חדשה' : 'עריכת עסקה'
   document.getElementById('editDeleteBtn').style.display = _editIsNew ? 'none' : 'inline-flex'
   document.getElementById('editModalBody').innerHTML = `

@@ -25,9 +25,9 @@
     } catch (e) {}
   })();
   </script>
-  <link rel="stylesheet" href="style.css?v=1.37.0">
-  <link rel="stylesheet" href="mobile.css?v=1.37.0">
-  <script src="mobile/mobile-detect.js?v=1.37.0"></script>
+  <link rel="stylesheet" href="style.css?v=1.38.0">
+  <link rel="stylesheet" href="mobile.css?v=1.38.0">
+  <script src="mobile/mobile-detect.js?v=1.38.0"></script>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
@@ -182,6 +182,7 @@
       </div>
     </div>
     <div id="txPeriodSelector"></div>
+    <div id="txHero"></div>
     <div class="card">
       <div class="filters-bar">
         <div class="search-wrap">
@@ -758,12 +759,15 @@
 
 <!-- Edit Transaction Modal -->
 <div class="modal-overlay" id="editModal">
-  <div class="modal-box">
+  <div class="modal-box" id="editModalBox">
     <div class="modal-header">
       <h3 id="editModalTitle">עריכת עסקה</h3>
       <button class="modal-close" aria-label="סגור" onclick="closeEditModal()">✕</button>
     </div>
-    <div id="editModalBody"></div>
+    <div class="editm-grid" id="editModalGrid">
+      <div id="editModalBody"></div>
+      <div id="editModalCtx" class="editm-ctx" style="display:none"></div>
+    </div>
     <div style="display:flex;gap:.75rem;justify-content:space-between;margin-top:1.25rem">
       <button class="btn-danger" id="editDeleteBtn" onclick="deleteFromModal()">מחק</button>
       <div style="display:flex;gap:.75rem">
@@ -938,42 +942,42 @@
   <button onclick="applyUpdate()">עדכן עכשיו</button>
 </div>
 
-<script>const _v = '1.37.0';</script>
-<script src="app.js?v=1.37.0"></script>
-<script src="core.js?v=1.37.0"></script>
-<script src="ui.js?v=1.37.0"></script>
-<script src="uikit.js?v=1.37.0"></script>
-<script src="icons.js?v=1.37.0"></script>
-<script src="templates.js?v=1.37.0"></script>
-<script src="autocat.js?v=1.37.0"></script>
-<script src="detect.js?v=1.37.0"></script>
-<script src="budget.js?v=1.37.0"></script>
-<script src="budgetGen.js?v=1.37.0"></script>
-<script src="recurring.js?v=1.37.0"></script>
-<script src="dashboard.js?v=1.37.0"></script>
-<script src="transactions.js?v=1.37.0"></script>
-<script src="wizard.js?v=1.37.0"></script>
-<script src="import.js?v=1.37.0"></script>
-<script src="analysis.js?v=1.37.0"></script>
-<script src="settings.js?v=1.37.0"></script>
-<script src="drive.js?v=1.37.0"></script>
-<script src="backupLocal.js?v=1.37.0"></script>
-<script src="property.js?v=1.37.0"></script>
-<script src="propertyDocs.js?v=1.37.0"></script>
-<script src="reports.js?v=1.37.0"></script>
-<script src="feedback.js?v=1.37.0"></script>
-<script src="scrollMirror.js?v=1.37.0"></script>
-<script src="palette.js?v=1.37.0"></script>
-<script src="insights.js?v=1.37.0"></script>
-<script src="anomalies.js?v=1.37.0"></script>
+<script>const _v = '1.38.0';</script>
+<script src="app.js?v=1.38.0"></script>
+<script src="core.js?v=1.38.0"></script>
+<script src="ui.js?v=1.38.0"></script>
+<script src="uikit.js?v=1.38.0"></script>
+<script src="icons.js?v=1.38.0"></script>
+<script src="templates.js?v=1.38.0"></script>
+<script src="autocat.js?v=1.38.0"></script>
+<script src="detect.js?v=1.38.0"></script>
+<script src="budget.js?v=1.38.0"></script>
+<script src="budgetGen.js?v=1.38.0"></script>
+<script src="recurring.js?v=1.38.0"></script>
+<script src="dashboard.js?v=1.38.0"></script>
+<script src="transactions.js?v=1.38.0"></script>
+<script src="wizard.js?v=1.38.0"></script>
+<script src="import.js?v=1.38.0"></script>
+<script src="analysis.js?v=1.38.0"></script>
+<script src="settings.js?v=1.38.0"></script>
+<script src="drive.js?v=1.38.0"></script>
+<script src="backupLocal.js?v=1.38.0"></script>
+<script src="property.js?v=1.38.0"></script>
+<script src="propertyDocs.js?v=1.38.0"></script>
+<script src="reports.js?v=1.38.0"></script>
+<script src="feedback.js?v=1.38.0"></script>
+<script src="scrollMirror.js?v=1.38.0"></script>
+<script src="palette.js?v=1.38.0"></script>
+<script src="insights.js?v=1.38.0"></script>
+<script src="anomalies.js?v=1.38.0"></script>
 
 <!-- MOBILE LAYER (Dark Glass) — activates only on mobile via IS_MOBILE_UI / html.m-ui -->
-<script src="mobile/shell.js?v=1.37.0"></script>
-<script src="mobile/dashboard.js?v=1.37.0"></script>
-<script src="mobile/transactions.js?v=1.37.0"></script>
-<script src="mobile/analysis.js?v=1.37.0"></script>
-<script src="mobile/recurring.js?v=1.37.0"></script>
-<script src="mobile/property.js?v=1.37.0"></script>
+<script src="mobile/shell.js?v=1.38.0"></script>
+<script src="mobile/dashboard.js?v=1.38.0"></script>
+<script src="mobile/transactions.js?v=1.38.0"></script>
+<script src="mobile/analysis.js?v=1.38.0"></script>
+<script src="mobile/recurring.js?v=1.38.0"></script>
+<script src="mobile/property.js?v=1.38.0"></script>
 
 <!-- SERVICE WORKER REGISTRATION & UPDATE LOGIC -->
 <script>
