@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'finance-v1.33.0'
+const CACHE_VERSION = 'finance-v1.34.0'
 const ASSETS = [
   './',
   './index.html',
@@ -31,6 +31,7 @@ const ASSETS = [
   './autocat.js',
   './detect.js',
   './property.js',
+  './propertyDocs.js',
   './reports.js',
   './feedback.js',
   './scrollMirror.js',

@@ -1,4 +1,4 @@
-const APP_VERSION = '1.33.0'
+const APP_VERSION = '1.34.0'
 
 // ===== STORAGE =====
 // Hot keys are cached as parsed objects: getTransactions() etc. used to
@@ -316,6 +316,8 @@ function collectBackupData() {
     property:            DB.get('finProperty', null),
     propertyPayments:    DB.get('finPropertyPayments', []),
     propertyManualMortgage: DB.get('finPropertyManualMortgage', []),
+    // Doc METADATA only — the file blobs live in IndexedDB and stay device-local.
+    propertyDocs:        DB.get('finPropertyDocs', []),
     feedback:            DB.get('finFeedback', []),
     reconciliation:      DB.getObj('finReconciliation', {}),
     dismissedAnomalies:  DB.get('finDismissedAnomalies', []),
@@ -357,6 +359,7 @@ function applyBackupData(data) {
   if (data.property)           DB.set('finProperty',                data.property)
   if (data.propertyPayments)   DB.set('finPropertyPayments',        data.propertyPayments)
   if (data.propertyManualMortgage) DB.set('finPropertyManualMortgage', data.propertyManualMortgage)
+  if (data.propertyDocs)       DB.set('finPropertyDocs',            data.propertyDocs)
   if (data.feedback)           DB.set('finFeedback',                data.feedback)
   if (data.reconciliation)     DB.set('finReconciliation',          data.reconciliation)
   // Dismissed anomalies are monotonic (once marked OK, stays OK) — UNION with

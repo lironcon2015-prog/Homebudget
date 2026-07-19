@@ -130,6 +130,7 @@ function renderProperty() {
     ${_propSummaryCards(t)}
     ${_propPaymentsTable(t)}
     ${_propMortgageCard(t, mort, mortgageRemaining, monthsLeft, p)}
+    ${_propDocsCard()}
   `
 }
 
@@ -345,6 +346,10 @@ function _propRow(row) {
   
   const hasNote = !!row.notes && row.notes.trim() !== ''
   const noteBtn = `<button class="btn-ghost" style="padding: 0.15rem 0; width: 100%; font-size: 1.15rem; line-height: 1; min-height: unset; border: none; background: transparent;" onclick="editPropertyNote('${row.id}')" title="${hasNote ? row.notes.replace(/"/g,'&quot;') : 'הוסף הערה'}">${hasNote ? '💬' : '-'}</button>`
+  const docCount = propDocCountForPayment(row.id)
+  const docBtn = docCount > 0
+    ? `<button class="btn-ghost prop-doc-btn" onclick="propDocShowForPayment('${row.id}')" title="הצג ${docCount} מסמכים מקושרים">📎${docCount}</button>`
+    : `<button class="btn-ghost prop-doc-btn prop-doc-btn-empty" onclick="propDocBrowse('${row.id}')" title="צרף מסמך לתשלום זה">📎+</button>`
 
   return `
     <tr class="${mismatch ? 'prop-row-mismatch' : ''}">
@@ -360,7 +365,7 @@ function _propRow(row) {
       <td>${num('equity', row.equity)}</td>
       <td>${num('mortgage', row.mortgage)}</td>
       <td><select class="prop-input" onchange="onPropertyRowChange('${row.id}','track',this.value)">${trackOpts}</select></td>
-      <td style="text-align:center; vertical-align: middle;">${noteBtn}</td>
+      <td style="text-align:center; vertical-align: middle;">${noteBtn}${docBtn}</td>
       <td><button class="btn-ghost" onclick="deletePropertyPayment('${row.id}')" style="font-size:.75rem;padding:.25rem .55rem;color:var(--expense)" title="מחק שורה">🗑</button></td>
     </tr>`
 }

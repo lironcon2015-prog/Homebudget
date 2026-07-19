@@ -1604,6 +1604,50 @@ select option { background-color: #141417; color: var(--text-primary); }
 
 .dmy-input { font-variant-numeric: tabular-nums; letter-spacing: .02em; }
 
+/* ===== PROPERTY DOCUMENTS ===== */
+.propdoc-drop {
+  border: 2px dashed var(--border-bright); border-radius: .75rem;
+  padding: 1.1rem; text-align: center; cursor: pointer;
+  display: flex; flex-direction: column; gap: .3rem; align-items: center;
+  color: var(--text-secondary); font-size: .9rem;
+  transition: border-color .15s ease, background .15s ease;
+  margin-bottom: .85rem;
+}
+.propdoc-drop:hover { border-color: rgba(59,130,246,.5); }
+.propdoc-drop.drag { border-color: #3b82f6; background: rgba(59,130,246,.08); }
+
+.propdoc-chips { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: .75rem; }
+.propdoc-chip {
+  padding: .25rem .7rem; border-radius: 999px; font-size: .78rem; cursor: pointer;
+  background: var(--bg-elev); border: 1px solid var(--border); color: var(--text-secondary);
+  font-family: inherit;
+}
+.propdoc-chip.active { border-color: #3b82f6; color: #60a5fa; background: rgba(59,130,246,.10); }
+
+.propdoc-list { display: flex; flex-direction: column; gap: .5rem; }
+.propdoc-item {
+  display: flex; align-items: center; gap: .7rem;
+  padding: .6rem .75rem; border: 1px solid var(--border); border-radius: .6rem;
+  background: var(--bg-elev); cursor: pointer;
+  transition: border-color .12s ease;
+}
+.propdoc-item:hover { border-color: rgba(59,130,246,.45); }
+.propdoc-icon { font-size: 1.35rem; flex-shrink: 0; }
+.propdoc-info { flex: 1; min-width: 0; }
+.propdoc-name { font-size: .9rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.propdoc-meta { font-size: .74rem; color: var(--text-muted); margin-top: .15rem; display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; }
+.propdoc-ai { font-size: .8rem; }
+.propdoc-busy { font-size: .78rem; color: var(--text-muted); font-weight: 400; }
+.propdoc-actions { display: flex; gap: .1rem; flex-shrink: 0; }
+.propdoc-actions .btn-ghost { padding: .3rem .45rem; font-size: .85rem; min-height: unset; border: none; background: transparent; }
+
+.prop-doc-btn {
+  padding: .15rem 0; width: 100%; font-size: .85rem; line-height: 1;
+  min-height: unset; border: none; background: transparent; margin-top: .2rem;
+}
+.prop-doc-btn-empty { opacity: .35; }
+.prop-doc-btn-empty:hover { opacity: 1; }
+
 .prop-totals-row { background: var(--bg-elev); font-weight: 600; }
 .prop-totals-row td { border-top: 2px solid var(--border); }
 

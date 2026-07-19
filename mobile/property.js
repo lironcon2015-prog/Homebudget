@@ -25,6 +25,7 @@ function M_renderProperty() {
         ? '<p class="m-empty-line">אין תשלומים. הוסף עם ＋</p>'
         : t.pays.slice().sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || '')).map(M_propPayCard).join('')
     }</div>
+    ${_propDocsCard()}
     ${M_accordion('פרטי הנכס והגדרות', _propSetupCard(p, cats))}
   `
   if (typeof M_syncTabs === 'function') M_syncTabs('property')
@@ -45,7 +46,9 @@ function M_propPayCard(row) {
       <span class="m-prop-pay-amt">${formatCurrency(row.amount)}</span>
     </div>
     <div class="m-prop-pay-meta">מתוכנן ${formatDate(row.dueDate) || '—'} · שולם ${row.paidDate ? formatDate(row.paidDate) : '—'}${paid ? ` (${formatCurrency(paid)})` : ''}</div>
-    <div class="m-prop-pay-meta">הון ${formatCurrency(row.equity)} · משכנתא ${formatCurrency(row.mortgage)} · ${track}${mismatch ? ' · <span class="neg">⚠ הון+משכנתא ≠ שולם</span>' : ''}</div>
+    <div class="m-prop-pay-meta">הון ${formatCurrency(row.equity)} · משכנתא ${formatCurrency(row.mortgage)} · ${track}${mismatch ? ' · <span class="neg">⚠ הון+משכנתא ≠ שולם</span>' : ''}${
+      propDocCountForPayment(row.id) > 0 ? ` · <span onclick="event.stopPropagation();propDocShowForPayment('${row.id}')">📎${propDocCountForPayment(row.id)}</span>` : ''
+    }</div>
   </div>`
 }
 
@@ -75,7 +78,8 @@ function M_editPayment(id) {
     <select class="m-filter-select" onchange="onPropertyRowChange('${id}','track',this.value)">${trackOpts}</select>
     <label class="m-filter-label">הערות</label>
     <input class="m-filter-select" value="${(row.notes || '').replace(/"/g, '&quot;')}" onchange="onPropertyRowChange('${id}','notes',this.value)">
-    <button class="btn-danger" style="width:100%;margin-top:1.1rem" onclick="M_delPayment('${id}')">🗑 מחק תשלום</button>
+    <button class="btn-ghost" style="width:100%;margin-top:1.1rem" onclick="if(M_propPaySheet){M_propPaySheet.close();M_propPaySheet=null};propDocBrowse('${id}')">📎 צרף מסמך לתשלום זה</button>
+    <button class="btn-danger" style="width:100%;margin-top:.6rem" onclick="M_delPayment('${id}')">🗑 מחק תשלום</button>
   </div>`
   M_propPaySheet = UK_sheet({ title: 'עריכת תשלום', content: html })
 }
