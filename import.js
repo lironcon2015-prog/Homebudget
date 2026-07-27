@@ -447,10 +447,29 @@ function _billingMonthForRow(t, account, scope) {
   }
   // 2. the period the statement states for itself
   if (scope?.month) return { month: scope.month, provenance: 'explicit' }
-  // 3. billing-day rollover on the purchase date
+  // 3. An installment's cycle follows its INDEX, not its purchase date:
+  // instalment N of an April purchase lands N cycles later, so deriving every
+  // instalment of one plan from the same purchase date would pile them all into
+  // one cycle — and then the cycle could no longer tell them apart.
+  const purchase = t.originalTransactionDate || t.date
+  if (t.installmentCurrent && purchase && typeof installmentBillCycleMonth === 'function') {
+    const m = installmentBillCycleMonth(purchase, t.installmentCurrent)
+    if (m) return { month: m, provenance: 'derived' }
+  }
+  // 4. billing-day rollover on the purchase date
   const m = (typeof getTxEffectiveMonth === 'function')
     ? getTxEffectiveMonth({ date: t.date, accountId: account.id }) : (t.date || '').slice(0, 7)
   return { month: m, provenance: 'derived' }
+}
+
+// The charge date of one instalment: it keeps the day-of-month of the original
+// purchase, and the month is whichever one places that day inside this bill's
+// cycle. A purchase on the 30th billed in August is charged 30/07 (the cycle
+// runs 11/07–10/08); a purchase on the 2nd billed in August is charged 02/08.
+// Derived, never overwriting `date` — the purchase date stays the purchase date.
+function _installmentChargeDate(purchaseDate, billingMonth, billingDay) {
+  if (typeof remapInstallmentDateToBillCycle !== 'function') return ''
+  return remapInstallmentDateToBillCycle(purchaseDate, billingMonth, billingDay || 10)
 }
 
 // ---------- reconciliation ----------
@@ -500,8 +519,17 @@ function _reconcileParsed(parsed, accountId, declaredScope) {
         && typeof installmentFinalMonthFromCharge === 'function') {
       installmentFinalMonth = installmentFinalMonthFromCharge(billingMonth, t.installmentCurrent, t.installmentTotal)
     }
+    // The per-cycle charge date for an instalment. Only derived when the file
+    // didn't state one, and only for instalments — an ordinary purchase is
+    // charged on the bill's own charge date, not on its purchase day.
+    const purchaseDate = t.originalTransactionDate || t.date
+    const derivedChargeDate = (!t.chargeDate && t.installmentCurrent && purchaseDate && billingMonth
+                               && account && account.type === 'credit_card')
+      ? _installmentChargeDate(purchaseDate, billingMonth, account.billingDay)
+      : ''
     return {
       ...t,
+      ...(derivedChargeDate ? { chargeDate: derivedChargeDate } : {}),
       _purchaseDate: _purchaseDateForRow(t, account, scope),
       _installmentFinalMonth: installmentFinalMonth,
       _billingMonth: billingMonth,
@@ -633,7 +661,8 @@ function showImportReview() {
         onchange="_parsedTx[${i}]._keep=this.checked;_updateSaveBtn()"
         ${matched ? 'title="כבר קיימת במערכת. סמן כדי לייבא בכל זאת"' : ''}
         style="width:auto;cursor:pointer"></td>
-      <td>${formatDate(t.date)}</td>
+      <td>${formatDate(t.date)}${t.chargeDate && t.chargeDate !== t.date
+        ? `<div style="font-size:.7rem;color:var(--text-muted)">חיוב: ${formatDate(t.chargeDate)}</div>` : ''}</td>
       <td style="font-weight:500">${escHtml(t.vendor)}${hint}</td>
       <td style="font-weight:700;color:${t.amount > 0 ? 'var(--income)' : 'var(--expense)'}">${t.amount > 0 ? '+' : ''}${formatCurrency(t.amount)}</td>
       <td>${cat ? `<span style="font-size:.8rem">${catIconHTML(cat)} ${escHtml(cat.name)}</span>` : '<span style="color:var(--text-muted);font-size:.8rem">—</span>'}</td>

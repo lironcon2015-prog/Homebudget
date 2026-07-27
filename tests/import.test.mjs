@@ -66,12 +66,12 @@ const tally = r => ({
 test('REGRESSION: monthly bills then a wide report offers nothing already stored', () => {
   const ctx = makeImport({ accounts: [CC, BANK] })
   const mayBill = [
-    { date: '2026-04-22', amount: -250, vendor: 'איקאה',  description: 'תשלום 3 מתוך 10', type: 'expense' },
+    { date: '2026-01-22', amount: -250, vendor: 'איקאה',  description: 'תשלום 4 מתוך 10', type: 'expense' },
     { date: '2026-04-28', amount: -90,  vendor: 'שופרסל', description: '', type: 'expense' },
     { date: '2026-05-04', amount: -60,  vendor: 'ארומה',  description: '', type: 'expense' },
   ]
   const junBill = [
-    { date: '2026-04-22', amount: -250, vendor: 'איקאה', description: 'תשלום 4 מתוך 10', type: 'expense' },
+    { date: '2026-01-22', amount: -250, vendor: 'איקאה', description: 'תשלום 5 מתוך 10', type: 'expense' },
     { date: '2026-05-19', amount: -140, vendor: 'פז',    description: '', type: 'expense' },
     { date: '2026-06-02', amount: -75,  vendor: 'ארומה', description: '', type: 'expense' },
   ]
@@ -360,4 +360,95 @@ test('an explicit statement period always outranks an inferred one', () => {
     { date: '2026-06-10', amount: -40, vendor: 'ד', type: 'expense' },
   ], 'cc1', { month: '2026-07', source: 'charge-date', chargeDay: 10 })
   assert.ok(rows.every(t => t._billingMonth === '2026-07'), JSON.stringify(rows.map(t => t._billingMonth)))
+})
+
+// ---------- installments across consecutive bills ----------
+// Reported: this month's bill marked its instalment rows as already existing.
+// An instalment plan emits charges identical in purchase date, amount and
+// vendor; only the cycle separates them.
+
+test('REGRESSION: the next instalment of a stored plan is new, not existing', () => {
+  const ctx = makeImport({ accounts: [CC] })
+  // July bill: instalment 8 of a plan bought 30/11/2025.
+  runImport(ctx, [
+    { date: '2025-11-30', amount: -500, vendor: 'איקאה', description: 'תשלום 8 מתוך 12', type: 'expense' },
+    { date: '2026-06-20', amount: -60,  vendor: 'ארומה', description: '', type: 'expense' },
+  ], 'cc1', { month: '2026-07', source: 'charge-date', chargeDay: 10 })
+  commit(ctx)
+
+  // August bill: instalment 9. Same purchase date, same amount, same vendor.
+  const r = runImport(ctx, [
+    { date: '2025-11-30', amount: -500, vendor: 'איקאה', description: 'תשלום 9 מתוך 12', type: 'expense' },
+    { date: '2026-07-20', amount: -70,  vendor: 'ארומה', description: '', type: 'expense' },
+  ], 'cc1', { month: '2026-08', source: 'charge-date', chargeDay: 10 })
+  assert.deepEqual(tally(r), { fresh: 2, matched: 0, review: 0, keep: 2 },
+    JSON.stringify(r.map(t => [t.vendor, t._state])))
+})
+
+test('REGRESSION: it holds even when the index is printed on only one side', () => {
+  const ctx = makeImport({
+    accounts: [CC],
+    // A stored row with no index at all — an older import, or a format that
+    // never printed one.
+    transactions: [{ id: 'old', accountId: 'cc1', date: '2025-11-30', amount: -500,
+                     vendor: 'איקאה', billingMonth: '2026-07', type: 'expense' }],
+  })
+  const r = runImport(ctx, [
+    { date: '2025-11-30', amount: -500, vendor: 'איקאה', description: 'תשלום 9 מתוך 12', type: 'expense' },
+  ], 'cc1', { month: '2026-08', source: 'charge-date', chargeDay: 10 })
+  assert.equal(tally(r).fresh, 1, JSON.stringify(r.map(t => [t.vendor, t._state])))
+})
+
+test('the same bill re-imported still matches its own instalment', () => {
+  // The stricter rule must not break the case it shares a shape with.
+  const ctx = makeImport({ accounts: [CC] })
+  const bill = [{ date: '2025-11-30', amount: -500, vendor: 'איקאה', description: 'תשלום 9 מתוך 12', type: 'expense' }]
+  runImport(ctx, bill, 'cc1', { month: '2026-08', source: 'charge-date', chargeDay: 10 })
+  commit(ctx)
+  const r = runImport(ctx, bill, 'cc1', { month: '2026-08', source: 'charge-date', chargeDay: 10 })
+  assert.deepEqual(tally(r), { fresh: 0, matched: 1, review: 0, keep: 0 })
+})
+
+test('an instalment is charged on the purchase day, mapped into its cycle', () => {
+  const ctx = makeImport({ accounts: [CC] })
+  // Both examples from the report, on the August bill of a card billing on 10.
+  runImport(ctx, [
+    { date: '2025-11-30', amount: -500, vendor: 'איקאה', description: 'תשלום 9 מתוך 12', type: 'expense' },
+    { date: '2026-06-02', amount: -300, vendor: 'קרביץ', description: 'תשלום 3 מתוך 6', type: 'expense' },
+  ], 'cc1', { month: '2026-08', source: 'charge-date', chargeDay: 10 })
+  const saved = commit(ctx)
+  // Purchase on the 30th → charged 30/07 (the cycle runs 11/07–10/08).
+  assert.equal(saved[0].date, '2025-11-30', 'purchase date untouched')
+  assert.equal(saved[0].chargeDate, '2026-07-30')
+  assert.equal(saved[0].billingMonth, '2026-08')
+  // Purchase on the 2nd → charged 02/08.
+  assert.equal(saved[1].date, '2026-06-02')
+  assert.equal(saved[1].chargeDate, '2026-08-02')
+  assert.equal(saved[1].billingMonth, '2026-08')
+})
+
+test('an ordinary purchase gets no derived charge date', () => {
+  const ctx = makeImport({ accounts: [CC] })
+  runImport(ctx, [{ date: '2026-07-20', amount: -60, vendor: 'ארומה', type: 'expense' }],
+            'cc1', { month: '2026-08', source: 'charge-date', chargeDay: 10 })
+  assert.equal(commit(ctx)[0].chargeDate, undefined)
+})
+
+test('a charge date printed by the issuer is never overwritten', () => {
+  const ctx = makeImport({ accounts: [CC] })
+  runImport(ctx, [{ date: '2025-11-30', amount: -500, vendor: 'איקאה',
+                    description: 'תשלום 9 מתוך 12', chargeDate: '2026-07-28', type: 'expense' }], 'cc1', null)
+  assert.equal(commit(ctx)[0].chargeDate, '2026-07-28')
+})
+
+test('in a wide export each instalment lands in its own cycle', () => {
+  const ctx = makeImport({ accounts: [CC] })
+  // No statement scope. Deriving from the purchase date alone would pile all
+  // three into one cycle; the index is what separates them.
+  const rows = runImport(ctx, [
+    { date: '2026-01-22', amount: -250, vendor: 'איקאה', description: 'תשלום 4 מתוך 10', type: 'expense' },
+    { date: '2026-01-22', amount: -250, vendor: 'איקאה', description: 'תשלום 5 מתוך 10', type: 'expense' },
+    { date: '2026-01-22', amount: -250, vendor: 'איקאה', description: 'תשלום 6 מתוך 10', type: 'expense' },
+  ], 'cc1', null)
+  assert.deepEqual(rows.map(t => t._billingMonth), ['2026-05', '2026-06', '2026-07'])
 })

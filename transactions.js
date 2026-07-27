@@ -357,6 +357,12 @@ function _drawTxTable() {
           const effMonthDisplay = effMonth ? effMonth.slice(5) + '/' + effMonth.slice(0,4) : '—'
           const effMonthMismatch = effMonth && tx.date && effMonth !== tx.date.slice(0,7)
           const effCell = `<td class="tx-cell-sec" style="font-size:.8rem;color:${effMonthMismatch?'var(--accent)':'var(--text-muted)'}">${effMonthDisplay}</td>`
+          // An instalment is charged on the purchase's day-of-month, in whichever
+          // month places that day inside this bill's cycle — so the date column
+          // shows both: when it was bought, and when this instalment was charged.
+          const chargeDateLine = (tx.chargeDate && tx.chargeDate !== tx.date)
+            ? `<div style="font-size:.72rem;color:var(--text-muted)" title="תאריך החיוב בפועל">חיוב: ${formatDate(tx.chargeDate)}</div>`
+            : ''
           const recurringFlagBadge = tx.recurringFlag
             ? `<span class="type-badge type-refund" title="מסומן כקבוע (${recurringCadenceLabel(tx.recurringFlag)})" style="margin-inline-start:.3rem">🔁 ${recurringCadenceLabel(tx.recurringFlag)}</span>`
             : ''
@@ -410,7 +416,7 @@ function _drawTxTable() {
                 </div>
               </div>
             </td>
-            <td class="tx-cell-sec" style="font-size:.85rem;color:var(--text-secondary)">${formatDate(tx.date)}</td>
+            <td class="tx-cell-sec" style="font-size:.85rem;color:var(--text-secondary)">${formatDate(tx.date)}${chargeDateLine}</td>
             ${effCell}
             <td class="${amountCls} tx-cell-amount">${_richAmount(dispAmt)}</td>
             <td class="tx-cell-sec">${typeBadge}</td>

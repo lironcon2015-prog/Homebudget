@@ -145,6 +145,17 @@ function txmRecord(tx, opts = {}) {
 
 // ---------- scoring ----------
 
+// A charge whose purchase sits two or more cycles before the bill it appears
+// on: an installment, or a deferred ("עסקה נדחית") charge. One cycle of gap is
+// ordinary — a purchase is billed in the cycle right after it.
+const TXM_DEFERRED_CYCLES = 2
+
+function _txmIsDeferred(r) {
+  if (!r.purchaseDate || !r.billingMonth) return false
+  const d = txmMonthDiff(r.billingMonth, r.purchaseDate.slice(0, 7))
+  return d !== null && d >= TXM_DEFERRED_CYCLES
+}
+
 // Returns { score, disqualified, reasons }. The caller has already guaranteed
 // the amounts are equal — that is a precondition, not a scored component.
 function txmScorePair(a, b) {
@@ -158,6 +169,27 @@ function txmScorePair(a, b) {
       return { score: -Infinity, disqualified: true, reasons: ['installment-conflict'] }
     }
     score += 3; reasons.push('installment')
+  }
+
+  // An installment plan emits N charges that are IDENTICAL in purchase date,
+  // amount and vendor and differ only in which bill they land on. So whenever
+  // only one side prints its index — or neither does — those three fields agree
+  // perfectly and the pair scores high enough to match, which silently drops a
+  // real charge. For a deferred charge the cycle is the whole distinction, so it
+  // has to agree exactly rather than merely being close.
+  //
+  // Scoped to deferred charges on purpose. An ordinary purchase is billed in the
+  // cycle right after it, so a one-cycle disagreement there is a formatting
+  // artifact worth tolerating; a purchase sitting two or more cycles before its
+  // bill is either an installment or a deferred charge, and then a differing
+  // cycle means a different charge. Rows whose purchase date is unknown (a
+  // format that prints only the charge date) can't trigger this at all, so
+  // cross-format matching is untouched.
+  if (_txmIsDeferred(a) || _txmIsDeferred(b) || a.instCur || b.instCur || a.instTot || b.instTot) {
+    const md = txmMonthDiff(a.billingMonth, b.billingMonth)
+    if (md !== null && md !== 0) {
+      return { score: -Infinity, disqualified: true, reasons: ['installment-different-cycle'] }
+    }
   }
 
   if (a.purchaseDate && b.purchaseDate) {

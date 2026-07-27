@@ -240,8 +240,10 @@ test('a miss reports the gate that actually stopped it', () => {
   assert.equal(txmExplain(rec({ amount: -250, vendor: 'איקאה', date: '2026-04-22', cur: 4, tot: 10, month: '2026-06' }), stored).verdict,
                'disqualified')
 
-  // Same amount, but years away.
-  assert.equal(txmExplain(rec({ amount: -250, vendor: 'איקאה', date: '2024-01-01', month: '2024-01' }), stored).verdict,
+  // Same amount, but years away. Probed against a plain purchase, since a
+  // deferred charge is claimed by the stricter cycle rule first.
+  const plain = [rec({ id: 'p1', amount: -250, vendor: 'איקאה', date: '2026-05-22', month: '2026-06' })]
+  assert.equal(txmExplain(rec({ amount: -250, vendor: 'איקאה', date: '2024-01-01', month: '2024-01' }), plain).verdict,
                'out-of-window')
 
   assert.equal(txmExplain(rec({ amount: -250, vendor: 'איקאה', month: '2026-06' }), []).verdict, 'empty-account')
