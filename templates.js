@@ -295,7 +295,9 @@ function parseWithTemplate(rows, template) {
   const skip = (reason) => { stats.skipped++; stats.skippedReasons[reason] = (stats.skippedReasons[reason]||0) + 1 }
 
   const transactions = []
+  let _rowOffset = headerRowIndex  // absolute index of `row` within `rows`
   for (const row of dataRows) {
+    _rowOffset++
     // Empty row?
     if (!row || row.every(c => c == null || String(c).trim() === '')) { skip('ריקה'); continue }
 
@@ -354,6 +356,11 @@ function parseWithTemplate(rows, template) {
       .filter(Boolean)
       .join(' ')
 
+    // Signature of the RAW row, before any interpretation. Two exports of the
+    // same statement from the same system produce byte-identical rows, so this
+    // identifies a re-import outright — no field-by-field scoring needed.
+    const _rowSig = (typeof txmRowSignature === 'function') ? txmRowSignature(row) : ''
+
     transactions.push({
       date,
       amount,
@@ -363,6 +370,8 @@ function parseWithTemplate(rows, template) {
       category,
       ...(chargeDate ? { chargeDate } : {}),
       ...(_detectText ? { _detectText } : {}),
+      ...(_rowSig ? { _rowSig } : {}),
+      _rowIndex: _rowOffset,
     })
     stats.parsed++
   }

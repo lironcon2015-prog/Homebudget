@@ -519,6 +519,31 @@ async function editAccountPatterns(id) {
   renderSettings()
 }
 
+// Card last-4 / bank account numbers. These are what let an uploaded statement
+// find its own account, so the user never has to pick one. Normally learned
+// automatically on the first confirmed import — this is the manual override.
+async function editAccountIdentifiers(id) {
+  const accs = getAccounts()
+  const acc = accs.find(a => a.id === id)
+  if (!acc) return
+  const current = (acc.identifiers || []).join('\n')
+  const v = await promptDialog(
+    `מזהים לחשבון "${acc.name}":\n(שורה לכל מזהה — 4 ספרות אחרונות של הכרטיס, או מספר חשבון בנק.\nמשמש לזיהוי אוטומטי של החשבון בעת העלאת דוח.)`,
+    { defaultValue: current, multiline: true, title: 'מזהי חשבון' })
+  if (v === null) return
+  const cleaned = []
+  for (const line of v.split('\n')) {
+    const n = (typeof normalizeAccountIdentifier === 'function')
+      ? normalizeAccountIdentifier(line) : String(line).replace(/\D/g, '')
+    if (n && !cleaned.includes(n)) cleaned.push(n)
+  }
+  acc.identifiers = cleaned
+  DB.set('finAccounts', accs)
+  if (typeof invalidateAccountCache === 'function') invalidateAccountCache()
+  renderSettings()
+  toast(cleaned.length ? `${cleaned.length} מזהים נשמרו` : 'המזהים נוקו', { type: 'success' })
+}
+
 async function editAccountBillingDay(id) {
   const accs = getAccounts()
   const acc = accs.find(a => a.id === id)
@@ -607,6 +632,8 @@ function renderAccountList() {
         const billingDayBtn = a.type === 'credit_card'
           ? `<button class="btn-ghost" style="font-size:.75rem;padding:.3rem .7rem" onclick="editAccountBillingDay('${a.id}')">⚙️ יום חיוב: ${a.billingDay || 10}</button>`
           : ''
+        const identCount = (a.identifiers || []).length
+        const identBtn = `<button class="btn-ghost" style="font-size:.75rem;padding:.3rem .7rem" onclick="editAccountIdentifiers('${a.id}')" title="4 ספרות אחרונות של הכרטיס / מספר חשבון – משמש לזיהוי אוטומטי של הדוח">🔑 מזהים${identCount ? ` (${identCount})` : ''}</button>`
         return `
         <div class="list-item">
           <div style="flex:1">
@@ -615,6 +642,7 @@ function renderAccountList() {
           </div>
           <div style="display:flex;gap:.4rem;align-items:center">
             <button class="btn-ghost" style="font-size:.75rem;padding:.3rem .7rem" onclick="editAccountBasics('${a.id}')" title="עריכת שם / מוסד / יתרת פתיחה">✏️ ערוך</button>
+            ${identBtn}
             ${patternsBtn}
             ${billingDayBtn}
             <button class="list-item-del" onclick="deleteAccount('${a.id}')">🗑️</button>
