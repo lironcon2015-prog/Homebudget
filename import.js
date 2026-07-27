@@ -180,8 +180,17 @@ function continueImportWithTemplate(file, chosenAccountId, rows, template) {
     const chrome = (typeof statementChromeText === 'function')
       ? statementChromeText(rows, new Set(transactions.map(t => t._rowIndex).filter(i => i != null)))
       : ''
+    // A labelled period first. Failing that, a bare date sitting in the file's
+    // chrome that is too late to be a purchase — which is how MAX prints its
+    // charge date: alone in a cell, with no keyword beside it.
+    const maxTxDate = transactions.map(t => t.date).filter(Boolean).sort().pop() || ''
     const scope = (typeof detectStatementScope === 'function')
-      ? (detectStatementScope(preamble) || detectStatementScope(chrome) || detectStatementScope(file.name))
+      ? (detectStatementScope(preamble)
+         || detectStatementScope(chrome)
+         || (typeof detectScopeFromLooseDates === 'function'
+             ? (detectScopeFromLooseDates(preamble, maxTxDate) || detectScopeFromLooseDates(chrome, maxTxDate))
+             : null)
+         || detectStatementScope(file.name))
       : null
 
     const ident = (typeof identifyAccountForFile === 'function')

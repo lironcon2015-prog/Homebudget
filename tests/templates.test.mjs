@@ -230,3 +230,16 @@ test('templates are matched by header signature, in both signature eras', () => 
   // A different layout must not match either.
   assert.equal(t.findTemplateForHeaderRow(['משהו', 'אחר', 'לגמרי']), null)
 })
+
+test('parseCSVText: a quote is a delimiter only at the start of a field', () => {
+  const t = loadTemplates()
+  // Properly quoted fields keep working.
+  deepEq(t.parseCSVText('a,b\n1,"x, y"', ','), [['a','b'],['1','x, y']])
+  deepEq(t.parseCSVText('a\n"say ""hi"""', ','), [['a'],['say "hi"']])
+  // A mid-field quote is literal text. Hebrew exports are full of בע"מ, and
+  // treating it as an opening quote swallowed the rest of the file.
+  deepEq(t.parseCSVText('שם,סכום\nאלקטרה בע"מ,374.17\nפיוריטי,203.00', ','),
+         [['שם','סכום'],['אלקטרה בע"מ','374.17'],['פיוריטי','203.00']])
+  // Every row survives, which is the property that actually broke.
+  assert.equal(t.parseCSVText('a,b\nח"ן,1\nמט"ח,2\nחו"ל,3', ',').length, 4)
+})

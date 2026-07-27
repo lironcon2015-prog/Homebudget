@@ -191,6 +191,35 @@ function detectStatementScope(text) {
   return null
 }
 
+// A statement that prints its charge date as a bare cell, with no adjacent
+// label the keyword patterns can latch onto — MAX puts 10/08/2026 alone at the
+// top of the sheet. The date is still identifiable by position in time: a
+// charge date falls after every purchase it bills, and not long after.
+//
+// `notBefore` is the latest transaction date in the file. Candidates earlier
+// than that are purchases, not charge dates. The earliest qualifying date wins,
+// so a "next charge" line further down the sheet can't displace this bill's.
+const _SRC_MAX_CHARGE_LAG_DAYS = 75
+
+function detectScopeFromLooseDates(text, notBefore) {
+  const s = String(text || '')
+  if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(String(notBefore))) return null
+  const floor = Date.parse(notBefore + 'T00:00:00Z')
+  const ceiling = floor + _SRC_MAX_CHARGE_LAG_DAYS * 86400000
+  let best = null
+  for (const m of s.matchAll(/(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})/g)) {
+    let y = Number(m[3]); if (y < 100) y += 2000
+    const mo = Number(m[2]), d = Number(m[1])
+    if (!y || mo < 1 || mo > 12 || d < 1 || d > 31) continue
+    const iso = `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+    const t = Date.parse(iso + 'T00:00:00Z')
+    if (isNaN(t) || t < floor || t > ceiling) continue
+    if (!best || t < best.t) best = { t, iso, day: d, month: `${y}-${String(mo).padStart(2, '0')}` }
+  }
+  if (!best) return null
+  return { month: best.month, source: 'loose-charge-date', chargeDay: best.day, chargeDate: best.iso }
+}
+
 // The preamble is everything above the table header, where issuers print the
 // card number and the billing period. Joined into one string for scanning.
 function statementPreamble(rows, headerRowIndex) {
@@ -262,7 +291,10 @@ function extractAccountIdentifiers(text) {
   // captured whole — normalization keeps every digit and matching also tries
   // the last four, so a full PAN in the file still finds an account that was
   // only ever told the last four.
-  for (const m of s.matchAll(/(?:כרטיס|card)\D{0,20}?(\d{4,19})\b/g)) push(m[1], 'card', 'high')
+  // The gap allows for a full card description between the word and the number
+  // ("כרטיס: MAX מאסטרקארד חיוב מיידי - 7519"). Only non-digits may intervene,
+  // so a longer reach can't skip over an unrelated number to find this one.
+  for (const m of s.matchAll(/(?:כרטיס|card)\D{0,40}?(\d{4,19})\b/g)) push(m[1], 'card', 'high')
   for (const m of s.matchAll(/(?:מסתיים|ending|last)\D{0,12}?(\d{4})\b/gi)) push(m[1], 'card', 'high')
   for (const m of s.matchAll(/(\d{4})\s*(?:ספרות\s*אחרונות)/g)) push(m[1], 'card', 'high')
   // Bank accounts: "חשבון 12-345-678" / "מספר חשבון 123456" / "ח-ן 123456"

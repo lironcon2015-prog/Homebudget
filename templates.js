@@ -125,7 +125,11 @@ function parseCSVText(text, delimiter) {
       else if (c === '"') inQ = false
       else field += c
     } else {
-      if (c === '"') inQ = true
+      // A quote only opens a quoted field at the START of one. Mid-field it is
+      // literal text — which matters a lot in Hebrew, where `בע"מ` is ordinary
+      // and unescaped in plenty of exports. Treating it as an opening quote
+      // swallowed the rest of the file into a single cell.
+      if (c === '"' && field === '') inQ = true
       else if (c === delimiter) { row.push(field); field = '' }
       else if (c === '\r') { /* ignore */ }
       else if (c === '\n') { row.push(field); rows.push(row); row = []; field = '' }

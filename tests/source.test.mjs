@@ -230,3 +230,30 @@ test('chrome text never lets a data row masquerade as the period', () => {
   // Marked as parsed → excluded, so it cannot set the statement period.
   assert.equal(detectStatementScope(statementChromeText(rows, new Set([2]))), null)
 })
+
+test('a bare charge date is found by its position in time', () => {
+  const { detectScopeFromLooseDates } = load()
+  // MAX prints the charge date alone in a cell, with no keyword beside it.
+  const chrome = 'כרטיס: MAX מאסטרקארד - 7519 | 10/08/2026 | 10/08/2026'
+  const r = detectScopeFromLooseDates(chrome, '2026-07-24')
+  assert.equal(r.month, '2026-08')
+  assert.equal(r.chargeDay, 10)
+  assert.equal(r.chargeDate, '2026-08-10')
+})
+
+test('a loose date earlier than the purchases is not a charge date', () => {
+  const { detectScopeFromLooseDates } = load()
+  assert.equal(detectScopeFromLooseDates('הופק בתאריך 01/01/2026', '2026-07-24'), null)
+})
+
+test('the earliest qualifying date wins, so a later notice cannot displace it', () => {
+  const { detectScopeFromLooseDates } = load()
+  const r = detectScopeFromLooseDates('10/08/2026 | החיוב הבא 10/09/2026', '2026-07-24')
+  assert.equal(r.chargeDate, '2026-08-10')
+})
+
+test('a date far past the purchases is out of range', () => {
+  const { detectScopeFromLooseDates } = load()
+  assert.equal(detectScopeFromLooseDates('01/01/2030', '2026-07-24'), null)
+  assert.equal(detectScopeFromLooseDates('10/08/2026', ''), null)
+})

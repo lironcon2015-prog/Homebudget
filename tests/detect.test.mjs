@@ -94,3 +94,30 @@ test('detectImmediateCharge: reads the unmapped-column text too', () => {
   assert.equal(d.enrichDetectedFields({ vendor: 'AMAZON', description: '', _detectText: 'עסקת חו"ל' }).immediateCharge, true)
   assert.equal(d.enrichDetectedFields({ vendor: 'רמי לוי', description: '' }).immediateCharge, undefined)
 })
+
+test('detectInstallmentInfo: the MAX "N מ - M" form', () => {
+  // Taken from a real MAX statement's הערות column. Verified against the file:
+  // סכום עסקה / M equals סכום חיוב on every row.
+  deepEq(d.detectInstallmentInfo('9 מ - 12'), { current: 9, total: 12 })
+  deepEq(d.detectInstallmentInfo('8 מ - 10'), { current: 8, total: 10 })
+  deepEq(d.detectInstallmentInfo('6 מ - 15'), { current: 6, total: 15 })
+  deepEq(d.detectInstallmentInfo('2 מ - 3'), { current: 2, total: 3 })
+  deepEq(d.detectInstallmentInfo('9 מ-12'), { current: 9, total: 12 })
+  deepEq(d.detectInstallmentInfo('9 מ – 12'), { current: 9, total: 12 })
+  // The other values that share that column must stay inert.
+  assert.equal(d.detectInstallmentInfo('רגילה'), null)
+  assert.equal(d.detectInstallmentInfo('חיוב מיידי, רגילה'), null)
+  // The dash is required — מ is an ordinary Hebrew prefix.
+  assert.equal(d.detectInstallmentInfo('9 מ 12'), null)
+  assert.equal(d.detectInstallmentInfo('נסע 5 מ 20 קמ'), null)
+  // Still validated like every other form.
+  assert.equal(d.detectInstallmentInfo('12 מ - 9'), null, 'current > total')
+})
+
+test('enrichDetectedFields reads the MAX form out of an unmapped column', () => {
+  const e = d.enrichDetectedFields({ vendor: 'אלקטרה - סופר גז', description: '', _detectText: '9 מ - 12' })
+  assert.equal(e.installmentCurrent, 9)
+  assert.equal(e.installmentTotal, 12)
+  const plain = d.enrichDetectedFields({ vendor: 'שופרסל', description: '', _detectText: 'רגילה' })
+  assert.equal(plain.installmentCurrent, undefined)
+})

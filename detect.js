@@ -21,6 +21,10 @@ function detectInstallmentInfo(text) {
     /(\d{1,2})\s*מתוך\s*(\d{1,2})/,
     /\bתשלום\s*(\d{1,2})\s*\/\s*(\d{1,2})\b/,
     /\b(\d{1,2})\s*\/\s*(\d{1,2})\s*תשלום/,
+    // "9 מ - 12" — MAX writes the plan this way in its "הערות" column, with no
+    // "תשלום" or "מתוך" anywhere. The dash is required: a bare "9 מ 12" is too
+    // easy to hit by accident, since מ is an ordinary Hebrew prefix.
+    /(?:^|[^\d])(\d{1,2})\s*מ\s*[-–]\s*(\d{1,2})(?:[^\d]|$)/,
   ]
   for (const re of patterns) {
     const m = s.match(re)
