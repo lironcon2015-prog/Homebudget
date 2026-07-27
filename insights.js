@@ -54,7 +54,7 @@ function _insInboxStep() {
   if (!id) { body.innerHTML = '<div class="ins-inbox-done">🎉 סיימת! כל העסקאות סווגו.</div>'; return }
   const t = getTransactions().find(x => x.id === id)
   const vn = (typeof resolveVendor === 'function' ? resolveVendor(t.vendor, t.amount, (typeof getTxAliasDay === 'function' ? getTxAliasDay(t) : undefined)) : t.vendor) || t.vendor || '—'
-  const cats = getCategories()
+  const cats = getCategoriesSorted()
   const grp = (arr, title) => arr.length
     ? `<div class="cat-pick-section">${title}</div>` + arr.map(c => `<button class="cat-pick-btn" style="--cc:${c.color}" onclick="INS_inboxPick('${id}','${c.id}')">${catIconHTML(c)} <span>${_insEsc(c.name)}</span></button>`).join('')
     : ''

@@ -328,7 +328,7 @@ async function removeAlias(id) {
 function renderRulesList() {
   const catSel = document.getElementById('ruleInputCategory')
   if (catSel) {
-    const cats = getCategories().filter(c => c.type !== 'transfer')
+    const cats = getCategoriesSorted().filter(c => c.type !== 'transfer')
     catSel.innerHTML = cats.map(c => `<option value="${c.id}">${catIconText(c)} ${escHtml(c.name)}</option>`).join('')
   }
   const listEl = document.getElementById('rulesList')
@@ -702,7 +702,7 @@ async function deleteCategory(id) {
 }
 
 function renderCategoryList() {
-  const cats = getCategories()
+  const cats = getCategoriesSorted()
   const expCats = cats.filter(c => c.type === 'expense')
   const incCats = cats.filter(c => c.type === 'income')
 

@@ -1,4 +1,4 @@
-const APP_VERSION = '1.42.1'
+const APP_VERSION = '1.43.0'
 
 // ===== STORAGE =====
 // Hot keys are cached as parsed objects: getTransactions() etc. used to
@@ -191,6 +191,13 @@ function getTransactions() { return DB.get('finTransactions', []) }
 function getAccounts()    { return DB.get('finAccounts', []) }
 function getCategories()  { return DB.get('finCategories', DEFAULT_CATEGORIES) }
 function getCategoryById(id) { return getCategories().find(c => c.id === id) }
+// Every screen that asks the user to PICK a category lists them alphabetically —
+// a list you scan by name must be ordered by name, and storage order is just
+// "whenever it happened to be added". Stored order itself is left alone:
+// getCategories() stays the source of truth for identity and for the CRUD paths
+// in settings, which write back by index.
+function getCategoriesSorted() { return getCategories().slice().sort(catNameCompare) }
+function catNameCompare(a, b) { return String(a.name || '').localeCompare(String(b.name || ''), 'he') }
 function getApiKey()      { return localStorage.getItem('geminiApiKey') || '' }
 
 const DEFAULT_PROMPT = `אתה מנתח דוחות בנק ישראלים. נתח את הקובץ והחזר JSON בלבד – ללא טקסט נוסף, ללא backticks.
@@ -427,7 +434,7 @@ function openEditModal(id) {
   }
   _editId = tx.id
   _editRefundForTxId = tx.refundForTxId || null
-  const cats = getCategories()
+  const cats = getCategoriesSorted()
   const accs = getAccounts()
   const catOptions = cats.map(c => `<option value="${c.id}" ${tx.categoryId === c.id ? 'selected' : ''}>${catIconText(c)} ${escHtml(c.name)}</option>`).join('')
   const accOptions = accs.map(a => `<option value="${a.id}" ${tx.accountId === a.id ? 'selected' : ''}>${escHtml(a.name)}</option>`).join('')
@@ -543,7 +550,7 @@ function openRefundPicker() {
   const catSel = document.getElementById('refundPickCat')
   if (catSel) {
     catSel.innerHTML = '<option value="">כל הקטגוריות</option>' +
-      getCategories().filter(c => c.type === 'expense').map(c => `<option value="${c.id}">${catIconText(c)} ${escHtml(c.name)}</option>`).join('')
+      getCategoriesSorted().filter(c => c.type === 'expense').map(c => `<option value="${c.id}">${catIconText(c)} ${escHtml(c.name)}</option>`).join('')
   }
   const s = document.getElementById('refundPickSearch'); if (s) s.value = ''
   renderRefundPickerList()

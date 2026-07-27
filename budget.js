@@ -485,7 +485,7 @@ function _budgetFilterGo(catId, monthKey) {
 }
 
 function _renderBudgetScreenTable(monthKey, readOnly) {
-  const cats = getCategories()
+  const cats = getCategoriesSorted()
   const expCats = cats.filter(c => c.type === 'expense')
   const incCats = cats.filter(c => c.type === 'income')
   const budgets = getBudgetsForMonth(monthKey)

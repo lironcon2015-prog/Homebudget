@@ -115,7 +115,7 @@ function _buildTxCategoryFilter() {
   const sel = document.getElementById('txCategoryFilter')
   if (!sel) return
   const cur = sel.value
-  const cats = getCategories()
+  const cats = getCategoriesSorted()
   const expCats = cats.filter(c => c.type === 'expense')
   const incCats = cats.filter(c => c.type === 'income')
   const opt = c => `<option value="${c.id}" ${c.id===cur?'selected':''}>${catIconText(c)} ${escHtml(c.name)}</option>`
@@ -537,7 +537,7 @@ let _txCatPickHandler = null
 let _txCatPickSheet = null
 
 function openTxCategoryPicker(txId, onPick) {
-  const cats = getCategories()
+  const cats = getCategoriesSorted()
   const expCats = cats.filter(c => c.type === 'expense')
   const incCats = cats.filter(c => c.type === 'income')
   const btn = c => `<button class="cat-pick-btn" onclick="_txPickCat('${c.id}')" style="--cc:${c.color}">${catIconHTML(c)} <span>${escHtml(c.name)}</span></button>`

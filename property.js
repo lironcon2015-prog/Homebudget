@@ -126,7 +126,7 @@ function renderProperty() {
   if (!container) return
   const t = _propertyTotals()
   const p = t.p
-  const cats = (typeof getCategories === 'function' ? getCategories() : []).filter(c => c.type === 'expense')
+  const cats = (typeof getCategoriesSorted === 'function' ? getCategoriesSorted() : []).filter(c => c.type === 'expense')
   const mort = _mortgagePaid(p.mortgageCategoryId)
   const mortgageRemaining = Math.max(0, t.totalMortgage - mort.total)
   const monthsLeft = mort.recurringMonthly > 0 ? mortgageRemaining / mort.recurringMonthly : null

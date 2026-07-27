@@ -126,6 +126,16 @@ let _pdPresetPaymentId = ''   // set when uploading from a specific payment row
 let _pdFilter = 'all'         // doc-type chip filter
 let _pdPayFilter = ''         // show only docs of one payment (row 📎 click)
 let _pdBusy = 0               // uploads in flight (spinner in card header)
+// The list grows without bound (years of vouchers) and sits at the bottom of a
+// screen whose real subject is the payments table, so it starts folded. The
+// flag is module-level, not persisted: it resets on reload but survives the
+// full-screen redraws that _pdRerender does on every edit.
+let _pdCardOpen = false
+
+function propDocToggleCard(force) {
+  _pdCardOpen = force === undefined ? !_pdCardOpen : !!force
+  _pdRerender()
+}
 
 function propDocBrowse(paymentId = '') {
   _pdPresetPaymentId = paymentId || ''
@@ -185,6 +195,7 @@ async function propDocHandleFiles(fileList, extra = {}) {
       toast(`שגיאה בשמירת "${f.name}": ` + (e.message || e), { type: 'error' })
     }
   }
+  if (added.length) _pdCardOpen = true   // uploading is asking to see the list
   _pdRerender()
   if (!added.length) return
   toast(added.length === 1 ? 'המסמך נשמר' : `${added.length} מסמכים נשמרו`, { type: 'success' })
@@ -265,52 +276,210 @@ async function _pdClassify(meta, blob) {
   doc.summary = String(out.summary || '').slice(0, 200)
   doc.ai = true
 
-  // Auto-link to a payment row: payment # first, then amount identity,
-  // then date proximity.
-  if (!doc.linkedPaymentId) {
-    const linked = _pdMatchPayment(out.paymentNumber, doc.amount, doc.docDate, doc.docType)
-    if (linked) doc.linkedPaymentId = linked.id
-  }
   savePropertyDocs(list)
 
   const t = _pdCat(doc.docType)
-  const linkedRow = doc.linkedPaymentId ? getPropertyPayments().find(x => x.id === doc.linkedPaymentId) : null
-  toast(`✨ ${t.icon} סווג: ${t.label}${linkedRow ? ` · קושר לתשלום${linkedRow.paymentNumber ? ' #' + linkedRow.paymentNumber : ''}` : ''}`, { type: 'success' })
+  if (doc.linkedPaymentId) {   // uploaded from a specific payment row
+    const row = getPropertyPayments().find(x => x.id === doc.linkedPaymentId)
+    toast(`✨ ${t.icon} סווג: ${t.label}${row ? ` · קושר לתשלום${row.paymentNumber ? ' #' + row.paymentNumber : ''}` : ''}`, { type: 'success' })
+    return
+  }
+
+  const link = _pdMatchPayment(doc, out.paymentNumber)
+  if (link.row && link.confidence >= PD_LINK_MIN_CONFIDENCE) {
+    _pdSetLink(doc.id, link.row.id)
+    toast(`✨ ${t.icon} סווג: ${t.label} · קושר לתשלום${link.row.paymentNumber ? ' #' + link.row.paymentNumber : ''}`, { type: 'success' })
+    return
+  }
+  toast(`✨ ${t.icon} סווג: ${t.label}`, { type: 'success' })
+  // Below the confidence bar the app does not guess — it asks.
+  if (link.rule !== 'skip') await _pdAskLink(doc.id, link)
 }
 
-function _pdMatchPayment(paymentNumber, amount, docDate, docType) {
-  const pays = getPropertyPayments()
-  const rowDate = r => r.paidDate || r.dueDate || ''
-  const dayGap = (a, b) => Math.abs(new Date(a) - new Date(b)) / 86400000
+// ===== DOC → PAYMENT MATCHING =====
+// Rule order (deliberate, and different from "payment # first"): the amount on
+// the document is rule 1, its date is rule 2, and a payment number the AI read
+// off the page only corroborates or contradicts them. A payment number is the
+// field most often misread (schedules print several), while the amount is the
+// one fact a voucher and a bank confirmation always agree on.
+const PD_LINK_MIN_CONFIDENCE = 0.8
+// Doc types that inherently belong to one payment. A contract or an updated
+// schedule must not get glued to whatever payment happened that week, and must
+// never trigger the "create a payment?" offer.
+const PD_PAYMENT_DOC_TYPES = ['voucher', 'receipt', 'guarantee', 'tax']
+// "זהות מדוייקת" — a shekel apart is rounding, twenty apart is another payment.
+const PD_AMOUNT_EPSILON = 1
+const PD_DATE_BACK_DAYS = 14      // "בטווח של שבועיים אחורה"
+const PD_DATE_FORWARD_DAYS = 14   // a voucher is issued before it is paid
 
-  if (paymentNumber != null) {
-    const byNum = pays.find(x => x.paymentNumber === Number(paymentNumber))
-    if (byNum) return byNum
-  }
-  // Amount identity (any doc type) — ties broken by date proximity.
+function _pdRowDate(r) { return r.paidDate || r.dueDate || '' }
+function _pdDayGap(a, b) { return Math.abs(new Date(a) - new Date(b)) / 86400000 }
+// >0 when the payment precedes the document.
+function _pdDaysBefore(rowDate, docDate) { return (new Date(docDate) - new Date(rowDate)) / 86400000 }
+
+// The ACTUAL amount is what identifies a payment. The contractual `amount`
+// drifts from what left the account (index linkage, partial payments, fees),
+// so a document is matched against `paidAmount` whenever one was recorded;
+// `amount` only stands in for a payment that has not been paid yet. Hitting the
+// contractual figure exactly while a *different* actual figure exists is the
+// weakest signal of the three — that is precisely the case a human must judge.
+const PD_AMT_RANK = { paid: 0, contract: 1, conflict: 2 }
+function _pdAmountMatch(row, amount) {
+  const paid = Number(row.paidAmount) || 0
+  const due = Number(row.amount) || 0
+  if (paid > 0 && Math.abs(paid - amount) <= PD_AMOUNT_EPSILON) return 'paid'
+  if (due > 0 && Math.abs(due - amount) <= PD_AMOUNT_EPSILON) return paid > 0 ? 'conflict' : 'contract'
+  return ''
+}
+
+// → { row, confidence, rule, candidates }. rule 'skip' means "this kind of
+// document has nothing to link to" — stay silent rather than ask.
+function _pdMatchPayment(doc, paymentNumber) {
+  const pays = getPropertyPayments()
+  const amount = Number(doc.amount) || 0
+  const docDate = doc.docDate || ''
+  const num = (paymentNumber === null || paymentNumber === undefined || paymentNumber === '')
+    ? null : Number(paymentNumber)
+  const byNum = (num != null && !isNaN(num)) ? pays.find(x => x.paymentNumber === num) : null
+  const payDoc = PD_PAYMENT_DOC_TYPES.includes(doc.docType)
+  const none = { row: null, confidence: 0, rule: payDoc && (amount > 0 || docDate) ? 'none' : 'skip', candidates: [] }
+
+  // ---- Rule 1: the document's amount ----
   if (amount > 0) {
-    const tol = Math.max(5, amount * 0.01)
-    const cand = pays.filter(x =>
-      Math.abs((Number(x.paidAmount) || 0) - amount) <= tol ||
-      Math.abs((Number(x.amount) || 0) - amount) <= tol
-    )
-    if (cand.length === 1) return cand[0]
-    if (cand.length > 1) {
-      if (docDate) {
-        const dated = cand.filter(x => rowDate(x))
-        if (dated.length) return dated.sort((a, b) => dayGap(rowDate(a), docDate) - dayGap(rowDate(b), docDate))[0]
-      }
-      return cand[0]
+    const hits = []
+    for (const r of pays) {
+      const kind = _pdAmountMatch(r, amount)
+      if (kind) hits.push({ row: r, kind })
+    }
+    if (hits.length) {
+      const near = h => (docDate && _pdRowDate(h.row)) ? _pdDayGap(_pdRowDate(h.row), docDate) : 1e9
+      hits.sort((a, b) => PD_AMT_RANK[a.kind] - PD_AMT_RANK[b.kind] || near(a) - near(b))
+      const agreed = !!(byNum && hits.some(h => h.row.id === byNum.id))
+      const best = agreed ? hits.find(h => h.row.id === byNum.id) : hits[0]
+      const tied = hits.filter(h => h.kind === best.kind).length > 1
+      let confidence = { paid: 0.95, contract: 0.85, conflict: 0.55 }[best.kind]
+      if (agreed) confidence = 0.95
+      else if (byNum) confidence = Math.min(confidence, 0.6)  // the page named a different payment
+      else if (tied) confidence = Math.min(confidence, 0.7)   // the amount alone cannot choose
+      return { row: best.row, confidence, rule: 'amount', kind: best.kind, candidates: hits.map(h => h.row) }
     }
   }
-  // Date proximity fallback — only for docs that inherently belong to one
-  // payment (a voucher/receipt near a payment date); a contract or a schedule
-  // must not get glued to whatever payment happened that week.
-  if (docDate && ['voucher', 'receipt', 'guarantee', 'tax'].includes(docType)) {
-    const near = pays.filter(x => rowDate(x) && dayGap(rowDate(x), docDate) <= 14)
-    if (near.length) return near.sort((a, b) => dayGap(rowDate(a), docDate) - dayGap(rowDate(b), docDate))[0]
+
+  // ---- Rule 2: the document's date ----
+  if (docDate && payDoc) {
+    const near = pays.filter(r => {
+      const d = _pdRowDate(r)
+      if (!d) return false
+      const before = _pdDaysBefore(d, docDate)
+      return before <= PD_DATE_BACK_DAYS && before >= -PD_DATE_FORWARD_DAYS
+    }).sort((a, b) => _pdDayGap(_pdRowDate(a), docDate) - _pdDayGap(_pdRowDate(b), docDate))
+    if (near.length) {
+      const agreed = !!(byNum && near.some(r => r.id === byNum.id))
+      // Rule 1 already failed, so the date on its own only nominates a
+      // candidate — it clears the bar only when the payment number agrees.
+      const confidence = agreed ? 0.85 : near.length === 1 ? 0.7 : 0.6
+      return { row: agreed ? byNum : near[0], confidence, rule: 'date', candidates: near }
+    }
   }
-  return null
+
+  if (byNum) return { row: byNum, confidence: 0.6, rule: 'number', candidates: [byNum] }
+  return none
+}
+
+function _pdSetLink(docId, paymentId) {
+  const list = getPropertyDocs()
+  const d = list.find(x => x.id === docId)
+  if (!d) return
+  d.linkedPaymentId = paymentId || ''
+  savePropertyDocs(list)
+  _pdRerender()
+}
+
+// A document uploaded for a payment that was never entered by hand: build the
+// row from what the document itself says. A receipt documents money that
+// already left, a voucher only asks for it — so only the former is marked paid.
+function _pdCreatePaymentForDoc(docId) {
+  const d = getPropertyDocs().find(x => x.id === docId)
+  if (!d) return null
+  const list = getPropertyPayments()
+  const maxNum = list.filter(x => x.type === 'payment' && x.paymentNumber)
+    .reduce((mx, x) => Math.max(mx, x.paymentNumber), 0)
+  const row = _propEmptyPayment()
+  row.paymentNumber = maxNum + 1
+  row.dueDate = d.docDate || ''
+  row.amount = Number(d.amount) || 0
+  if (d.docType === 'receipt') {
+    row.paidDate = d.docDate || ''
+    row.paidAmount = Number(d.amount) || 0
+  }
+  row.notes = `נוצר ממסמך: ${_pdDisplayName(d)}`
+  list.push(row)
+  savePropertyPayments(list)
+  return row
+}
+
+const PD_ASK_WHY = {
+  amount: 'נמצא תשלום בסכום זהה, אך לא באופן חד-משמעי',
+  date: 'אין תשלום בסכום זהה — ההצעה מבוססת על קרבת תאריך בלבד',
+  number: 'המסמך מציין מספר תשלום, אך הסכום והתאריך לא תואמים',
+  none: 'לא נמצא תשלום תואם — לא לפי סכום ולא בשבועיים שלפני תאריך המסמך',
+}
+
+// Resolves when the sheet closes, whatever the user chose — the upload loop
+// classifies sequentially and must not race ahead of the question.
+function _pdAskLink(docId, m) {
+  return new Promise(resolve => {
+    const d = getPropertyDocs().find(x => x.id === docId)
+    if (!d) { resolve(); return }
+    const pays = getPropertyPayments()
+    const rest = pays.filter(p => !m.candidates.some(c => c.id === p.id))
+      .sort((a, b) => (_pdRowDate(a) || '').localeCompare(_pdRowDate(b) || ''))
+    const opts = ['<option value="">— ללא שיוך —</option>']
+      .concat(m.candidates.concat(rest).map(r =>
+        `<option value="${r.id}" ${m.row && m.row.id === r.id ? 'selected' : ''}>${_pdPaymentLabel(r)}</option>`)).join('')
+    // formatCurrency emits markup — the same reason _pdPaymentLabel is not
+    // escaped here either. Nothing in either string is user-authored.
+    const bits = [
+      d.docDate ? formatDate(d.docDate) : 'ללא תאריך',
+      Number(d.amount) > 0 ? formatCurrency(d.amount) : 'ללא סכום',
+      escHtml(_pdCat(d.docType).label),
+    ].join(' · ')
+    const offerNew = PD_PAYMENT_DOC_TYPES.includes(d.docType) && (Number(d.amount) > 0 || d.docDate)
+    const actions = [{
+      label: 'שמור שיוך',
+      primary: m.rule !== 'none',
+      onClick: () => { _pdSetLink(docId, document.getElementById('pdAskPay').value) },
+    }]
+    if (offerNew) actions.push({
+      label: '＋ צור תשלום חדש',
+      primary: m.rule === 'none',
+      onClick: () => {
+        const row = _pdCreatePaymentForDoc(docId)
+        if (row) {
+          _pdSetLink(docId, row.id)
+          toast(`נוצר תשלום #${row.paymentNumber} והמסמך שויך אליו`, { type: 'success' })
+        }
+      },
+    })
+    actions.push({ label: 'דלג', onClick: () => {} })
+
+    UK_sheet({
+      title: '🔗 לאן לשייך את המסמך?',
+      width: 'min(520px,95vw)',
+      content: `
+        <div style="display:flex;flex-direction:column;gap:.7rem">
+          <div style="font-size:.9rem;font-weight:600">${escHtml(_pdDisplayName(d))}</div>
+          <div style="font-size:.8rem;color:var(--text-muted)">${bits}</div>
+          <div style="font-size:.8rem;color:var(--warning,#f59e0b)">${escHtml(PD_ASK_WHY[m.rule] || '')}${
+            m.row ? ` (ודאות ${Math.round(m.confidence * 100)}%)` : ''}</div>
+          <label class="form-row"><span class="form-label">תשלום מלוח התשלומים</span>
+            <select class="form-input" id="pdAskPay">${opts}</select></label>
+          ${offerNew ? '<div style="font-size:.75rem;color:var(--text-muted)">אם התשלום עוד לא הוזן בלוח — "צור תשלום חדש" יקים שורה לפי הסכום והתאריך שבמסמך.</div>' : ''}
+        </div>`,
+      actions,
+      onClose: () => resolve(),
+    })
+  })
 }
 
 // ===== QUERIES =====
@@ -326,7 +495,11 @@ function _pdPaymentLabel(row) {
   const type = PROPERTY_TYPES[row.type] || PROPERTY_TYPES.other
   const num = row.paymentNumber ? ` #${row.paymentNumber}` : ''
   const when = formatDate(row.paidDate || row.dueDate) || 'ללא מועד'
-  return `${type.label}${num} · ${when} · ${formatCurrency(row.amount)}`
+  // What was actually paid is what a document can be compared against; the
+  // contractual figure is shown only while nothing has been paid yet.
+  const paid = Number(row.paidAmount) || 0
+  const amt = paid > 0 ? `${formatCurrency(paid)} (שולם)` : formatCurrency(row.amount)
+  return `${type.label}${num} · ${when} · ${amt}`
 }
 
 function _pdRerender() { if (typeof renderProperty === 'function') renderProperty() }
@@ -338,7 +511,14 @@ function _propDocsCard() {
   let shown = docs
   if (payFilterRow) shown = shown.filter(d => d.linkedPaymentId === _pdPayFilter)
   else if (_pdFilter !== 'all') shown = shown.filter(d => _pdCat(d.docType).id === _pdFilter)
-  shown = shown.slice().sort((a, b) => (b.docDate || b.createdAt || '').localeCompare(a.docDate || a.createdAt || ''))
+  // Grouped by category, and inside each category newest upload first. Upload
+  // time — not docDate — is the order the user remembers: a voucher scanned
+  // today can carry a document date from months back.
+  const catOrder = new Map(getPropDocCats().map((c, i) => [c.id, i]))
+  const catIdx = d => catOrder.has(_pdCat(d.docType).id) ? catOrder.get(_pdCat(d.docType).id) : 999
+  shown = shown.slice().sort((a, b) =>
+    catIdx(a) - catIdx(b) ||
+    (b.createdAt || '').localeCompare(a.createdAt || ''))
 
   const counts = {}
   docs.forEach(d => { const k = _pdCat(d.docType).id; counts[k] = (counts[k] || 0) + 1 })
@@ -358,15 +538,10 @@ function _propDocsCard() {
   const totalBytes = docs.reduce((s, d) => s + (d.size || 0), 0)
   const busy = _pdBusy > 0 ? `<span class="propdoc-busy">⏳ מעבד ${_pdBusy} מסמכים…</span>` : ''
 
-  return `
-    <div class="card" id="propDocsCard">
-      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap">
-        <span>📎 מסמכים${docs.length ? ` (${docs.length})` : ''} ${busy}</span>
-        <span style="display:flex;gap:.5rem">
-          <button class="btn-ghost" onclick="propDocScanGmail()" style="padding:.4rem .9rem;font-size:.85rem" title="ייבוא מסמכים ממיילים מתויגים ב-Gmail">📧 סריקת מייל</button>
-          <button class="btn-primary" onclick="propDocBrowse()" style="padding:.4rem .9rem;font-size:.85rem">+ העלה מסמך</button>
-        </span>
-      </div>
+  // The hidden file input stays outside the folded region — propDocBrowse()
+  // clicks it, and pasting works on the property screen whether or not the
+  // list is open.
+  const body = !_pdCardOpen ? '' : `
       <div class="propdoc-drop" onclick="propDocBrowse()"
            ondragover="event.preventDefault();this.classList.add('drag')"
            ondragleave="this.classList.remove('drag')"
@@ -381,7 +556,23 @@ function _propDocsCard() {
         ${docs.length ? `<span>סה"כ ${_pdFmtSize(totalBytes)} · מסתנכרן ל-Drive (תיקיית "${PROPDOC_DRIVE_FOLDER}")</span> ·` : ''}
         <span>תווית מייל: "${escHtml(localStorage.getItem('finGmailDocLabel') || 'HomeBudget')}"</span>
         <a style="cursor:pointer;text-decoration:underline" onclick="propDocChangeGmailLabel()">שנה</a>
+      </div>`
+
+  return `
+    <div class="card" id="propDocsCard">
+      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap">
+        <button class="propdoc-fold" onclick="propDocToggleCard()"
+                aria-expanded="${_pdCardOpen}" aria-controls="propDocsBody"
+                title="${_pdCardOpen ? 'כווץ' : 'הצג מסמכים'}">
+          <span class="propdoc-chev${_pdCardOpen ? ' open' : ''}">›</span>
+          <span>📎 מסמכים${docs.length ? ` (${docs.length})` : ''}</span> ${busy}
+        </button>
+        <span style="display:flex;gap:.5rem">
+          <button class="btn-ghost" onclick="propDocScanGmail()" style="padding:.4rem .9rem;font-size:.85rem" title="ייבוא מסמכים ממיילים מתויגים ב-Gmail">📧 סריקת מייל</button>
+          <button class="btn-primary" onclick="propDocBrowse()" style="padding:.4rem .9rem;font-size:.85rem">+ העלה מסמך</button>
+        </span>
       </div>
+      <div id="propDocsBody">${body}</div>
       <input type="file" id="propDocFileInput" multiple accept="image/*,application/pdf" style="display:none" onchange="propDocOnInput(this)">
     </div>`
 }
@@ -425,6 +616,7 @@ function propDocSetFilter(k) {
 function propDocShowForPayment(paymentId) {
   _pdPayFilter = paymentId
   _pdFilter = 'all'
+  _pdCardOpen = true   // the 📎 on a payment row asks for the list, not the card
   _pdRerender()
   setTimeout(() => document.getElementById('propDocsCard')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60)
 }

@@ -112,7 +112,7 @@ function runAutoCategorize() {
 }
 
 function _showAutocatAmbiguousModal(appliedCount, ambiguous) {
-  const cats = getCategories()
+  const cats = getCategoriesSorted()
   const catOpts = ['expense', 'income'].map(type => {
     const list = cats.filter(c => c.type === type)
     if (!list.length) return ''
