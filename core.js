@@ -325,8 +325,13 @@ function getTxEffectiveMonth(tx) {
   // import, account-type change, manual edit) shouldn't have its tx pushed
   // into a different month.
   if (!info || info.type !== 'credit_card') return `${y}-${String(m).padStart(2,'0')}`
-  // CC: an explicit chargeDate from the issuer wins outright; otherwise
-  // billing-day rollover decides which bill cycle owns the purchase.
+  // CC precedence: an explicit billingMonth beats everything. It is set when
+  // the statement itself told us which bill it is (a charge-date column, or the
+  // period printed in the statement preamble), which is strictly better than
+  // any rollover arithmetic. `date` always stays the PURCHASE date, so the two
+  // facts never have to fight over one field the way they used to.
+  if (/^\d{4}-\d{2}$/.test(String(tx.billingMonth || ''))) return tx.billingMonth
+  // Otherwise an explicit chargeDate from the issuer; else billing-day rollover.
   if (tx.chargeDate) {
     const [cy, cm] = tx.chargeDate.split('-').map(Number)
     if (cy && cm) return `${cy}-${String(cm).padStart(2,'0')}`

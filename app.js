@@ -1,4 +1,4 @@
-const APP_VERSION = '1.39.0'
+const APP_VERSION = '1.40.0'
 
 // ===== STORAGE =====
 // Hot keys are cached as parsed objects: getTransactions() etc. used to
@@ -195,11 +195,16 @@ function getApiKey()      { return localStorage.getItem('geminiApiKey') || '' }
 
 const DEFAULT_PROMPT = `אתה מנתח דוחות בנק ישראלים. נתח את הקובץ והחזר JSON בלבד – ללא טקסט נוסף, ללא backticks.
 
-מערך עסקאות בפורמט:
-[{"date":"YYYY-MM-DD","amount":250.00,"vendor":"שם הספק","description":"תיאור מלא","type":"expense","category":"שם הקטגוריה","chargeDate":"YYYY-MM-DD"}]
+אובייקט בפורמט:
+{"billingMonth":"YYYY-MM","cardLast4":"1234","accountNumber":"123456","transactions":[{"date":"YYYY-MM-DD","amount":250.00,"vendor":"שם הספק","description":"תיאור מלא","type":"expense","category":"שם הקטגוריה","chargeDate":"YYYY-MM-DD"}]}
 
-חוקים:
-- date: תאריך בפורמט YYYY-MM-DD
+זיהוי הדוח (שדות ברמת הקובץ – מתוך הכותרת שמעל הטבלה):
+- billingMonth: חודש החיוב שהדוח מתייחס אליו ("מועד חיוב 10/06/2026" → "2026-06"; "לחודש יוני 2026" → "2026-06"). אם לא כתוב במפורש – השמט לחלוטין, אל תנחש מהתאריכים בטבלה
+- cardLast4: 4 הספרות האחרונות של הכרטיס אם מופיעות בדוח. אחרת השמט
+- accountNumber: מספר חשבון הבנק אם מופיע בדוח. אחרת השמט
+
+חוקים לעסקאות:
+- date: תאריך העסקה (הרכישה) בפורמט YYYY-MM-DD – לא תאריך החיוב
 - amount: חיובי להכנסה, שלילי להוצאה
 - type: income | expense | transfer | refund
 - vendor: שם נקי ללא מספרים מיותרים
@@ -1190,6 +1195,65 @@ function cleanupOrphanedStateKeys() {
   } catch (e) { console.error('orphan cleanup failed:', e) }
 }
 
+// Converge the store on one date model, ahead of the rebuilt import pipeline.
+//
+// Two facts had been fighting over the single `date` field: when the purchase
+// happened, and which bill it lands on. migrateInstallmentDates_v2 resolved
+// that fight by overwriting `date` with the cycle date — which silently
+// invalidated every stored sourceHash (they were never recomputed) and made the
+// same source row parse to different values depending on what else was in the
+// file. From here on the two facts live in two fields:
+//
+//   date          — always the purchase date
+//   billingMonth  — the cycle, explicit, 'YYYY-MM'
+//
+// Order matters: the cycle is read off the CURRENT (possibly overwritten) date
+// before the purchase date is restored, so no information is lost either way.
+// A snapshot is written first because this rewrites rows in place.
+function migrateBillingMonth_v1() {
+  if (localStorage.getItem('migration_billing_month_v1') === '1') return
+  if (typeof getTxEffectiveMonth !== 'function') return
+  const txs = getTransactions()
+  const ccIds = new Set(getAccounts().filter(a => a.type === 'credit_card').map(a => a.id))
+
+  const planned = []
+  for (const t of txs) {
+    if (!t.date || !ccIds.has(t.accountId)) continue
+    const cycle = getTxEffectiveMonth(t)
+    if (!/^\d{4}-\d{2}$/.test(cycle || '')) continue
+    const restore = t.originalTransactionDate
+      && /^\d{4}-\d{2}-\d{2}$/.test(t.originalTransactionDate)
+      && t.originalTransactionDate !== t.date
+      ? t.originalTransactionDate : null
+    if (t.billingMonth === cycle && !restore) continue
+    planned.push({ t, cycle, restore })
+  }
+  if (!planned.length) { localStorage.setItem('migration_billing_month_v1', '1'); return }
+
+  const finish = () => {
+    for (const p of planned) {
+      p.t.billingMonth = p.cycle
+      if (p.restore) {
+        p.t.date = p.restore
+        // The cycle now lives in billingMonth, so a stale chargeDate would only
+        // be a third opinion on the same question.
+        delete p.t.chargeDate
+      }
+    }
+    DB.set('finTransactions', txs)
+    localStorage.setItem('migration_billing_month_v1', '1')
+    console.log(`Migration billing_month_v1: ${planned.length} transactions converged`)
+  }
+
+  if (typeof writeLocalSnapshot === 'function') {
+    Promise.resolve(writeLocalSnapshot('pre-billing-month-migration'))
+      .catch(e => console.warn('snapshot before migration failed:', e?.message))
+      .then(finish)
+  } else {
+    finish()
+  }
+}
+
 // ===== INIT =====
 document.addEventListener('DOMContentLoaded', () => {
   initDefaultData()
@@ -1204,6 +1268,7 @@ document.addEventListener('DOMContentLoaded', () => {
   migrateInstallmentDates_v1()
   migrateInstallmentDates_v2()
   if (typeof migrateInstallmentFinalMonth_v3 === 'function') migrateInstallmentFinalMonth_v3()
+  if (typeof migrateBillingMonth_v1 === 'function') migrateBillingMonth_v1()
   migrateBudgetType_v1()
   migrateBudgetMonthly_v2()
   if (typeof migrateExcludeFromUnforeseen_v1 === 'function') migrateExcludeFromUnforeseen_v1()
