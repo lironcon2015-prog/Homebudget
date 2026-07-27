@@ -510,3 +510,41 @@ test('with no stated period, per-row derivation still applies', () => {
   // Day 3 < billingDay 10 stays in July; day 28 rolls to August.
   assert.deepEqual(rows.map(t => t._billingMonth), ['2026-07', '2026-08'])
 })
+
+test('REGRESSION: a per-cycle instalment charge date names the right bill', () => {
+  // Reports that carry a charge-date column print the bill date on ordinary
+  // rows and the per-cycle date on instalments. The latter sits INSIDE the
+  // cycle, so its calendar month is a month early.
+  const ctx = makeImport({ accounts: [CC] })
+  const rows = runImport(ctx, [
+    { date: '2026-07-15', amount: -100, vendor: 'רמי לוי', chargeDate: '2026-08-10', type: 'expense' },
+    { date: '2025-11-30', amount: -500, vendor: 'איקאה',  chargeDate: '2026-07-30', description: 'תשלום 9 מתוך 12', type: 'expense' },
+    { date: '2026-06-02', amount: -300, vendor: 'קרביץ',  chargeDate: '2026-08-02', description: 'תשלום 3 מתוך 6',  type: 'expense' },
+  ], 'cc1', { month: '2026-08', source: 'charge-date', chargeDay: 10 })
+  assert.ok(rows.every(t => t._billingMonth === '2026-08'),
+    JSON.stringify(rows.map(t => [t.vendor, t.chargeDate, t._billingMonth])))
+})
+
+test('a charge date past the billing day belongs to the next cycle', () => {
+  const ctx = makeImport({ accounts: [CC] })
+  const rows = runImport(ctx, [
+    { date: '2026-08-01', amount: -100, vendor: 'א', chargeDate: '2026-08-11', type: 'expense' },
+  ], 'cc1', { month: '2026-08', source: 'charge-date', chargeDay: 10 })
+  assert.equal(rows[0]._billingMonth, '2026-09')
+})
+
+test('the derived instalment charge date round-trips to its own cycle', () => {
+  // The date we derive must name the bill it was derived from — otherwise a
+  // re-read of the saved row would move it a month.
+  const ctx = makeImport({ accounts: [CC] })
+  runImport(ctx, [
+    { date: '2025-11-30', amount: -500, vendor: 'איקאה', description: 'תשלום 9 מתוך 12', type: 'expense' },
+    { date: '2026-06-02', amount: -300, vendor: 'קרביץ', description: 'תשלום 3 מתוך 6', type: 'expense' },
+  ], 'cc1', { month: '2026-08', source: 'charge-date', chargeDay: 10 })
+  const saved = commit(ctx)
+  for (const t of saved) {
+    assert.equal(ctx.billingMonthForChargeDate(t.chargeDate, 10), '2026-08',
+      `${t.vendor} chargeDate=${t.chargeDate}`)
+    assert.equal(ctx.getTxEffectiveMonth(t), '2026-08')
+  }
+})

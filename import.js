@@ -449,9 +449,13 @@ function _inferScopeFromRows(parsed, account) {
 // else and land a cycle or more away from where the money actually moved.
 function _billingMonthForRow(t, account, scope) {
   if (!account || account.type !== 'credit_card') return (t.date || '').slice(0, 7)
-  // 1. the issuer's own charge-date column — a stated fact, per row
-  if (t.chargeDate && /^\d{4}-\d{2}/.test(t.chargeDate)) {
-    return { month: t.chargeDate.slice(0, 7), provenance: 'explicit' }
+  // 1. the issuer's own charge-date column — a stated fact, per row. The cycle
+  // is the one CONTAINING that date, not its calendar month: an instalment
+  // charged on the purchase's day-of-month lands mid-cycle, so 30/07 on a card
+  // billing on the 10th is the August bill.
+  if (t.chargeDate && typeof billingMonthForChargeDate === 'function') {
+    const m = billingMonthForChargeDate(t.chargeDate, account.billingDay)
+    if (m) return { month: m, provenance: 'explicit' }
   }
   // 2. an immediate charge is billed when it happened, not when the bill closed
   if (t.immediateCharge && t.date) {

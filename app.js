@@ -1,4 +1,4 @@
-const APP_VERSION = '1.41.1'
+const APP_VERSION = '1.41.2'
 
 // ===== STORAGE =====
 // Hot keys are cached as parsed objects: getTransactions() etc. used to
@@ -1254,6 +1254,38 @@ function migrateBillingMonth_v1() {
   }
 }
 
+// Repair cycles that were read as a charge date's calendar month.
+//
+// migrateBillingMonth_v1 derived each cycle through getTxEffectiveMonth, which
+// took the calendar month of an explicit chargeDate. That is right for a bill's
+// own charge date and wrong for any charge dated before the billing day — an
+// instalment charged on the purchase's day-of-month, say 30/07 on a card billing
+// on the 10th, belongs to the August cycle but was filed under July.
+//
+// Only rows still carrying that exact signature are touched: a stored cycle
+// equal to the charge date's calendar month, where the containing cycle says
+// otherwise. A month the user set by hand doesn't match that shape and is left
+// alone.
+function migrateBillingMonthCycle_v2() {
+  if (localStorage.getItem('migration_billing_month_cycle_v2') === '1') return
+  if (typeof billingMonthForChargeDate !== 'function') return
+  const txs = getTransactions()
+  const ccById = new Map(getAccounts().filter(a => a.type === 'credit_card').map(a => [a.id, a]))
+  let changed = 0
+  for (const t of txs) {
+    const acc = ccById.get(t.accountId)
+    if (!acc || !t.chargeDate) continue
+    const correct = billingMonthForChargeDate(t.chargeDate, acc.billingDay)
+    if (!correct || correct === t.billingMonth) continue
+    if (t.billingMonth !== String(t.chargeDate).slice(0, 7)) continue  // not ours to fix
+    t.billingMonth = correct
+    changed++
+  }
+  if (changed > 0) DB.set('finTransactions', txs)
+  localStorage.setItem('migration_billing_month_cycle_v2', '1')
+  if (changed > 0) console.log(`Migration billing_month_cycle_v2: ${changed} cycles corrected`)
+}
+
 // ===== INIT =====
 document.addEventListener('DOMContentLoaded', () => {
   initDefaultData()
@@ -1269,6 +1301,7 @@ document.addEventListener('DOMContentLoaded', () => {
   migrateInstallmentDates_v2()
   if (typeof migrateInstallmentFinalMonth_v3 === 'function') migrateInstallmentFinalMonth_v3()
   if (typeof migrateBillingMonth_v1 === 'function') migrateBillingMonth_v1()
+  if (typeof migrateBillingMonthCycle_v2 === 'function') migrateBillingMonthCycle_v2()
   migrateBudgetType_v1()
   migrateBudgetMonthly_v2()
   if (typeof migrateExcludeFromUnforeseen_v1 === 'function') migrateExcludeFromUnforeseen_v1()

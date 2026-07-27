@@ -313,6 +313,28 @@ function filterByPeriod(txs, p) {
 // cycle this row belongs to, no need to guess from billingDay rollover.
 // Otherwise: credit_card accounts use day-vs-billingDay rollover; everything
 // else returns the calendar month of tx.date.
+// Which bill cycle CONTAINS a given charge date.
+//
+// A charge date names the day the money moves, which is not the same as naming
+// the bill. A cycle on a card billing on the 10th runs 11/07–10/08 and is called
+// August, so a charge dated 30/07 belongs to August even though its calendar
+// month is July — and an instalment charged on the purchase's day-of-month
+// produces exactly that. Reading the calendar month off the charge date put
+// every such row a cycle early.
+//
+// The cycle is half-open at the start and closed at the end — (billingDay,
+// billingDay] — so the bill's own charge date, 10/08, still names August rather
+// than rolling into September.
+function billingMonthForChargeDate(chargeDate, billingDay) {
+  const m = String(chargeDate || '').match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!m) return ''
+  let y = Number(m[1]), mo = Number(m[2])
+  const d = Number(m[3])
+  if (!y || !mo) return ''
+  if (d > (billingDay || 10)) { mo += 1; if (mo > 12) { mo = 1; y += 1 } }
+  return `${y}-${String(mo).padStart(2, '0')}`
+}
+
 function getTxEffectiveMonth(tx) {
   if (!tx.date) return ''
   const info = _getAccountInfo(tx.accountId)
@@ -333,8 +355,8 @@ function getTxEffectiveMonth(tx) {
   if (/^\d{4}-\d{2}$/.test(String(tx.billingMonth || ''))) return tx.billingMonth
   // Otherwise an explicit chargeDate from the issuer; else billing-day rollover.
   if (tx.chargeDate) {
-    const [cy, cm] = tx.chargeDate.split('-').map(Number)
-    if (cy && cm) return `${cy}-${String(cm).padStart(2,'0')}`
+    const cm = billingMonthForChargeDate(tx.chargeDate, info.billingDay)
+    if (cm) return cm
   }
   const billingDay = info.billingDay || 10
   if (d < billingDay) return `${y}-${String(m).padStart(2,'0')}`

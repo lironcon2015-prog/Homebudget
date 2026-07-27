@@ -214,3 +214,40 @@ test('getAccountBalanceSeries equals per-cutoff getAccountBalance (incl. undated
   }
   deepEq(c.getAccountBalanceSeries('missing', cutoffs), [0, 0, 0])
 })
+
+// ===== CHARGE DATE -> BILL CYCLE =====
+// A charge date names the day money moves; the cycle containing it names the
+// bill. They differ for anything charged before the billing day.
+
+test('billingMonthForChargeDate: the cycle is (billingDay, billingDay]', () => {
+  const c = loadCore({ accounts: [] })
+  const f = c.billingMonthForChargeDate
+  // An instalment charged on the purchase's day-of-month, mid-cycle.
+  assert.equal(f('2026-07-30', 10), '2026-08')
+  assert.equal(f('2026-07-11', 10), '2026-08')
+  // The bill's own charge date closes the cycle it belongs to.
+  assert.equal(f('2026-08-10', 10), '2026-08')
+  assert.equal(f('2026-08-02', 10), '2026-08')
+  // One day past it opens the next.
+  assert.equal(f('2026-08-11', 10), '2026-09')
+  // Year boundary.
+  assert.equal(f('2026-12-30', 10), '2027-01')
+  // Other billing days, and junk.
+  assert.equal(f('2026-07-02', 2), '2026-07')
+  assert.equal(f('2026-07-03', 2), '2026-08')
+  assert.equal(f('', 10), '')
+  assert.equal(f('2026-07', 10), '')
+})
+
+test('getTxEffectiveMonth reads a charge date as its containing cycle', () => {
+  const c = loadCore({ accounts: [{ id: 'cc1', type: 'credit_card', billingDay: 10 }] })
+  // Instalment: purchase in November, charged 30/07 → the August bill.
+  assert.equal(c.getTxEffectiveMonth({ accountId: 'cc1', date: '2025-11-30', chargeDate: '2026-07-30' }), '2026-08')
+  // Ordinary row on the same bill.
+  assert.equal(c.getTxEffectiveMonth({ accountId: 'cc1', date: '2026-07-15', chargeDate: '2026-08-10' }), '2026-08')
+  // An explicit billingMonth still outranks the charge date.
+  assert.equal(c.getTxEffectiveMonth({ accountId: 'cc1', date: '2025-11-30', chargeDate: '2026-07-30', billingMonth: '2026-09' }), '2026-09')
+  // Non-credit accounts ignore charge dates entirely.
+  const b = loadCore({ accounts: [{ id: 'b1', type: 'checking' }] })
+  assert.equal(b.getTxEffectiveMonth({ accountId: 'b1', date: '2026-07-15', chargeDate: '2026-08-10' }), '2026-07')
+})
