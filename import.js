@@ -439,15 +439,27 @@ function _inferScopeFromRows(parsed, account) {
   }
 }
 
+// Once the statement's own period is known it is the default for EVERY line on
+// it — that is what a monthly bill means. Only two things outrank it: a charge
+// date the issuer printed on the row itself, and an immediate charge.
+//
+// Immediate charges (foreign currency, overseas) are not deferred to the bill's
+// cycle; they are billed in the month the transaction was executed. Without that
+// exception they would be pulled into the statement month along with everything
+// else and land a cycle or more away from where the money actually moved.
 function _billingMonthForRow(t, account, scope) {
   if (!account || account.type !== 'credit_card') return (t.date || '').slice(0, 7)
-  // 1. the issuer's own charge-date column
+  // 1. the issuer's own charge-date column — a stated fact, per row
   if (t.chargeDate && /^\d{4}-\d{2}/.test(t.chargeDate)) {
     return { month: t.chargeDate.slice(0, 7), provenance: 'explicit' }
   }
-  // 2. the period the statement states for itself
+  // 2. an immediate charge is billed when it happened, not when the bill closed
+  if (t.immediateCharge && t.date) {
+    return { month: t.date.slice(0, 7), provenance: 'immediate' }
+  }
+  // 3. the period the statement states for itself — the default for the rest
   if (scope?.month) return { month: scope.month, provenance: 'explicit' }
-  // 3. An installment's cycle follows its INDEX, not its purchase date:
+  // 4. An installment's cycle follows its INDEX, not its purchase date:
   // instalment N of an April purchase lands N cycles later, so deriving every
   // instalment of one plan from the same purchase date would pile them all into
   // one cycle — and then the cycle could no longer tell them apart.
@@ -456,7 +468,7 @@ function _billingMonthForRow(t, account, scope) {
     const m = installmentBillCycleMonth(purchase, t.installmentCurrent)
     if (m) return { month: m, provenance: 'derived' }
   }
-  // 4. billing-day rollover on the purchase date
+  // 5. billing-day rollover on the purchase date
   const m = (typeof getTxEffectiveMonth === 'function')
     ? getTxEffectiveMonth({ date: t.date, accountId: account.id }) : (t.date || '').slice(0, 7)
   return { month: m, provenance: 'derived' }
@@ -882,6 +894,7 @@ function saveImport() {
     ...(t.installmentTotal   ? { installmentTotal:   t.installmentTotal   } : {}),
     ...(t._installmentFinalMonth ? { installmentFinalMonth: t._installmentFinalMonth } : {}),
     ...(t.standingOrder ? { standingOrder: true } : {}),
+    ...(t.immediateCharge ? { immediateCharge: true } : {}),
     ...(t.detectedProvider ? { detectedProvider: t.detectedProvider } : {}),
     ...(t.detectedRecipient ? { detectedRecipient: t.detectedRecipient } : {}),
     // Provenance: which document and which line of it this row came from.

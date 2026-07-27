@@ -178,3 +178,25 @@ test('the document log stays bounded', () => {
   assert.equal(docs[docs.length - 1].contentHash, 'h' + (max + 24), 'newest survives')
   assert.equal(ctx.findSourceDocByHash('h0'), null, 'oldest evicted')
 })
+
+test('more statement-period phrasings are recognised', () => {
+  const { detectStatementScope } = load()
+  const m = t => detectStatementScope(t)?.month
+  assert.equal(m('לחיוב בתאריך 10/08/2026'), '2026-08')
+  assert.equal(m('תאריך החיוב 10/08/2026'), '2026-08')
+  assert.equal(m('סה"כ לחיוב 02/08/2026'), '2026-08')
+  assert.equal(m('Billing date 10/08/2026'), '2026-08')
+  assert.equal(m('חיוב 08/2026'), '2026-08')
+  assert.equal(m('תקופה 08.2026'), '2026-08')
+  // Weakest rung: a bare month named in the title lines.
+  const bare = detectStatementScope('פירוט עסקאות אוגוסט 2026')
+  assert.equal(bare.month, '2026-08')
+  assert.equal(bare.source, 'bare-month-name')
+})
+
+test('a stated charge date still outranks a bare month name', () => {
+  const { detectStatementScope } = load()
+  const r = detectStatementScope('עסקאות אוגוסט 2026 · מועד חיוב 10/09/2026')
+  assert.equal(r.source, 'charge-date')
+  assert.equal(r.month, '2026-09')
+})

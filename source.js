@@ -143,8 +143,13 @@ function detectStatementScope(text) {
   const s = String(text || '').replace(/\s+/g, ' ')
   if (!s) return null
 
+  const MONTHS = Object.keys(_SRC_HEB_MONTHS).join('|')
+
   // "מועד חיוב 10/06/2026" / "חיוב לתאריך 10.06.2026" / "לחיוב ב-10/06/26"
-  const chargeRe = /(?:מועד\s*חיוב|תאריך\s*חיוב|חיוב\s*לתאריך|לחיוב\s*ב|יום\s*חיוב)\D{0,12}(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})/
+  const chargeRe = new RegExp(
+    '(?:מועד\\s*חיוב|תאריך\\s*ה?חיוב|חיוב\\s*לתאריך|לחיוב\\s*בתאריך|לחיוב\\s*ב|לתשלום\\s*בתאריך' +
+    '|יום\\s*חיוב|סה["״׳\'`]?כ\\s*לחיוב|billing\\s*date|statement\\s*date)' +
+    '\\D{0,12}(\\d{1,2})[\\/.\\-](\\d{1,2})[\\/.\\-](\\d{2,4})', 'i')
   const cm = s.match(chargeRe)
   if (cm) {
     let y = Number(cm[3]); if (y < 100) y += 2000
@@ -153,14 +158,13 @@ function detectStatementScope(text) {
   }
 
   // "עסקאות לחודש יוני 2026" / "פירוט לחודש 06/2026"
-  const hebRe = new RegExp(`לחודש\\s*(${Object.keys(_SRC_HEB_MONTHS).join('|')})\\s*(\\d{4})`)
-  const hm = s.match(hebRe)
+  const hm = s.match(new RegExp(`לחודש\\s*(${MONTHS})\\s*(\\d{4})`))
   if (hm) {
     const month = _srcMonthOf(Number(hm[2]), _SRC_HEB_MONTHS[hm[1]])
     if (month) return { month, source: 'month-name' }
   }
-  const numRe = /לחודש\s*(\d{1,2})[\/.\-](\d{4})/
-  const nm = s.match(numRe)
+  // "לחודש 06/2026" / "חיוב 06/2026" / "חודש 06/2026" / "תקופה 06.2026"
+  const nm = s.match(/(?:לחודש|חודש|חיוב|תקופה|תשלום)\s*(\d{1,2})[\/.\-](\d{4})/)
   if (nm) {
     const month = _srcMonthOf(Number(nm[2]), Number(nm[1]))
     if (month) return { month, source: 'month-number' }
@@ -173,6 +177,16 @@ function detectStatementScope(text) {
     let y = Number(rm[6]); if (y < 100) y += 2000
     const month = _srcMonthOf(y, Number(rm[5]))
     if (month) return { month, source: 'period-range' }
+  }
+
+  // Weakest: a bare Hebrew month and year anywhere in the preamble
+  // ("חיוב אוגוסט 2026", "עסקאות אוגוסט 2026"). Ranked last because it carries
+  // no statement of what the month MEANS — but the preamble is a handful of
+  // title lines, so a month named there is overwhelmingly the report's own.
+  const bm = s.match(new RegExp(`(?:^|[^א-ת])(${MONTHS})\\s+(\\d{4})`))
+  if (bm) {
+    const month = _srcMonthOf(Number(bm[2]), _SRC_HEB_MONTHS[bm[1]])
+    if (month) return { month, source: 'bare-month-name' }
   }
   return null
 }
@@ -231,7 +245,7 @@ function extractAccountIdentifiers(text) {
   for (const m of s.matchAll(/(?:מסתיים|ending|last)\D{0,12}?(\d{4})\b/gi)) push(m[1], 'card', 'high')
   for (const m of s.matchAll(/(\d{4})\s*(?:ספרות\s*אחרונות)/g)) push(m[1], 'card', 'high')
   // Bank accounts: "חשבון 12-345-678" / "מספר חשבון 123456" / "ח-ן 123456"
-  for (const m of s.matchAll(/(?:מספר\s*חשבון|חשבון|ח["׳'`]?ן|account)\D{0,10}?(\d{2,3}[-\s]\d{3}[-\s]\d{3,9}|\d{5,12})\b/g)) {
+  for (const m of s.matchAll(/(?:מספר\s*חשבון|חשבון|ח["״׳'`]?ן|account)\D{0,10}?(\d{2,3}[-\s]\d{3}[-\s]\d{3,9}|\d{5,12})\b/g)) {
     push(m[1], 'account', 'high')
   }
   return found

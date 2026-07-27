@@ -452,3 +452,61 @@ test('in a wide export each instalment lands in its own cycle', () => {
   ], 'cc1', null)
   assert.deepEqual(rows.map(t => t._billingMonth), ['2026-05', '2026-06', '2026-07'])
 })
+
+// ---------- the statement month is the default ----------
+// Every line on a monthly bill belongs to that bill's cycle. The one exception
+// is an immediate charge (foreign currency / overseas), billed when it happened.
+
+test('every row on a stated bill defaults to the bill month', () => {
+  const ctx = makeImport({ accounts: [CC] })
+  // Purchase dates scattered across the cycle AND outside it — billing-day
+  // rollover would have split these across three different months.
+  const rows = runImport(ctx, [
+    { date: '2026-07-03', amount: -10, vendor: 'א', type: 'expense' },
+    { date: '2026-07-15', amount: -20, vendor: 'ב', type: 'expense' },
+    { date: '2026-07-28', amount: -30, vendor: 'ג', type: 'expense' },
+    { date: '2026-08-05', amount: -40, vendor: 'ד', type: 'expense' },
+    { date: '2025-11-30', amount: -50, vendor: 'ה', description: 'תשלום 9 מתוך 12', type: 'expense' },
+  ], 'cc1', { month: '2026-08', source: 'charge-date', chargeDay: 10 })
+  assert.ok(rows.every(t => t._billingMonth === '2026-08'),
+    JSON.stringify(rows.map(t => [t.vendor, t._billingMonth])))
+})
+
+test('an immediate charge is billed in the month it happened', () => {
+  const ctx = makeImport({ accounts: [CC] })
+  const rows = runImport(ctx, [
+    { date: '2026-07-03', amount: -10, vendor: 'רמי לוי', type: 'expense' },
+    { date: '2026-07-03', amount: -20, vendor: 'AMAZON', description: 'עסקת חו"ל', type: 'expense' },
+    { date: '2026-06-28', amount: -30, vendor: 'BOOKING', description: 'חיוב מיידי', type: 'expense' },
+  ], 'cc1', { month: '2026-08', source: 'charge-date', chargeDay: 10 })
+  assert.equal(rows[0]._billingMonth, '2026-08', 'ordinary row takes the bill month')
+  assert.equal(rows[1]._billingMonth, '2026-07', 'FX row takes its own month')
+  assert.equal(rows[1]._billingProvenance, 'immediate')
+  assert.equal(rows[2]._billingMonth, '2026-06')
+})
+
+test('an immediate charge is flagged on the saved transaction', () => {
+  const ctx = makeImport({ accounts: [CC] })
+  runImport(ctx, [{ date: '2026-07-03', amount: -20, vendor: 'AMAZON', description: 'מט"ח', type: 'expense' }],
+            'cc1', { month: '2026-08', source: 'charge-date', chargeDay: 10 })
+  const saved = commit(ctx)
+  assert.equal(saved[0].immediateCharge, true)
+  assert.equal(saved[0].billingMonth, '2026-07')
+})
+
+test("an issuer's own charge-date column still outranks the bill month", () => {
+  const ctx = makeImport({ accounts: [CC] })
+  const rows = runImport(ctx, [{ date: '2026-07-03', amount: -10, vendor: 'א', chargeDate: '2026-09-10', type: 'expense' }],
+                         'cc1', { month: '2026-08', source: 'charge-date', chargeDay: 10 })
+  assert.equal(rows[0]._billingMonth, '2026-09')
+})
+
+test('with no stated period, per-row derivation still applies', () => {
+  const ctx = makeImport({ accounts: [CC] })
+  const rows = runImport(ctx, [
+    { date: '2026-07-03', amount: -10, vendor: 'א', type: 'expense' },
+    { date: '2026-07-28', amount: -20, vendor: 'ב', type: 'expense' },
+  ], 'cc1', null)
+  // Day 3 < billingDay 10 stays in July; day 28 rolls to August.
+  assert.deepEqual(rows.map(t => t._billingMonth), ['2026-07', '2026-08'])
+})

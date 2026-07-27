@@ -68,3 +68,29 @@ test('rebuildAutoNotes: preserves user text, idempotent, rewrites auto clauses',
   assert.equal(n2.includes('תשלום 2 מתוך 6'), false)
   assert.equal(n2.includes('הערה שלי'), true)
 })
+
+// ===== IMMEDIATE / FX CHARGES =====
+// Billed in the month they were executed, not deferred to the statement cycle —
+// the one exception to "every line on this bill belongs to this bill".
+
+test('detectImmediateCharge: recognises immediate and foreign-currency markers', () => {
+  for (const txt of ['חיוב מיידי', 'עסקת חו"ל', 'חו״ל', 'מט"ח', 'מטבע חוץ',
+                     'דולר', 'אירו', 'יורו', 'AMAZON USD', 'foreign currency', 'EUR 12.50']) {
+    assert.equal(d.detectImmediateCharge('', txt, ''), true, `missed: ${txt}`)
+  }
+})
+
+test('detectImmediateCharge: does not fire on ordinary Hebrew words', () => {
+  // "חול" is an ordinary word and must never be read as "חו״ל"; "מיידית" as
+  // part of another word must not trip the standalone token either.
+  for (const txt of ['חול הים', 'מיידיות שירות', 'רמי לוי', 'ביטוח לאומי',
+                     'שופרסל דיל', 'דולרי גל בע"מ', '']) {
+    assert.equal(d.detectImmediateCharge('', txt, ''), false, `false positive: ${txt}`)
+  }
+})
+
+test('detectImmediateCharge: reads the unmapped-column text too', () => {
+  assert.equal(d.detectImmediateCharge('AMAZON', '', 'חיוב מיידי'), true)
+  assert.equal(d.enrichDetectedFields({ vendor: 'AMAZON', description: '', _detectText: 'עסקת חו"ל' }).immediateCharge, true)
+  assert.equal(d.enrichDetectedFields({ vendor: 'רמי לוי', description: '' }).immediateCharge, undefined)
+})

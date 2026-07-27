@@ -40,8 +40,33 @@ function detectStandingOrder(text) {
   if (/הוראת\s*קבע/.test(s)) return true
   // The "הו״ק" abbreviation — JS \b doesn't anchor on Hebrew letters, so
   // require a non-Hebrew-letter or end-of-string right after the ק.
-  if (/הו["׳'`]ק(?=[^א-ת]|$)/.test(s)) return true
+  if (/הו["״׳'`]ק(?=[^א-ת]|$)/.test(s)) return true
   return false
+}
+
+// Immediate charges — foreign-currency and overseas transactions — are billed
+// in the month they were executed rather than being deferred to the statement's
+// cycle. They are the one exception to "every line on this bill belongs to this
+// bill's cycle", so they have to be recognisable from the row itself.
+//
+// JS \b doesn't anchor on Hebrew letters, so each Hebrew token is flanked by
+// non-Hebrew-letter boundaries. "חו״ל" is matched only with its punctuation, and
+// never as bare "חול", which is an ordinary word.
+const _IMMEDIATE_PATTERNS = [
+  /חיוב\s*מיידי/,
+  /(?:^|[^א-ת])מיידי(?=[^א-ת]|$)/,
+  /חו["״׳'`]ל/,
+  /מט["״׳'`]ח/,
+  /מטבע\s*חוץ/,
+  /(?:^|[^א-ת])דולר(?=[^א-ת]|$)/,
+  /(?:^|[^א-ת])(?:אירו|יורו)(?=[^א-ת]|$)/,
+  /\b(?:usd|eur|gbp|foreign\s*currency|immediate\s*charge)\b/i,
+]
+
+function detectImmediateCharge(vendor, description, extra) {
+  const all = `${vendor || ''} ${description || ''} ${extra || ''}`
+  if (!all.trim()) return false
+  return _IMMEDIATE_PATTERNS.some(p => p.test(all))
 }
 
 // Bit/Paybox lines on a CC bill carry the payee inside "פירוט". We rewrite
@@ -111,6 +136,8 @@ function enrichDetectedFields(t) {
   if (detectStandingOrder(desc) || detectStandingOrder(vendor) || detectStandingOrder(extra)) {
     out.standingOrder = true
   }
+
+  if (detectImmediateCharge(vendor, desc, extra)) out.immediateCharge = true
 
   const bp = detectBitPayboxRecipient(vendor, desc)
   if (bp && bp.recipient) {
