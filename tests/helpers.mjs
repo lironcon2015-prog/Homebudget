@@ -37,6 +37,10 @@ export function loadApp(files, extraGlobals = {}) {
   for (const f of files) {
     vm.runInContext(readFileSync(join(root, f), 'utf8'), ctx, { filename: f })
   }
+  // Top-level `const`/`let` in a script live in the context's lexical scope,
+  // not on the global object, so they aren't reachable as ctx properties.
+  // `_eval` reaches them.
+  ctx._eval = src => vm.runInContext(src, ctx)
   return ctx
 }
 
