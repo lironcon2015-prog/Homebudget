@@ -323,6 +323,8 @@ async function _resolveAccountThenReconcile(parsed, chosenAccountId, ident, scop
 
 let _importPendingParsed = null
 let _importAiIdentifiers = []
+let _importExistingRecords = []
+let _importIncomingRecords = []
 
 function _showAccountPrompt(parsed, scope) {
   const accounts = getAccounts()
@@ -360,6 +362,14 @@ function confirmImportAccount() {
   // teach the account something that may belong to a different card.
   const learned = candidates.length === 1 ? candidates[0] : null
   if (learned && typeof learnAccountIdentifier === 'function') learnAccountIdentifier(accountId, learned)
+  // Some statements carry no account number anywhere — a bank's rendering of a
+  // card bill often doesn't. With nothing to learn, the answer would be thrown
+  // away and the question asked again on every single import. Binding the
+  // template captures it instead. Identifiers still outrank this, so a later
+  // file that does name its card is unaffected.
+  if (!learned && _importDoc?.template && typeof learnTemplateAccount === 'function') {
+    learnTemplateAccount(_importDoc.template, accountId)
+  }
   _importAiIdentifiers = []
   _importDoc = { ..._importDoc, detectedVia: 'user', identifier: learned }
   _reconcileParsed(parsed, accountId, scope)
@@ -381,9 +391,51 @@ function confirmImportAccount() {
 function _purchaseDateForRow(t, account, scope) {
   const date = t.originalTransactionDate || t.date || null
   if (!date || !account || account.type !== 'credit_card') return date
-  if (!scope?.month || !scope?.chargeDay) return date
-  const stated = `${scope.month}-${String(scope.chargeDay).padStart(2, '0')}`
-  return date === stated ? null : date
+  const stated = _scopeChargeDate(scope)
+  return stated && date === stated ? null : date
+}
+
+function _scopeChargeDate(scope) {
+  if (!scope) return ''
+  if (scope.chargeDate) return scope.chargeDate
+  if (scope.month && scope.chargeDay) return `${scope.month}-${String(scope.chargeDay).padStart(2, '0')}`
+  return ''
+}
+
+// When a statement prints no period we can parse, the rows themselves give it
+// away: a card bill rendered by the bank stamps the SAME charge date on every
+// line, while real purchase dates are spread across the cycle. A single date
+// dominating the file is therefore the bill's charge date, not a day on which
+// everything happened to be bought.
+//
+// This matters twice over. It supplies the cycle — and directly, not through
+// billing-day rollover, which reads a charge date of the 10th on a card that
+// bills on the 10th as belonging to the NEXT cycle. And it marks those dates as
+// charge dates, so they are not compared against the issuer export's real
+// purchase dates and scored as a conflict. Both errors together are what made a
+// bank-rendered bill look entirely new.
+const _SCOPE_DOMINANT_SHARE = 0.6
+const _SCOPE_MIN_ROWS = 4
+
+function _inferScopeFromRows(parsed, account) {
+  if (!account || account.type !== 'credit_card') return null
+  const dates = (parsed || []).map(t => t && t.date).filter(d => /^\d{4}-\d{2}-\d{2}$/.test(String(d)))
+  if (dates.length < _SCOPE_MIN_ROWS) return null
+  const counts = new Map()
+  for (const d of dates) counts.set(d, (counts.get(d) || 0) + 1)
+  let best = null
+  for (const [d, n] of counts) if (!best || n > best.n) best = { d, n }
+  if (!best || best.n / dates.length < _SCOPE_DOMINANT_SHARE) return null
+  // A charge date cannot fall before the purchases it bills. If the repeated
+  // date is not the latest in the file, it is a busy shopping day, not a
+  // charge date — and treating it as one would discard real purchase dates.
+  if (best.d !== dates.reduce((a, b) => (a > b ? a : b))) return null
+  return {
+    month: best.d.slice(0, 7),
+    chargeDay: Number(best.d.slice(8, 10)),
+    chargeDate: best.d,
+    source: 'repeated-row-date',
+  }
 }
 
 function _billingMonthForRow(t, account, scope) {
@@ -402,11 +454,14 @@ function _billingMonthForRow(t, account, scope) {
 
 // ---------- reconciliation ----------
 
-function _reconcileParsed(parsed, accountId, scope) {
+function _reconcileParsed(parsed, accountId, declaredScope) {
   _importAccountId = accountId
   const account = getAccounts().find(a => a.id === accountId)
   const cats = getCategories()
   const existingAll = getTransactions()
+
+  // What the statement said about itself, else what its rows imply.
+  const scope = declaredScope || _inferScopeFromRows(parsed, account)
 
   const matchCategory = (t) => {
     const catName = (t.category || '').trim()
@@ -473,6 +528,9 @@ function _reconcileParsed(parsed, accountId, scope) {
     }))
 
   const rec = reconcileTransactions(incoming, existing, { scopeMonths: _importScopeMonths })
+  // Kept so a row marked new can explain itself on demand.
+  _importExistingRecords = existing
+  _importIncomingRecords = incoming
 
   // Project the outcome back onto the display rows.
   const state = new Map()
@@ -548,6 +606,8 @@ function showImportReview() {
       hint = `<div style="font-size:.72rem;color:#f59e0b;margin-top:.15rem">דומה לקיימת: ${escHtml(c.vendor || '')} · ${formatDate(c.date)}</div>`
     } else if (matched && t._matchAgainst) {
       hint = `<div style="font-size:.72rem;color:var(--text-muted);margin-top:.15rem">תואם עסקה קיימת מ-${formatDate(t._matchAgainst.date)}</div>`
+    } else if (t._state === 'fresh') {
+      hint = `<div style="margin-top:.15rem"><button class="btn-ghost" style="font-size:.7rem;padding:.1rem .4rem" onclick="explainImportRow(${i})">למה חדשה?</button></div>`
     }
 
     const billingCell = showBillingMonth ? `<td>
@@ -581,6 +641,43 @@ function showImportReview() {
 
   _importShowStep('importStep3')
   _updateSaveBtn()
+}
+
+// "Why is this row new?" — matching is a scored decision, so a row marked new
+// has to be able to justify itself. Without this the only way to tell a correct
+// "new" from a missed match is to go hunting through the transactions screen.
+function explainImportRow(i) {
+  const row = _importIncomingRecords[i]
+  if (!row || typeof txmExplain !== 'function') return
+  const info = txmExplain(row, _importExistingRecords)
+  const label = (typeof TXM_VERDICT_LABEL === 'object' && TXM_VERDICT_LABEL[info.verdict]) || info.verdict
+  const src = _parsedTx[i] || {}
+
+  const line = (r, extra = '') =>
+    `<div style="padding:.35rem 0;border-bottom:1px solid var(--border)">
+       ${formatDate(r.date)} · ${escHtml(r.vendor || '')} · ${formatCurrency(r.amount)}${extra}
+     </div>`
+
+  let detail = ''
+  if (info.candidates.length) {
+    detail = `<div style="margin-top:.6rem"><b>עסקאות באותו סכום:</b>${info.candidates.map(c => line(c.existing.ref,
+      ` <span style="color:var(--text-muted);font-size:.78rem">— ניקוד ${c.score}` +
+      `${c.dayDiff != null ? `, פער ימים ${c.dayDiff}` : ', אין תאריך רכישה להשוואה'}` +
+      `${c.monthDiff != null ? `, פער חודשי חיוב ${c.monthDiff}` : ''}` +
+      `${c.disqualified ? ', נפסל' : c.inWindow ? '' : ', מחוץ לחלון'}</span>`)).join('')}</div>`
+  } else if (info.nearAmount.length) {
+    detail = `<div style="margin-top:.6rem"><b>סכומים קרובים (לא זהים):</b>${info.nearAmount.map(n => line(n.existing.ref,
+      ` <span style="color:var(--text-muted);font-size:.78rem">— ${n.why === 'sign' ? 'סימן הפוך' : 'הפרש ' + (n.diff / 100).toFixed(2)}</span>`)).join('')}</div>`
+  }
+
+  const body = `
+    <div style="font-size:.9rem">
+      <div style="margin-bottom:.5rem">${formatDate(src.date)} · <b>${escHtml(src.vendor || '')}</b> · ${formatCurrency(src.amount)}</div>
+      <div style="color:var(--text-muted)">${escHtml(label)}</div>
+      ${detail}
+    </div>`
+  if (typeof UK_sheet === 'function') UK_sheet({ title: 'למה זו עסקה חדשה?', content: body })
+  else alert(label)
 }
 
 // The account is chosen for the user now, so it has to be visible and

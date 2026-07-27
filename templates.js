@@ -15,6 +15,21 @@ function upsertTemplate(tpl) {
   saveTemplates(list)
 }
 
+// Bind a template to an account after the user answered the question manually.
+// Used only when the file carried no identifier to learn from — otherwise the
+// identifier is the better rule, since one layout serves several cards. An
+// existing binding is never overwritten: that was a deliberate choice by the
+// user (or an earlier answer) and silently changing it would misfile imports.
+function learnTemplateAccount(templateId, accountId) {
+  if (!templateId || !accountId) return false
+  const list = getTemplates()
+  const tpl = list.find(t => t.id === templateId)
+  if (!tpl || tpl.accountId) return false
+  tpl.accountId = accountId
+  saveTemplates(list)
+  return true
+}
+
 function deleteTemplate(id) {
   saveTemplates(getTemplates().filter(t => t.id !== id))
 }

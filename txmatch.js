@@ -200,6 +200,63 @@ function txmInWindow(a, b) {
   return m === null && d === null
 }
 
+// ---------- explaining a miss ----------
+
+// Why was this row not matched? Matching is a scored decision, so "it looked
+// new" is never a satisfying answer on its own — this reports the comparison
+// that actually happened, against the stored rows that came closest.
+//
+// Amount is a hard gate, which makes it the most common silent cause: a sign
+// convention or a currency difference removes a row from consideration before
+// any scoring runs, and nothing on screen would hint at it. So near-miss
+// amounts are reported too, precisely because the gate hid them.
+function txmExplain(row, existing, opts = {}) {
+  const limit = opts.limit || 5
+  const sameAmount = []
+  const nearAmount = []
+  for (const e of existing) {
+    if (e.agorot === row.agorot) { sameAmount.push(e); continue }
+    if (e.agorot === -row.agorot) { nearAmount.push({ existing: e, why: 'sign' }); continue }
+    const diff = Math.abs(e.agorot - row.agorot)
+    if (diff > 0 && diff <= Math.max(100, Math.abs(row.agorot) * 0.03)) {
+      nearAmount.push({ existing: e, why: 'close', diff })
+    }
+  }
+
+  const candidates = sameAmount.map(e => {
+    const s = txmScorePair(row, e)
+    return {
+      existing: e,
+      inWindow: txmInWindow(row, e),
+      monthDiff: txmMonthDiff(row.billingMonth, e.billingMonth),
+      dayDiff: txmDayDiff(row.purchaseDate, e.purchaseDate),
+      score: s.score,
+      disqualified: s.disqualified,
+      reasons: s.reasons,
+    }
+  }).sort((a, b) => b.score - a.score)
+
+  const scorable = candidates.filter(c => c.inWindow && !c.disqualified)
+  let verdict
+  if (!existing.length)                    verdict = 'empty-account'
+  else if (!sameAmount.length)             verdict = nearAmount.length ? 'amount-near-miss' : 'no-amount-match'
+  else if (!scorable.length)               verdict = candidates.some(c => c.disqualified) ? 'disqualified' : 'out-of-window'
+  else if (scorable[0].score < TXM_MIN_SCORE) verdict = 'below-threshold'
+  else                                     verdict = 'ambiguous'
+
+  return { verdict, amountMatches: sameAmount.length, candidates: candidates.slice(0, limit), nearAmount: nearAmount.slice(0, limit) }
+}
+
+const TXM_VERDICT_LABEL = {
+  'empty-account':    'אין עסקאות בחשבון הזה להשוות מולן',
+  'no-amount-match':  'אין במערכת אף עסקה בסכום הזה בחשבון הזה',
+  'amount-near-miss': 'אין התאמת סכום מדויקת, אבל יש סכומים קרובים — בדוק סימן או מטבע',
+  'out-of-window':    'יש סכום זהה, אבל התאריך וחודש החיוב רחוקים מדי',
+  'disqualified':     'יש סכום זהה, אבל מדד התשלומים סותר (למשל 3/10 מול 4/10)',
+  'below-threshold':  'יש מועמד, אבל אין מספיק סימנים תומכים כדי לקבוע שזו אותה עסקה',
+  'ambiguous':        'יש כמה מועמדים שקולים — לא ניתן להכריע ביניהם',
+}
+
 // ---------- reconciliation ----------
 
 // Compares an incoming statement against what's already stored and returns a

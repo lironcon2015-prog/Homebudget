@@ -6,6 +6,7 @@ const ctx = loadApp(['txmatch.js'])
 const {
   txmAgorot, txmVendorKey, txmTokenOverlap, txmVendorTokens, txmRowSignature,
   txmRecord, txmScorePair, reconcileTransactions, txmAddMonths, txmMonthDiff,
+  txmExplain,
 } = ctx
 
 // Build a match record the way the import pipeline will.
@@ -219,4 +220,48 @@ test('month arithmetic wraps years correctly', () => {
   assert.equal(txmAddMonths('2026-12', 1), '2027-01')
   assert.equal(txmAddMonths('2026-01', -1), '2025-12')
   assert.equal(txmMonthDiff('2025-12', '2026-01'), 1)
+})
+
+// ---------- explaining a miss ----------
+
+test('a miss reports the gate that actually stopped it', () => {
+  const stored = [rec({ id: 's1', amount: -250, vendor: 'איקאה', date: '2026-04-22', cur: 3, tot: 10, month: '2026-06' })]
+
+  // Nothing at that amount at all.
+  assert.equal(txmExplain(rec({ amount: -99, vendor: 'ארומה', month: '2026-06' }), stored).verdict, 'no-amount-match')
+
+  // Same magnitude, opposite sign — invisible under the hard amount gate, so
+  // it must be surfaced explicitly.
+  const flipped = txmExplain(rec({ amount: 250, vendor: 'איקאה', month: '2026-06' }), stored)
+  assert.equal(flipped.verdict, 'amount-near-miss')
+  assert.equal(flipped.nearAmount[0].why, 'sign')
+
+  // Same amount, but a contradicting installment index.
+  assert.equal(txmExplain(rec({ amount: -250, vendor: 'איקאה', date: '2026-04-22', cur: 4, tot: 10, month: '2026-06' }), stored).verdict,
+               'disqualified')
+
+  // Same amount, but years away.
+  assert.equal(txmExplain(rec({ amount: -250, vendor: 'איקאה', date: '2024-01-01', month: '2024-01' }), stored).verdict,
+               'out-of-window')
+
+  assert.equal(txmExplain(rec({ amount: -250, vendor: 'איקאה', month: '2026-06' }), []).verdict, 'empty-account')
+})
+
+test('an ambiguous row is reported as ambiguous, with its candidates', () => {
+  const stored = [
+    rec({ id: 's1', amount: -100, vendor: '', month: '2026-06' }),
+    rec({ id: 's2', amount: -100, vendor: '', month: '2026-06' }),
+  ]
+  const info = txmExplain(rec({ amount: -100, vendor: '', month: '2026-06' }), stored)
+  assert.equal(info.verdict, 'ambiguous')
+  assert.equal(info.candidates.length, 2)
+  assert.ok(info.candidates.every(c => c.inWindow && !c.disqualified))
+})
+
+test('every verdict has a message a user can act on', () => {
+  const labels = ctx._eval('TXM_VERDICT_LABEL')
+  for (const v of ['empty-account', 'no-amount-match', 'amount-near-miss', 'out-of-window',
+                   'disqualified', 'below-threshold', 'ambiguous']) {
+    assert.ok(labels[v] && labels[v].length > 5, `missing label for ${v}`)
+  }
 })
