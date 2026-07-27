@@ -201,6 +201,27 @@ function statementPreamble(rows, headerRowIndex) {
     .join(' | ')
 }
 
+// Everything in the file that is NOT a transaction: the preamble, the section
+// headers of a multi-table statement, and the totals in the footer.
+//
+// Looking only above the first header row is not enough. Issuers stack several
+// tables in one sheet — one file here skipped nine section headers — and the
+// line that states the billing period often sits between those sections or in
+// a footer, well below where the preamble ends. Rows that parsed into
+// transactions are excluded, so a date inside the data can never be mistaken
+// for the statement's own period.
+function statementChromeText(rows, parsedRowIndices) {
+  if (!Array.isArray(rows)) return ''
+  const used = parsedRowIndices instanceof Set ? parsedRowIndices : new Set(parsedRowIndices || [])
+  const out = []
+  for (let i = 0; i < rows.length; i++) {
+    if (used.has(i)) continue
+    const text = (rows[i] || []).map(c => String(c ?? '').trim()).filter(Boolean).join(' ')
+    if (text) out.push(text)
+  }
+  return out.join(' | ')
+}
+
 // ---------- account identification ----------
 // Accounts carry `identifiers`: card last-4 digits, bank account numbers. The
 // system learns them — on a confirmed import the identifier found in the file

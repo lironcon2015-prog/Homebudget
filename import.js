@@ -171,11 +171,18 @@ function continueImportWithTemplate(file, chosenAccountId, rows, template) {
     _lastParseStats = stats
     _lastTemplateName = template.name
 
-    // Everything the statement says about itself lives above the table.
+    // What the statement says about itself. The preamble first — it is the most
+    // likely place and the least ambiguous — then every other non-transaction
+    // row in the file, because a multi-section statement states its billing
+    // period between sections or in a footer, far below the first header.
     const headerRowIndex = template.headerRowIndex ?? 0
     const preamble = (typeof statementPreamble === 'function') ? statementPreamble(rows, headerRowIndex) : ''
+    const chrome = (typeof statementChromeText === 'function')
+      ? statementChromeText(rows, new Set(transactions.map(t => t._rowIndex).filter(i => i != null)))
+      : ''
     const scope = (typeof detectStatementScope === 'function')
-      ? (detectStatementScope(preamble) || detectStatementScope(file.name)) : null
+      ? (detectStatementScope(preamble) || detectStatementScope(chrome) || detectStatementScope(file.name))
+      : null
 
     const ident = (typeof identifyAccountForFile === 'function')
       ? identifyAccountForFile({ preamble, filename: file.name, template, accounts: getAccounts() })
@@ -545,7 +552,7 @@ function _reconcileParsed(parsed, accountId, declaredScope) {
       : ''
     return {
       ...t,
-      ...(derivedChargeDate ? { chargeDate: derivedChargeDate } : {}),
+      ...(derivedChargeDate ? { chargeDate: derivedChargeDate, _derivedChargeDate: true } : {}),
       _purchaseDate: _purchaseDateForRow(t, account, scope),
       _installmentFinalMonth: installmentFinalMonth,
       _billingMonth: billingMonth,
@@ -772,10 +779,33 @@ function _buildAccountBanner() {
   // A template binding is the weakest rung — the same layout serves several
   // cards — so it gets a visible nudge rather than quiet acceptance.
   const weak = _importDoc?.detectedVia === 'template'
-  return `
+  const accountRow = `
     <div class="import-account-banner${weak ? ' import-account-banner-weak' : ''}">
       <span>חשבון: <b>${escHtml(acc.name)}</b>${via ? ` <span style="color:var(--text-muted)">· ${via}</span>` : ''}</span>
       <button class="btn-ghost" style="font-size:.75rem;padding:.25rem .6rem" onclick="changeImportAccount()">החלף חשבון</button>
+    </div>`
+
+  if (acc.type !== 'credit_card') return accountRow
+
+  // Which bill this report is. Read from the statement when it says so; when it
+  // doesn't, the months scatter by billing-day rollover and the user needs one
+  // place to say "this is the August bill" for the whole file.
+  const scopeMonth = _importDoc?.scope?.month || ''
+  const spread = [...new Set(_parsedTx.map(t => t._billingMonth).filter(Boolean))].sort()
+  const unknown = !scopeMonth && spread.length > 1
+  const label = scopeMonth
+    ? `חודש חיוב הדוח: <b>${scopeMonth}</b> <span style="color:var(--text-muted)">· ${
+        _importDoc.scope.source === 'user' ? 'נקבע על ידך' : 'מתוך הדוח'}</span>`
+    : `<b style="color:#f59e0b">לא זוהה חודש חיוב לדוח</b> <span style="color:var(--text-muted)">· השורות חולקו ל-${spread.length} חודשים לפי תאריך הרכישה</span>`
+  return accountRow + `
+    <div class="import-account-banner${unknown ? ' import-account-banner-weak' : ''}">
+      <span>${label}</span>
+      <span style="display:flex;align-items:center;gap:.4rem">
+        <span style="font-size:.75rem;color:var(--text-muted)">קבע לכל הדוח:</span>
+        <input type="month" class="import-billing-month-input" value="${scopeMonth || spread[spread.length - 1] || ''}"
+          title="כל שורות הדוח יסווגו לחודש הזה, למעט עסקאות מיידיות"
+          onchange="setImportBillMonth(this.value)">
+      </span>
     </div>`
 }
 
@@ -799,12 +829,29 @@ async function changeImportAccount() {
 }
 
 // Drop the fields the previous reconciliation added, so a re-run starts clean.
+// The derived charge date goes too: it is computed FROM the billing month, so
+// carrying it over would let a stale value decide the new one.
 function _stripImportState(t) {
   const out = { ...t }
+  if (out._derivedChargeDate) delete out.chargeDate
   for (const k of ['_state', '_matchAgainst', '_candidates', '_keep', '_billingMonth',
                    '_billingProvenance', '_purchaseDate', '_categoryId', '_categorySource',
-                   '_installmentFinalMonth', '_accountId']) delete out[k]
+                   '_installmentFinalMonth', '_accountId', '_derivedChargeDate']) delete out[k]
   return out
+}
+
+// Declare the bill this report is, for every row at once.
+//
+// Detection covers the statements that say what they are; this covers the ones
+// that don't. It is the same rule the automatic path applies — the report's
+// month is the default — just stated by the user instead of read from the file.
+// Immediate charges keep their own month, as they do everywhere else.
+function setImportBillMonth(month) {
+  if (!/^\d{4}-\d{2}$/.test(String(month || ''))) return
+  const acc = getAccounts().find(a => a.id === _importAccountId)
+  const scope = { month, source: 'user', chargeDay: acc?.billingDay || 10 }
+  _importDoc = { ..._importDoc, scope }
+  _reconcileParsed(_parsedTx.map(_stripImportState), _importAccountId, scope)
 }
 
 // The rows already stored inside the cycles this file covers, that the file

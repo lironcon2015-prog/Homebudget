@@ -200,3 +200,33 @@ test('a stated charge date still outranks a bare month name', () => {
   assert.equal(r.source, 'charge-date')
   assert.equal(r.month, '2026-09')
 })
+
+test('statement chrome covers the whole file, not just the preamble', () => {
+  const { statementChromeText, detectStatementScope } = load()
+  // A multi-section statement: the billing period is stated between sections,
+  // far below the first header row.
+  const rows = [
+    ['פירוט עסקאות כרטיס 1234'],                      // 0 preamble
+    ['תאריך עסקה', 'שם בית עסק', 'סכום'],             // 1 header
+    ['22/04/2026', 'איקאה', '-250'],                  // 2 data
+    [],                                                // 3
+    ['עסקאות תשלומים · מועד חיוב 10/08/2026'],        // 4 section header
+    ['תאריך עסקה', 'שם בית עסק', 'סכום'],             // 5 header
+    ['30/11/2025', 'אלקטרה', '-374.17'],              // 6 data
+  ]
+  const chrome = statementChromeText(rows, new Set([2, 6]))
+  assert.ok(chrome.includes('10/08/2026'), 'the section header is scanned')
+  assert.ok(!chrome.includes('איקאה'), 'transaction rows are excluded')
+  assert.equal(detectStatementScope(chrome)?.month, '2026-08')
+})
+
+test('chrome text never lets a data row masquerade as the period', () => {
+  const { statementChromeText, detectStatementScope } = load()
+  const rows = [
+    ['פירוט עסקאות'],
+    ['תאריך', 'ספק', 'סכום'],
+    ['מועד חיוב 10/01/2020', 'ספק מפוקפק', '-1'],   // a data row that looks like a header
+  ]
+  // Marked as parsed → excluded, so it cannot set the statement period.
+  assert.equal(detectStatementScope(statementChromeText(rows, new Set([2]))), null)
+})
