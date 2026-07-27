@@ -664,6 +664,10 @@ select option { background-color: #141417; color: var(--text-primary); }
 .import-chip { background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: .65rem 1.1rem; }
 .import-chip .chip-label { font-size: .74rem; color: var(--text-muted); }
 .import-chip .chip-value { font-size: 1.3rem; font-weight: 700; margin-top: .1rem; }
+.import-account-banner { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: .6rem 1rem; margin-bottom: .75rem; font-size: .85rem; }
+.import-account-banner-weak { border-color: #f59e0b; background: rgba(245,158,11,.06); }
+.import-orphans summary { list-style: none; }
+.import-orphans summary::-webkit-details-marker { display: none; }
 .import-billing-month-input { font-size: .78rem; padding: .15rem .3rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-surface); color: var(--text); width: 7.5rem; }
 .import-billing-month-overridden { border-color: var(--accent); background: rgba(var(--accent-rgb, 99,102,241),.08); }
 

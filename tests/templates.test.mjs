@@ -131,3 +131,102 @@ test('guessHeaderRow finds first label-like row', () => {
   ]
   assert.equal(t.guessHeaderRow(rows), 2)
 })
+
+// ===== BACK-COMPAT WITH TEMPLATES SAVED BEFORE 1.40.0 =====
+// Existing templates carry only { signature, columns, headerRowIndex,
+// skipFooterRows, accountId } — no notion of row signatures, statement scope or
+// account identifiers. They must keep parsing byte-identically, and gain the
+// new provenance fields for free.
+
+const LEGACY_TPL = {
+  id: 'tpl_old', name: 'ויזה ישן',
+  signature: null,          // filled in per test from the header row
+  headerRowIndex: 1,
+  skipFooterRows: 0,
+  accountId: null,
+  columns: {
+    date:   { index: 0, format: 'DD/MM/YYYY' },
+    vendor: { index: 1 },
+    amount: { mode: 'signed', index: 2 },
+  },
+}
+
+const LEGACY_ROWS = [
+  ['פירוט עסקאות'],
+  ['תאריך עסקה', 'שם בית עסק', 'סכום חיוב'],
+  ['22/04/2026', 'איקאה', '-250'],
+  ['28/05/2026', 'שופרסל', '-90'],
+]
+
+test('a template saved before 1.40.0 parses exactly as it used to', () => {
+  const t = loadTemplates()
+  const { transactions, stats } = t.parseWithTemplate(LEGACY_ROWS, LEGACY_TPL)
+  assert.equal(stats.parsed, 2)
+  assert.equal(stats.skipped, 0)
+  deepEq(transactions.map(x => [x.date, x.vendor, x.amount, x.type]), [
+    ['2026-04-22', 'איקאה', -250, 'expense'],
+    ['2026-05-28', 'שופרסל', -90, 'expense'],
+  ], 'legacy parse output unchanged')
+})
+
+test('legacy templates gain row provenance without being re-created', () => {
+  const t = loadTemplates()
+  const { transactions } = t.parseWithTemplate(LEGACY_ROWS, LEGACY_TPL)
+  // txmRowSignature is absent in this context, so the signature is simply
+  // omitted — the parser must not throw over an optional collaborator.
+  assert.equal(transactions[0]._rowSig, undefined)
+  // The absolute row index is always available and is what links a saved
+  // transaction back to its line in the stored source document.
+  deepEq(transactions.map(x => x._rowIndex), [2, 3], 'row indices are absolute')
+})
+
+test('row indices stay absolute when the header sits further down', () => {
+  const t = loadTemplates()
+  const rows = [['כרטיס 1234'], ['מועד חיוב 10/06/2026'], [], ...LEGACY_ROWS.slice(1)]
+  const { transactions } = t.parseWithTemplate(rows, { ...LEGACY_TPL, headerRowIndex: 3 })
+  deepEq(transactions.map(x => x._rowIndex), [4, 5])
+})
+
+test('an old template still auto-detects a charge-date column it never mapped', () => {
+  const t = loadTemplates()
+  const rows = [
+    ['תאריך עסקה', 'שם בית עסק', 'סכום חיוב', 'תאריך חיוב'],
+    ['22/04/2026', 'איקאה', '-250', '10/06/2026'],
+  ]
+  const { transactions } = t.parseWithTemplate(rows, { ...LEGACY_TPL, headerRowIndex: 0 })
+  assert.equal(transactions[0].chargeDate, '2026-06-10',
+    'the column is picked up from the header without re-creating the template')
+})
+
+test('a stale headerRowIndex is what shifts the data window', () => {
+  const t = loadTemplates()
+  // Same format, but the issuer added one preamble line this month. The saved
+  // index (1) now points at the preamble instead of the header.
+  const shifted = [['פירוט עסקאות'], ['מועד חיוב 10/06/2026'],
+                   ['תאריך עסקה', 'שם בית עסק', 'סכום חיוב'],
+                   ['22/04/2026', 'איקאה', '-250']]
+  const stale = t.parseWithTemplate(shifted, { ...LEGACY_TPL, headerRowIndex: 1 })
+  assert.equal(stale.stats.parsed, 1)
+  assert.equal(stale.stats.skipped, 1, 'the header row is consumed as a data row and skipped')
+
+  // Re-resolving the index against this file recovers the right window, which
+  // is what the importer now does with the index it matched the signature at.
+  const fixed = t.parseWithTemplate(shifted, { ...LEGACY_TPL, headerRowIndex: 2 })
+  assert.equal(fixed.stats.parsed, 1)
+  assert.equal(fixed.stats.skipped, 0)
+})
+
+test('templates are matched by header signature, in both signature eras', () => {
+  const t = loadTemplates()
+  const header = ['תאריך עסקה', 'שם בית עסק', 'סכום חיוב']
+  t.upsertTemplate({ ...LEGACY_TPL, signature: t.computeHeaderSignature(header) })
+  assert.equal(t.findTemplateForHeaderRow(header)?.id, 'tpl_old')
+
+  // A template saved under the older, weaker normalization still matches.
+  const t2 = loadTemplates()
+  t2.upsertTemplate({ ...LEGACY_TPL, id: 'tpl_older', signature: t2.computeHeaderSignatureLegacy(header) })
+  assert.equal(t2.findTemplateForHeaderRow(header)?.id, 'tpl_older')
+
+  // A different layout must not match either.
+  assert.equal(t.findTemplateForHeaderRow(['משהו', 'אחר', 'לגמרי']), null)
+})

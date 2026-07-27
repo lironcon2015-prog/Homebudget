@@ -142,7 +142,13 @@ async function handleStructuredFile(file, chosenAccountId) {
     let matched = null
     for (let i = 0; i < maxTry; i++) {
       const tpl = findTemplateForHeaderRow(rows[i] || [])
-      if (tpl) { matched = { ...tpl, headerRowIndex: tpl.headerRowIndex ?? i }; break }
+      // The header is at row `i` in THIS file — that is what the signature just
+      // matched. The index saved with the template is where it sat in whichever
+      // file created the template, and issuers move it: a "מועד חיוב" line
+      // appears in some months and not others. Trusting the saved index shifted
+      // the data window by a row, so the header got parsed as a transaction and
+      // the preamble scan read the wrong lines. The detected index wins.
+      if (tpl) { matched = { ...tpl, headerRowIndex: i }; break }
     }
     if (matched) {
       continueImportWithTemplate(file, chosenAccountId, rows, matched)
@@ -514,6 +520,9 @@ function showImportReview() {
       <div class="chip-value" style="color:${c.color}">${c.value}</div>
     </div>`).join('')
 
+  const bannerEl = document.getElementById('importAccountBanner')
+  if (bannerEl) bannerEl.innerHTML = _buildAccountBanner()
+
   const summaryEl = document.getElementById('importParseSummary')
   if (summaryEl) summaryEl.innerHTML = _buildParseSummary()
 
@@ -572,6 +581,59 @@ function showImportReview() {
 
   _importShowStep('importStep3')
   _updateSaveBtn()
+}
+
+// The account is chosen for the user now, so it has to be visible and
+// reversible on the review screen — an import into the wrong account is silent
+// damage that only shows up months later in the balances.
+const _IMPORT_VIA_LABEL = {
+  statement: 'זוהה מתוך הדוח',
+  filename:  'זוהה משם הקובץ',
+  template:  'לפי התבנית השמורה',
+  ai:        'זוהה על ידי AI',
+  user:      'נבחר על ידך',
+}
+
+function _buildAccountBanner() {
+  const acc = getAccounts().find(a => a.id === _importAccountId)
+  if (!acc) return ''
+  const via = _IMPORT_VIA_LABEL[_importDoc?.detectedVia] || ''
+  // A template binding is the weakest rung — the same layout serves several
+  // cards — so it gets a visible nudge rather than quiet acceptance.
+  const weak = _importDoc?.detectedVia === 'template'
+  return `
+    <div class="import-account-banner${weak ? ' import-account-banner-weak' : ''}">
+      <span>חשבון: <b>${escHtml(acc.name)}</b>${via ? ` <span style="color:var(--text-muted)">· ${via}</span>` : ''}</span>
+      <button class="btn-ghost" style="font-size:.75rem;padding:.25rem .6rem" onclick="changeImportAccount()">החלף חשבון</button>
+    </div>`
+}
+
+// Re-runs the reconciliation against a different account. Nothing has been
+// saved at this point, so this is free.
+async function changeImportAccount() {
+  const accs = getAccounts()
+  const options = accs.map(a => `${a.name}${a.institution ? ' – ' + a.institution : ''}`).join('\n')
+  const v = await promptDialog(
+    `לאיזה חשבון לשייך את הדוח?\n\n${options}\n\nהקלד את שם החשבון:`,
+    { defaultValue: accs.find(a => a.id === _importAccountId)?.name || '', title: 'החלפת חשבון' })
+  if (v === null) return
+  const target = accs.find(a => a.name.trim() === v.trim())
+  if (!target) { toast('לא נמצא חשבון בשם הזה', { type: 'error' }); return }
+  if (target.id === _importAccountId) return
+  // Re-derive from the original parsed rows: cycle resolution and matching both
+  // depend on the account, so neither can be patched in place.
+  const scope = _importDoc?.scope || null
+  _importDoc = { ..._importDoc, detectedVia: 'user' }
+  _reconcileParsed(_parsedTx.map(_stripImportState), target.id, scope)
+}
+
+// Drop the fields the previous reconciliation added, so a re-run starts clean.
+function _stripImportState(t) {
+  const out = { ...t }
+  for (const k of ['_state', '_matchAgainst', '_candidates', '_keep', '_billingMonth',
+                   '_billingProvenance', '_purchaseDate', '_categoryId', '_categorySource',
+                   '_installmentFinalMonth', '_accountId']) delete out[k]
+  return out
 }
 
 // The rows already stored inside the cycles this file covers, that the file
