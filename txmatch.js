@@ -236,18 +236,59 @@ function txmExplain(row, existing, opts = {}) {
     }
   }).sort((a, b) => b.score - a.score)
 
+  // Reconciliation is deliberately scoped to one account — a charge really can
+  // appear in two accounts (a card detail line and its lump payment) and merging
+  // those would be wrong. But that scoping is invisible in the UI, so "it IS in
+  // the system" and "it is not in this account" look identical. The explainer
+  // therefore looks wider than the matcher does, and says so.
+  const crossAccount = (opts.otherAccounts || [])
+    .filter(e => e.agorot === row.agorot)
+    .map(e => ({ existing: e, monthDiff: txmMonthDiff(row.billingMonth, e.billingMonth), score: txmScorePair(row, e).score }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+
+  // Last resort: when no amount matches anywhere, show what IS stored in the
+  // same cycle. An empty answer is the one outcome that teaches nothing, and it
+  // is exactly the outcome that means the amount itself is the problem.
+  let neighbours = []
+  if (!sameAmount.length && !nearAmount.length) {
+    const rank = list => list
+      .map(e => ({ existing: e, overlap: txmTokenOverlap(row.vendorTokens, e.vendorTokens), delta: e.agorot - row.agorot }))
+      .sort((a, b) => b.overlap - a.overlap || Math.abs(a.delta) - Math.abs(b.delta))
+      .slice(0, limit)
+    const inCycle = existing.filter(e => {
+      const md = txmMonthDiff(row.billingMonth, e.billingMonth)
+      const dd = txmDayDiff(row.purchaseDate, e.purchaseDate)
+      return (md !== null && md <= TXM_MONTH_WINDOW) || (dd !== null && dd <= 7)
+    })
+    // Falling back to the whole account matters for rows carrying a cycle from
+    // an older, buggier import: those sit outside every window, so a
+    // cycle-limited fallback would come back empty for exactly the rows most
+    // in need of an explanation.
+    neighbours = inCycle.length ? rank(inCycle) : rank(existing.filter(e => txmTokenOverlap(row.vendorTokens, e.vendorTokens) > 0))
+  }
+
   const scorable = candidates.filter(c => c.inWindow && !c.disqualified)
   let verdict
-  if (!existing.length)                    verdict = 'empty-account'
-  else if (!sameAmount.length)             verdict = nearAmount.length ? 'amount-near-miss' : 'no-amount-match'
-  else if (!scorable.length)               verdict = candidates.some(c => c.disqualified) ? 'disqualified' : 'out-of-window'
-  else if (scorable[0].score < TXM_MIN_SCORE) verdict = 'below-threshold'
-  else                                     verdict = 'ambiguous'
+  if (crossAccount.length && !sameAmount.length) verdict = 'other-account'
+  else if (!existing.length)                     verdict = 'empty-account'
+  else if (!sameAmount.length)                   verdict = nearAmount.length ? 'amount-near-miss' : 'no-amount-match'
+  else if (!scorable.length)                     verdict = candidates.some(c => c.disqualified) ? 'disqualified' : 'out-of-window'
+  else if (scorable[0].score < TXM_MIN_SCORE)    verdict = 'below-threshold'
+  else                                           verdict = 'ambiguous'
 
-  return { verdict, amountMatches: sameAmount.length, candidates: candidates.slice(0, limit), nearAmount: nearAmount.slice(0, limit) }
+  return {
+    verdict,
+    amountMatches: sameAmount.length,
+    candidates: candidates.slice(0, limit),
+    nearAmount: nearAmount.slice(0, limit),
+    crossAccount,
+    neighbours,
+  }
 }
 
 const TXM_VERDICT_LABEL = {
+  'other-account':    'העסקה קיימת במערכת — אבל בחשבון אחר. ייבוא משווה מול חשבון אחד בלבד',
   'empty-account':    'אין עסקאות בחשבון הזה להשוות מולן',
   'no-amount-match':  'אין במערכת אף עסקה בסכום הזה בחשבון הזה',
   'amount-near-miss': 'אין התאמת סכום מדויקת, אבל יש סכומים קרובים — בדוק סימן או מטבע',

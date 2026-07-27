@@ -265,3 +265,61 @@ test('every verdict has a message a user can act on', () => {
     assert.ok(labels[v] && labels[v].length > 5, `missing label for ${v}`)
   }
 })
+
+test('a row stored under a different account is reported, not hidden', () => {
+  // Reconciliation is account-scoped by design, so this row is invisible to the
+  // matcher — but it is the likeliest reason a user says "it IS in the system".
+  const otherAcct = [rec({ id: 'x1', acct: 'cc2', amount: -250, vendor: 'איקאה', date: '2026-04-22', month: '2026-06' })]
+  const info = txmExplain(rec({ amount: -250, vendor: 'איקאה', date: '2026-04-22', month: '2026-06' }),
+                          [], { otherAccounts: otherAcct })
+  assert.equal(info.verdict, 'other-account')
+  assert.equal(info.crossAccount.length, 1)
+  assert.equal(info.crossAccount[0].existing.id, 'x1')
+})
+
+test('a same-account match still outranks a cross-account one', () => {
+  const mine  = [rec({ id: 'm1', amount: -250, vendor: 'איקאה', date: '2026-04-22', month: '2026-06' })]
+  const other = [rec({ id: 'x1', acct: 'cc2', amount: -250, vendor: 'איקאה', date: '2026-04-22', month: '2026-06' })]
+  const info = txmExplain(rec({ amount: -250, vendor: 'איקאה', date: '2026-04-22', month: '2026-06' }),
+                          mine, { otherAccounts: other })
+  assert.notEqual(info.verdict, 'other-account')
+  assert.equal(info.amountMatches, 1)
+})
+
+test('when no amount matches at all, the cycle contents are shown anyway', () => {
+  // An empty answer is the one outcome that teaches nothing.
+  const stored = [
+    rec({ id: 's1', amount: -25000, vendor: 'איקאה ישראל', date: '2026-04-22', month: '2026-06' }),
+    rec({ id: 's2', amount: -140,   vendor: 'פז',          date: '2026-05-19', month: '2026-06' }),
+    rec({ id: 's3', amount: -99,    vendor: 'אחר',         date: '2021-01-01', month: '2021-01' }),
+  ]
+  const info = txmExplain(rec({ amount: -250, vendor: 'איקאה', date: '2026-04-22', month: '2026-06' }), stored)
+  assert.equal(info.verdict, 'no-amount-match')
+  assert.ok(info.neighbours.length, 'the same cycle is surfaced as a fallback')
+  // Best vendor overlap first, and out-of-cycle rows are excluded.
+  assert.equal(info.neighbours[0].existing.id, 's1')
+  assert.ok(!info.neighbours.some(n => n.existing.id === 's3'))
+})
+
+test('neighbours are not shown when a real amount match exists', () => {
+  const stored = [rec({ id: 's1', amount: -250, vendor: 'איקאה', date: '2026-04-22', month: '2026-06' })]
+  const info = txmExplain(rec({ amount: -250, vendor: 'איקאה', date: '2026-04-22', month: '2026-06' }), stored)
+  assert.equal(info.neighbours.length, 0)
+})
+
+test('a row whose stored cycle is far off is still surfaced by vendor', () => {
+  // Legacy rows can carry a cycle written by an older, buggier import. Those
+  // sit outside every window, so a cycle-limited fallback would return nothing
+  // for precisely the rows that most need explaining.
+  const stored = [rec({ id: 's1', amount: -99, vendor: 'איקאה ישראל', date: '2020-01-01', month: '2020-01' })]
+  const info = txmExplain(rec({ amount: -250, vendor: 'איקאה', date: '2026-04-22', month: '2026-06' }), stored)
+  assert.equal(info.verdict, 'no-amount-match')
+  assert.equal(info.neighbours.length, 1, 'vendor overlap still finds it')
+  assert.equal(info.neighbours[0].existing.id, 's1')
+})
+
+test('an unrelated account produces no misleading neighbours', () => {
+  const stored = [rec({ id: 's1', amount: -99, vendor: 'סונול', date: '2020-01-01', month: '2020-01' })]
+  const info = txmExplain(rec({ amount: -250, vendor: 'איקאה', date: '2026-04-22', month: '2026-06' }), stored)
+  assert.equal(info.neighbours.length, 0, 'no vendor overlap, no guesses')
+})

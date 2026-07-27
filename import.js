@@ -325,6 +325,7 @@ let _importPendingParsed = null
 let _importAiIdentifiers = []
 let _importExistingRecords = []
 let _importIncomingRecords = []
+let _importOtherAccountRecords = []
 
 function _showAccountPrompt(parsed, scope) {
   const accounts = getAccounts()
@@ -528,9 +529,18 @@ function _reconcileParsed(parsed, accountId, declaredScope) {
     }))
 
   const rec = reconcileTransactions(incoming, existing, { scopeMonths: _importScopeMonths })
-  // Kept so a row marked new can explain itself on demand.
+  // Kept so a row marked new can explain itself on demand. The other accounts
+  // are kept too — matching ignores them by design, but "it exists, just not
+  // here" is one of the likeliest reasons a row looks new, and the explainer
+  // has to be able to say that.
   _importExistingRecords = existing
   _importIncomingRecords = incoming
+  _importOtherAccountRecords = existingAll
+    .filter(t => t.accountId !== accountId)
+    .map(t => txmRecord(t, {
+      billingMonth: t.billingMonth || ((typeof getTxEffectiveMonth === 'function') ? getTxEffectiveMonth(t) : null),
+      ref: t,
+    }))
 
   // Project the outcome back onto the display rows.
   const state = new Map()
@@ -649,31 +659,50 @@ function showImportReview() {
 function explainImportRow(i) {
   const row = _importIncomingRecords[i]
   if (!row || typeof txmExplain !== 'function') return
-  const info = txmExplain(row, _importExistingRecords)
+  const info = txmExplain(row, _importExistingRecords, { otherAccounts: _importOtherAccountRecords })
   const label = (typeof TXM_VERDICT_LABEL === 'object' && TXM_VERDICT_LABEL[info.verdict]) || info.verdict
   const src = _parsedTx[i] || {}
+  const accName = id => getAccounts().find(a => a.id === id)?.name || ''
 
-  const line = (r, extra = '') =>
+  const line = (r, extra = '', showAcc = false) =>
     `<div style="padding:.35rem 0;border-bottom:1px solid var(--border)">
-       ${formatDate(r.date)} · ${escHtml(r.vendor || '')} · ${formatCurrency(r.amount)}${extra}
+       ${formatDate(r.date)} · ${escHtml(r.vendor || '')} · ${formatCurrency(r.amount)}
+       ${showAcc ? `<span style="color:var(--accent);font-size:.78rem"> · ${escHtml(accName(r.accountId))}</span>` : ''}${extra}
      </div>`
+  const section = (title, html) => `<div style="margin-top:.6rem"><b>${title}</b>${html}</div>`
 
   let detail = ''
   if (info.candidates.length) {
-    detail = `<div style="margin-top:.6rem"><b>עסקאות באותו סכום:</b>${info.candidates.map(c => line(c.existing.ref,
+    detail += section('עסקאות באותו סכום בחשבון הזה:', info.candidates.map(c => line(c.existing.ref,
       ` <span style="color:var(--text-muted);font-size:.78rem">— ניקוד ${c.score}` +
       `${c.dayDiff != null ? `, פער ימים ${c.dayDiff}` : ', אין תאריך רכישה להשוואה'}` +
       `${c.monthDiff != null ? `, פער חודשי חיוב ${c.monthDiff}` : ''}` +
-      `${c.disqualified ? ', נפסל' : c.inWindow ? '' : ', מחוץ לחלון'}</span>`)).join('')}</div>`
-  } else if (info.nearAmount.length) {
-    detail = `<div style="margin-top:.6rem"><b>סכומים קרובים (לא זהים):</b>${info.nearAmount.map(n => line(n.existing.ref,
-      ` <span style="color:var(--text-muted);font-size:.78rem">— ${n.why === 'sign' ? 'סימן הפוך' : 'הפרש ' + (n.diff / 100).toFixed(2)}</span>`)).join('')}</div>`
+      `${c.disqualified ? ', נפסל' : c.inWindow ? '' : ', מחוץ לחלון'}</span>`)).join(''))
+  }
+  if (info.nearAmount.length) {
+    detail += section('סכומים קרובים (לא זהים):', info.nearAmount.map(n => line(n.existing.ref,
+      ` <span style="color:var(--text-muted);font-size:.78rem">— ${n.why === 'sign' ? 'סימן הפוך' : 'הפרש ' + Math.abs(n.diff / 100).toFixed(2)}</span>`)).join(''))
+  }
+  if (info.crossAccount.length) {
+    detail += section('קיים באותו סכום — אבל בחשבון אחר:',
+      info.crossAccount.map(c => line(c.existing.ref, '', true)).join(''))
+  }
+  if (info.neighbours.length) {
+    detail += section('מה שכן קיים בחודש הזה בחשבון הזה:', info.neighbours.map(n => line(n.existing.ref,
+      ` <span style="color:var(--text-muted);font-size:.78rem">— הפרש סכום ${Math.abs(n.delta / 100).toFixed(2)}</span>`)).join(''))
+  }
+  if (!detail) {
+    detail = `<div style="margin-top:.6rem;color:var(--text-muted)">אין במערכת אף עסקה בחודש הזה בחשבון "${escHtml(accName(_importAccountId))}".</div>`
   }
 
   const body = `
     <div style="font-size:.9rem">
-      <div style="margin-bottom:.5rem">${formatDate(src.date)} · <b>${escHtml(src.vendor || '')}</b> · ${formatCurrency(src.amount)}</div>
+      <div style="margin-bottom:.5rem">${formatDate(src.date)} · <b>${escHtml(src.vendor || '')}</b> · ${formatCurrency(src.amount)}
+        ${src._billingMonth ? `<span style="color:var(--text-muted);font-size:.78rem"> · חודש חיוב ${src._billingMonth}</span>` : ''}</div>
       <div style="color:var(--text-muted)">${escHtml(label)}</div>
+      <div style="color:var(--text-muted);font-size:.78rem;margin-top:.25rem">
+        ההשוואה רצה מול ${_importExistingRecords.length} עסקאות בחשבון "${escHtml(accName(_importAccountId))}".
+      </div>
       ${detail}
     </div>`
   if (typeof UK_sheet === 'function') UK_sheet({ title: 'למה זו עסקה חדשה?', content: body })

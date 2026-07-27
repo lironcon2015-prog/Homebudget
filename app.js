@@ -1,4 +1,4 @@
-const APP_VERSION = '1.40.1'
+const APP_VERSION = '1.40.2'
 
 // ===== STORAGE =====
 // Hot keys are cached as parsed objects: getTransactions() etc. used to
