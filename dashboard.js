@@ -49,7 +49,7 @@ function renderDashboard() {
       label: 'חיסכון חבוי נטו',
       value: netHidden,
       color: netHidden >= 0 ? 'var(--income)' : 'var(--expense)',
-      icon: uiIcon('piggy', 18),
+      icon: uiIcon('vault', 18),
       bg: netHidden >= 0 ? 'var(--income-bg)' : 'var(--expense-bg)',
       tooltip: 'חסכונות חבויים פחות הכנסה הונית'
     })

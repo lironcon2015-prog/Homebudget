@@ -50,7 +50,7 @@ const CAT_ICON_META = {
   // --- כספים ---
   wallet:      { he: 'ארנק',        kw: 'wallet money ארנק',        svg: '<path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/>' },
   banknote:    { he: 'שטר',         kw: 'banknote cash money מזומן', svg: '<rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/>' },
-  piggy:       { he: 'חיסכון',      kw: 'piggy savings חיסכון',      svg: '<path d="M11 17h3v2a1 1 0 0 0 1 1h1a1 1 0 0 0 1-1v-3a3.16 3.16 0 0 0 2-2h1a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1h-1a5 5 0 0 0-2-3V3a4 4 0 0 0-3.2 1.6l-.3.4H11a6 6 0 0 0-6 6v1a5 5 0 0 0 2 4v3a1 1 0 0 0 1 1h1a1 1 0 0 0 1-1z"/><path d="M16 10h.01"/><path d="M2 8v1a2 2 0 0 0 2 2h1"/>' },
+  vault:       { he: 'חיסכון',      kw: 'vault safe savings חיסכון כספת', svg: '<rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="12" cy="12" r="3.5"/><path d="M12 7v1.5M12 15.5V17M17 12h-1.5M8.5 12H7"/>' },
   trendingup:  { he: 'השקעה/עלייה', kw: 'trending up invest רווח',  svg: '<polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>' },
   landmark:    { he: 'בנק',         kw: 'bank landmark בנק',         svg: '<line x1="3" x2="21" y1="22" y2="22"/><line x1="6" x2="6" y1="18" y2="11"/><line x1="10" x2="10" y1="18" y2="11"/><line x1="14" x2="14" y1="18" y2="11"/><line x1="18" x2="18" y1="18" y2="11"/><polygon points="12 2 20 7 4 7"/>' },
   card:        { he: 'אשראי',       kw: 'credit card אשראי',        svg: '<rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/>' },
@@ -129,13 +129,17 @@ const CAT_ICON_GROUPS = [
   { label: 'תחבורה',        ids: ['car','fuel','bus','plane','bike'] },
   { label: 'קניות',         ids: ['bag','package','shirt','gift','tag'] },
   { label: 'בריאות וכושר',  ids: ['health','pill','hospital','dumbbell'] },
-  { label: 'כספים',         ids: ['wallet','banknote','piggy','trendingup','landmark','card','coins','percent','receipt','briefcase'] },
+  { label: 'כספים',         ids: ['wallet','banknote','vault','trendingup','landmark','card','coins','percent','receipt','briefcase'] },
   { label: 'פנאי',          ids: ['gamepad','film','music','book','umbrella','star'] },
   { label: 'כללי',          ids: ['graduation','baby','paw','shield','scissors','calendar','refresh','file'] },
 ]
 
+// Renamed glyphs. Stored category icons ('ic:<id>') live in user data, so an
+// id can never simply disappear — it resolves here instead.
+const CAT_ICON_ALIAS = { piggy: 'vault' }
+
 function _catIconSvg(id, size = 18) {
-  const m = CAT_ICON_META[id]
+  const m = CAT_ICON_META[id] || CAT_ICON_META[CAT_ICON_ALIAS[id]]
   if (!m) return ''
   return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:block">${m.svg}</svg>`
 }
@@ -230,7 +234,7 @@ const _SYS_CAT_ICON = {
   cat_food: 'cart', cat_rest: 'utensils', cat_transport: 'car', cat_fuel: 'fuel',
   cat_rent: 'home', cat_bills: 'lightbulb', cat_health: 'hospital', cat_clothing: 'shirt',
   cat_leisure: 'gamepad', cat_insurance: 'shield', cat_bank: 'landmark', cat_online: 'package',
-  cat_invest_out: 'piggy', cat_other_exp: 'file', cat_salary: 'briefcase', cat_extra: 'banknote',
+  cat_invest_out: 'vault', cat_other_exp: 'file', cat_salary: 'briefcase', cat_extra: 'banknote',
   cat_taxback: 'receipt', cat_invest: 'trendingup', cat_other_inc: 'file', cat_transfer: 'refresh',
 }
 const _EMOJI_CAT_ICON = {
@@ -241,7 +245,7 @@ const _EMOJI_CAT_ICON = {
   '✈️': 'plane', '🚲': 'bike', '🛍️': 'bag', '📦': 'package', '👕': 'shirt',
   '🎁': 'gift', '🏷️': 'tag', '❤️': 'health', '💊': 'pill', '🏥': 'hospital',
   '💪': 'dumbbell', '🏋️': 'dumbbell', '👛': 'wallet', '💵': 'banknote', '💴': 'banknote',
-  '💰': 'piggy', '🐷': 'piggy', '📈': 'trendingup', '🏦': 'landmark', '💳': 'card',
+  '💰': 'vault', '🐷': 'vault', '📈': 'trendingup', '🏦': 'landmark', '💳': 'card',
   '🪙': 'coins', '🧾': 'receipt', '💼': 'briefcase', '🎮': 'gamepad', '🎬': 'film',
   '🎵': 'music', '🎶': 'music', '📚': 'book', '📖': 'book', '⛱️': 'umbrella',
   '🏖️': 'umbrella', '⭐': 'star', '🎓': 'graduation', '👶': 'baby', '🐾': 'paw',
@@ -261,4 +265,19 @@ function migrateCategoryIconsToSvg_v1() {
   }
   if (changed) DB.set('finCategories', cats)
   localStorage.setItem('migration_cat_icons_svg_v1', '1')
+}
+
+// Rewrites renamed ids in stored categories so the icon picker still shows the
+// current selection (rendering already works through CAT_ICON_ALIAS).
+function migrateRenamedCatIcons_v1() {
+  if (localStorage.getItem('migration_cat_icon_rename_v1') === '1') return
+  if (typeof getCategories !== 'function') return
+  const cats = getCategories()
+  let changed = false
+  for (const c of cats) {
+    const id = c && c.icon && c.icon.indexOf('ic:') === 0 ? c.icon.slice(3) : ''
+    if (id && CAT_ICON_ALIAS[id]) { c.icon = 'ic:' + CAT_ICON_ALIAS[id]; changed = true }
+  }
+  if (changed) DB.set('finCategories', cats)
+  localStorage.setItem('migration_cat_icon_rename_v1', '1')
 }

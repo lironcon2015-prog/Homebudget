@@ -149,7 +149,7 @@ function _budgetCategoryProxy(catId) {
     return { id: OTHER_INCOME_ID, name: OTHER_INCOME_NAME, icon: OTHER_INCOME_ICON, color: OTHER_INCOME_COLOR, type: 'income', _virtual: true }
   }
   if (catId === CARRYOVER_INCOME_ID) {
-    return { id: CARRYOVER_INCOME_ID, name: 'יתרה מחודש קודם', icon: 'ic:piggy', color: '#22c55e', type: 'income', _virtual: true }
+    return { id: CARRYOVER_INCOME_ID, name: 'יתרה מחודש קודם', icon: 'ic:vault', color: '#22c55e', type: 'income', _virtual: true }
   }
   if (catId === CARRYOVER_EXPENSE_ID) {
     return { id: CARRYOVER_EXPENSE_ID, name: 'גירעון מחודש קודם', icon: 'ic:chart', color: '#f97316', type: 'expense', _virtual: true }

@@ -1,4 +1,4 @@
-const APP_VERSION = '1.44.1'
+const APP_VERSION = '1.44.2'
 
 // ===== STORAGE =====
 // Hot keys are cached as parsed objects: getTransactions() etc. used to
@@ -161,7 +161,7 @@ const DEFAULT_CATEGORIES = [
   { id: 'cat_insurance', name: 'ביטוח',              type: 'expense', color: '#6366f1', icon: 'ic:shield', system: true },
   { id: 'cat_bank',      name: 'עמלות בנק',         type: 'expense', color: '#64748b', icon: 'ic:landmark', system: true },
   { id: 'cat_online',    name: 'קניות אונליין',     type: 'expense', color: '#0ea5e9', icon: 'ic:package', system: true },
-  { id: 'cat_invest_out', name: 'חסכונות והשקעות',   type: 'expense', color: '#0ea5e9', icon: 'ic:piggy', system: true, isSavings: true },
+  { id: 'cat_invest_out', name: 'חסכונות והשקעות',   type: 'expense', color: '#0ea5e9', icon: 'ic:vault', system: true, isSavings: true },
   { id: 'cat_other_exp', name: 'אחר – הוצאה',       type: 'expense', color: '#9ca3af', icon: 'ic:file', system: true },
   { id: 'cat_salary',    name: 'משכורת',             type: 'income',  color: '#22c55e', icon: 'ic:briefcase', system: true },
   { id: 'cat_extra',     name: 'הכנסה נוספת',       type: 'income',  color: '#10b981', icon: 'ic:banknote', system: true },
@@ -1314,6 +1314,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (typeof migrateExcludeFromUnforeseen_v1 === 'function') migrateExcludeFromUnforeseen_v1()
   if (typeof migrateManualGroupVendorKeys_v1 === 'function') migrateManualGroupVendorKeys_v1()
   if (typeof migrateCategoryIconsToSvg_v1 === 'function') migrateCategoryIconsToSvg_v1()
+  if (typeof migrateRenamedCatIcons_v1 === 'function') migrateRenamedCatIcons_v1()
   cleanupOrphanedStateKeys()
   window.addEventListener('hashchange', _onHashChange)
   const _initialScreen = location.hash.slice(1)

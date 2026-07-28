@@ -51,7 +51,7 @@ function _drawAnalysis() {
     cards.push({
       label: 'אחוז חיסכון אמיתי',
       value: savingsPct,
-      color: savingsPct>=0?'var(--income)':'var(--expense)', icon: uiIcon('piggy', 18),
+      color: savingsPct>=0?'var(--income)':'var(--expense)', icon: uiIcon('vault', 18),
       bg: savingsPct>=0?'var(--income-bg)':'var(--expense-bg)', pct: true,
       tooltip: 'מוסיף בחזרה הוצאות שסומנו כחיסכון ומנטרל הכנסה הונית'
     })
