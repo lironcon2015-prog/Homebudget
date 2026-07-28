@@ -228,17 +228,14 @@ async function fetchIsraeliCandidates(rawId) {
   // markup); Funder /fund is reliable for mutual funds (buyPrice JSON).
   // Trying Bizportal first prevents a Funder ETF's bid/ask spread (if
   // it ever appears as buyPrice) from beating Bizportal's last price.
-  // The Bizportal/Funder pages above are fund-and-ETF pages; an ordinary TASE
-  // share (Bizportal files those under a per-sector path we can't guess) is
-  // not on any of them. Globes and TheMarker both address any security by its
-  // bare number, so they cover shares without needing the sector.
+  // These are all fund-and-ETF pages; an ordinary TASE share is on none of
+  // them (Bizportal files shares under a per-sector path we can't guess).
+  // Shares are covered by the Yahoo "<id>.TA" fallback in getIsraeliQuote.
   const urls = [
     'https://www.bizportal.co.il/tradedfund/quote/generalview/' + rawId,
     'https://www.bizportal.co.il/mutualfund/quote/generalview/' + rawId,
     'https://www.funder.co.il/fund/' + rawId,
     'https://www.funder.co.il/etf/' + rawId,
-    'https://finance.themarker.com/stock/' + rawId,
-    'https://www.globes.co.il/portal/instrument.aspx?quote=TASE%3A' + rawId,
     'https://market.tase.co.il/he/market_data/security/' + padded + '/major_data',
   ];
   const tasks = urls.map(async (url) => {
@@ -281,20 +278,6 @@ function rememberSymbol(ticker, symbol) {
   try {
     const map = loadSymbolMap();
     map[key] = symbol;
-    localStorage.setItem(SYMBOL_MAP_KEY, JSON.stringify(map));
-  } catch {}
-}
-
-// Pin the symbol used to fetch a ticker's price, overriding auto-resolution.
-// This is the escape hatch for a holding no source spells the way the user
-// typed it: the ledger keeps its ticker (and every lot stays attached to it)
-// while quotes are fetched under the pinned symbol. Empty clears the pin.
-export function setResolvedSymbol(ticker, symbol) {
-  const key = ticker.toUpperCase();
-  const value = (symbol || '').trim().toUpperCase();
-  try {
-    const map = loadSymbolMap();
-    if (value && value !== key) map[key] = value; else delete map[key];
     localStorage.setItem(SYMBOL_MAP_KEY, JSON.stringify(map));
   } catch {}
 }
@@ -431,12 +414,12 @@ async function getIsraeliQuote(rawId) {
 
 // Full quote for one ticker: { price, currency, symbol, source } or null.
 export async function getQuoteDetail(ticker) {
-  // A pinned (or previously discovered) symbol stands in for the typed ticker,
-  // and may route it to a different source family entirely — e.g. the TASE
-  // share DLAS is quoted by its security number 1196211, not by any symbol
-  // Yahoo knows. Routing therefore happens on the resolved symbol.
-  const pinned = getResolvedSymbol(ticker);
-  const lookup = pinned || ticker;
+  // A previously discovered symbol stands in for the typed ticker, and may
+  // route it to a different source family than the raw ticker would (a bare
+  // ticker resolving to a numeric TASE id, say). Routing therefore happens on
+  // the resolved symbol, not on what the user typed.
+  const cached = getResolvedSymbol(ticker);
+  const lookup = cached || ticker;
   const rawId = lookup.replace(/\.TA$/i, '');
   // Strip .TA before testing so "1150184.TA" routes to the Israeli sources too.
   const isNumericIsraeli = /^\d{6,7}$/.test(rawId);
@@ -444,8 +427,7 @@ export async function getQuoteDetail(ticker) {
   const hit = isNumericIsraeli ? await getIsraeliQuote(rawId) : await getForeignQuote(lookup);
 
   if (hit) {
-    // Never let an auto-discovered symbol overwrite one the user pinned.
-    if (!pinned) rememberSymbol(ticker, hit.symbol);
+    if (!cached) rememberSymbol(ticker, hit.symbol);
     console.log(`[QuoteFetcher] OK: ${ticker} = ${hit.price} via ${hit.source} (${hit.symbol})`);
   } else {
     console.warn(`[QuoteFetcher] no price found for ${ticker} (lookup: ${lookup})`);
