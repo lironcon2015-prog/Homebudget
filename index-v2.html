@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html class="dark" dir="rtl" lang="he">
+<head>
+<meta charset="utf-8" />
+<meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport" />
+<meta http-equiv="Cache-Control" content="no-cache, must-revalidate" />
+<title>JuniorInvest — UI v2 (Mockup)</title>
+
+<link rel="icon" type="image/png" sizes="32x32" href="./icons/favicon-32.png" />
+<link rel="icon" type="image/png" sizes="16x16" href="./icons/favicon-16.png" />
+<link rel="shortcut icon" href="./icons/favicon.ico" />
+<link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="הון ג'וניור" />
+<meta name="theme-color" content="#0F0C13" />
+
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+
+<script id="tailwind-config">
+  // Same palette as index.html so v2 stays visually consistent with the app.
+  // Only the layout language changes in this redesign, not the brand colors.
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        colors: {
+          "surface": "#151219",
+          "surface-container": "#221e26",
+          "surface-container-low": "#1e1a22",
+          "surface-container-lowest": "#100d14",
+          "surface-container-high": "#2c2830",
+          "background": "#0F0C13",
+          "primary": "#cebdff",
+          "primary-container": "#a78bfa",
+          "on-primary": "#381385",
+          "secondary": "#45dfa4",
+          "on-secondary": "#003825",
+          "tertiary": "#f9bd22",
+          "error": "#ffb4ab",
+          "outline": "#948e9d",
+          "outline-variant": "#494552",
+          "on-surface": "#e8e0eb",
+          "on-surface-variant": "#cac4d4",
+          "on-background": "#e8e0eb",
+        },
+        borderRadius: {
+          DEFAULT: "0.25rem",
+          lg: "0.5rem",
+          xl: "0.75rem",
+          "2xl": "1.25rem",
+          "3xl": "1.75rem",
+          full: "9999px",
+        },
+        fontFamily: {
+          sans: ["Hanken Grotesk", "Assistant", "sans-serif"],
+          "data-tabular": ["Hanken Grotesk", "Assistant", "sans-serif"],
+        },
+      },
+    },
+  };
+</script>
+
+<style>
+  html { color-scheme: dark; }
+  body {
+    background-color: #0F0C13;
+    color: #e8e0eb;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+    user-select: none;
+    /* Until the icon font arrives the browser lays out the ligature *text*
+       ("expand_more"), which is far wider than the glyph and wrecks every row
+       it sits in. Pinning the icon to its 1em box keeps layout stable whether
+       the font is slow, cached, or blocked outright. */
+    display: inline-block;
+    width: 1em;
+    overflow: hidden;
+    white-space: nowrap;
+    line-height: 1;
+  }
+  .material-symbols-outlined.fill { font-variation-settings: 'FILL' 1, 'wght' 400; }
+
+  /* Latin tickers and numerals must never reorder inside RTL text. */
+  bdi { unicode-bidi: isolate; }
+  .font-data-tabular { font-variant-numeric: tabular-nums; }
+
+  /* Bottom nav / FAB sit above the iOS home indicator. */
+  .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+
+  /* Accordion: animate height without measuring in JS. */
+  .accordion { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .32s cubic-bezier(.16,1,.3,1); }
+  .accordion.open { grid-template-rows: 1fr; }
+  .accordion > div { overflow: hidden; }
+
+  .chevron { transition: transform .32s cubic-bezier(.16,1,.3,1); }
+  .chevron.open { transform: rotate(180deg); }
+
+  /* Tap feedback, since there is no hover on touch. */
+  .pressable { transition: background-color .18s ease, transform .18s ease; }
+  .pressable:active { transform: scale(.985); }
+
+  ::selection { background: rgba(206, 189, 255, 0.3); color: #151219; }
+
+  /* Hide scrollbars on the horizontal chip rail. */
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+</style>
+</head>
+
+<body class="font-sans min-h-screen antialiased" dir="rtl">
+  <!-- Everything below is injected by src/ui-v2.js (mock data only). -->
+  <div id="v2-root"></div>
+
+  <script type="module">
+    // Cache-bust while iterating on the design — but only over http(s).
+    // A file:// URL treats "?v=..." as part of the filename and 404s, which
+    // would break opening this mockup by double-clicking it.
+    const bust = location.protocol.startsWith('http') ? `?v=${Date.now()}` : '';
+    import(`./src/ui-v2.js${bust}`);
+  </script>
+</body>
+</html>
