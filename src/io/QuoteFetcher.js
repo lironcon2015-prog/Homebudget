@@ -1,6 +1,24 @@
 const TIMEOUT_MS = 6000;
 const MAX_PARALLEL = 5;
 const WORKER_URL_KEY = 'juniorinvest:quoteProxy';
+const SYMBOL_MAP_KEY = 'juniorinvest:symbolMap';
+
+// Exchange suffix worth guessing when a bare symbol isn't on Yahoo as-is.
+// This app's users hold TASE + US securities; Yahoo's own search covers the
+// rest, so guessing more suffixes only costs round-trips.
+const SUFFIX_GUESSES = ['.TA'];
+
+// Discovering an unknown symbol costs several round-trips. Cap the whole
+// resolution chain for one ticker so a batch refresh can't outrun the UI's
+// 45s hard timeout. Once resolved, the symbol is cached and the next refresh
+// is a single call.
+const RESOLVE_BUDGET_MS = 20000;
+
+// Yahoo reports Tel Aviv prices in agorot under the ISO code "ILA".
+// Only codes we can represent exactly are mapped; anything else (GBp pence,
+// plain ILS, JPY…) is left undefined so the UI keeps its own inference rather
+// than silently introducing a 100x error.
+const CURRENCY_MAP = { ILA: 'ILS-Agorot', USD: 'USD', EUR: 'EUR', GBP: 'GBP' };
 
 export function getWorkerUrl() {
   try { return (localStorage.getItem(WORKER_URL_KEY) || '').trim(); }
@@ -51,12 +69,11 @@ async function proxyFetch(targetUrl) {
   return null;
 }
 
-// Single-shot diagnostic for the settings "Test Worker" button. Runs one
-// fetch through the configured worker and returns a human-readable result.
-// Routes numeric Israeli IDs to Funder, everything else to Yahoo.
+// Diagnostic for the settings "בדוק טיקר" button. Returns a human-readable
+// report: numeric Israeli IDs list every source tried, alphabetic tickers show
+// the full Yahoo symbol-resolution chain.
+// Runs even without a Worker URL — proxyFetch falls back to public proxies.
 export async function testWorker(testTicker = 'AAPL') {
-  const workerUrl = getWorkerUrl();
-  if (!workerUrl) return { ok: false, msg: 'אין URL של Worker מוגדר' };
   const isNumericIsraeli = /^\d{6,7}$/.test(testTicker);
   const t0 = Date.now();
   try {
@@ -81,17 +98,37 @@ export async function testWorker(testTicker = 'AAPL') {
       const lines = results.map((r) => `${shortUrl(r.url)}:\n` + findExpectedContexts(r.html, exp));
       return { ok: true, msg: `חיפוש "${exp}" עבור ${t} (${ms}ms):\n\n` + lines.join('\n\n') };
     }
-    const bust = '&_=' + Date.now();
-    const target = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(testTicker)}`;
-    const url = workerUrl + '/?url=' + encodeURIComponent(target) + bust;
-    const res = await fetchWithTimeout(url, 10000);
+    // Alphabetic ticker: report the whole resolution chain, so a symbol that
+    // Yahoo spells differently (DLAS -> DLAS.TA) is visible rather than just
+    // "failed".
+    const lines = [];
+    const direct = await yahooChart(testTicker);
+    lines.push(direct
+      ? `  ✓ ${testTicker} (ישיר): ${direct.price} ${direct.currency || ''}`
+      : `  ✗ ${testTicker} (ישיר): אין נתונים ב-Yahoo`);
+
+    const matches = await yahooSearch(testTicker);
+    if (matches.length) {
+      lines.push(`  חיפוש Yahoo מצא ${matches.length} התאמות:`);
+      for (const m of matches) lines.push(`    · ${m.symbol} — ${m.name} (${m.exchange})`);
+    } else {
+      lines.push('  חיפוש Yahoo: אין התאמה לסימול הזה');
+    }
+
+    const resolved = direct || await getForeignQuote(testTicker);
     const ms = Date.now() - t0;
-    const raw = await res.text();
-    if (!res.ok) return { ok: false, msg: `HTTP ${res.status} (${ms}ms): ${raw.slice(0, 200)}` };
-    let price = null;
-    try { price = JSON.parse(raw)?.chart?.result?.[0]?.meta?.regularMarketPrice; } catch {}
-    if (typeof price === 'number') return { ok: true, msg: `✓ ${testTicker}=${price} (${ms}ms)` };
-    return { ok: false, msg: `תגובה לא תקינה (${ms}ms): ${raw.slice(0, 200)}` };
+    if (resolved) {
+      const via = resolved.symbol !== testTicker.toUpperCase() ? ` (סימול בפועל: ${resolved.symbol})` : '';
+      return {
+        ok: true,
+        msg: `✓ ${testTicker}=${resolved.price}${via} מקור: ${resolved.source} (${ms}ms)\n` + lines.join('\n'),
+      };
+    }
+    return {
+      ok: false,
+      msg: `אין מחיר עבור ${testTicker} באף מקור (${ms}ms):\n` + lines.join('\n')
+        + '\n  נסה את הסימול המלא של הבורסה, למשל DLAS.TA',
+    };
   } catch (e) {
     const ms = Date.now() - t0;
     return { ok: false, msg: `${e.name} (${ms}ms): ${e.message}` };
@@ -212,31 +249,190 @@ async function fetchIsraeliCandidates(rawId) {
   return Promise.all(tasks);
 }
 
-export async function getQuote(ticker) {
-  const isNumericIsraeli = /^\d{6,7}$/.test(ticker);  // pure numeric: ETF or mutual fund
+// ---------------------------------------------------------------------------
+// Symbol resolution
+//
+// Yahoo only answers for its *own* symbol spelling: a Tel Aviv security is
+// "DLAS.TA", not "DLAS", and a listing Yahoo doesn't carry at all never
+// resolves. A ticker the user copied from Investing.com therefore silently
+// returns nothing. We resolve the typed ticker to a real Yahoo symbol once,
+// remember it, and fall back to a second data source when Yahoo has no match.
+// ---------------------------------------------------------------------------
+
+function loadSymbolMap() {
+  try { return JSON.parse(localStorage.getItem(SYMBOL_MAP_KEY) || '{}'); }
+  catch { return {}; }
+}
+
+// The Yahoo symbol previously discovered for a user-typed ticker, if any.
+export function getResolvedSymbol(ticker) {
+  return loadSymbolMap()[ticker.toUpperCase()] || '';
+}
+
+function rememberSymbol(ticker, symbol) {
+  const key = ticker.toUpperCase();
+  if (!symbol || symbol === key) return;
+  try {
+    const map = loadSymbolMap();
+    map[key] = symbol;
+    localStorage.setItem(SYMBOL_MAP_KEY, JSON.stringify(map));
+  } catch {}
+}
+
+export function clearSymbolCache() {
+  try { localStorage.removeItem(SYMBOL_MAP_KEY); } catch {}
+}
+
+// One Yahoo chart lookup. Returns { price, currency, symbol } or null.
+// Speculative candidates pass hosts=['query1'] — mirroring a guess across both
+// Yahoo hosts doubles the round-trips without improving the odds.
+async function yahooChart(symbol, hosts = ['query1', 'query2']) {
+  for (const host of hosts) {
+    const url = `https://${host}.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}`;
+    try {
+      const text = await proxyFetch(url);
+      if (!text) continue;
+      const meta = JSON.parse(text)?.chart?.result?.[0]?.meta;
+      const price = meta?.regularMarketPrice;
+      if (typeof price === 'number' && price > 0) {
+        return { price, currency: CURRENCY_MAP[meta.currency], symbol: meta.symbol || symbol };
+      }
+    } catch (e) { console.warn(`[QuoteFetcher] Yahoo chart failed ${symbol}:`, e.message); }
+  }
+  return null;
+}
+
+// Ask Yahoo's symbol lookup what "DLAS" actually is. Only candidates whose
+// base symbol (the part before the exchange suffix) equals the typed ticker
+// are accepted — a fuzzy *name* match must never end up pricing a different
+// security than the one the user holds.
+async function yahooSearch(ticker) {
+  const base = ticker.toUpperCase();
+  const url = 'https://query1.finance.yahoo.com/v1/finance/search'
+    + `?q=${encodeURIComponent(ticker)}&quotesCount=10&newsCount=0&listsCount=0`;
+  try {
+    const text = await proxyFetch(url);
+    if (!text) return [];
+    const quotes = JSON.parse(text)?.quotes || [];
+    return quotes
+      .filter((q) => q?.symbol && String(q.symbol).toUpperCase().split('.')[0] === base)
+      .map((q) => ({
+        symbol: q.symbol,
+        name: q.shortname || q.longname || '',
+        exchange: q.exchDisp || q.exchange || '',
+      }));
+  } catch (e) {
+    console.warn(`[QuoteFetcher] Yahoo search failed ${ticker}:`, e.message);
+    return [];
+  }
+}
+
+// Stooq CSV — an independent free source that covers a number of listings
+// Yahoo is missing. Format: Symbol,Date,Time,Open,High,Low,Close,Volume
+async function stooqQuote(ticker) {
+  const base = ticker.toLowerCase();
+  for (const s of [`${base}.us`, base]) {
+    try {
+      const text = await proxyFetch(`https://stooq.com/q/l/?s=${encodeURIComponent(s)}&f=sd2t2ohlcv&h&e=csv`);
+      if (!text) continue;
+      const row = text.trim().split('\n')[1];
+      if (!row) continue;
+      const close = parseFloat(row.split(',')[6]);
+      if (!isNaN(close) && close > 0) return { price: close, currency: undefined, symbol: s.toUpperCase() };
+    } catch (e) { console.warn(`[QuoteFetcher] Stooq failed ${s}:`, e.message); }
+  }
+  return null;
+}
+
+// Ordered list of Yahoo symbols to try for a typed ticker, cheapest first.
+async function yahooCandidates(ticker) {
+  const seen = new Set();
+  const out = [];
+  const push = (s) => { const u = (s || '').toUpperCase(); if (u && !seen.has(u)) { seen.add(u); out.push(s); } };
+  push(getResolvedSymbol(ticker));   // previously resolved — usually a direct hit
+  push(ticker);
+  return { known: out, push, seen };
+}
+
+// Resolve + price a non-numeric ticker. Returns { price, currency, symbol,
+// source } or null.
+async function getForeignQuote(ticker) {
+  const { known, push, seen } = await yahooCandidates(ticker);
+  const deadline = Date.now() + RESOLVE_BUDGET_MS;
+  const outOfTime = () => Date.now() > deadline;
+
+  // The literal spelling (and any symbol we resolved on a previous run) is
+  // tried first and is never skipped for budget — this is the common path.
+  for (const sym of known) {
+    const hit = await yahooChart(sym);
+    if (hit) return { ...hit, source: 'yahoo' };
+  }
+
+  // Nothing under the literal spelling — ask Yahoo which symbol this is.
+  if (!outOfTime()) {
+    const matches = await yahooSearch(ticker);
+    for (const m of matches) {
+      if (seen.has(m.symbol.toUpperCase()) || outOfTime()) continue;
+      push(m.symbol);
+      const hit = await yahooChart(m.symbol, ['query1']);
+      if (hit) {
+        console.log(`[QuoteFetcher] resolved ${ticker} -> ${hit.symbol} (${m.exchange} ${m.name})`);
+        return { ...hit, source: 'yahoo-search' };
+      }
+    }
+  }
+
+  // Search itself can come back empty behind a flaky proxy; guess the common
+  // exchange suffix directly before giving up on Yahoo.
+  for (const sfx of SUFFIX_GUESSES) {
+    const sym = ticker.toUpperCase() + sfx;
+    if (seen.has(sym) || outOfTime()) continue;
+    push(sym);
+    const hit = await yahooChart(sym, ['query1']);
+    if (hit) {
+      console.log(`[QuoteFetcher] resolved ${ticker} -> ${hit.symbol} by suffix guess`);
+      return { ...hit, source: 'yahoo-suffix' };
+    }
+  }
+
+  if (!outOfTime()) {
+    const stooq = await stooqQuote(ticker);
+    if (stooq) return { ...stooq, source: 'stooq' };
+  }
+
+  return null;
+}
+
+// Full quote for one ticker: { price, currency, symbol, source } or null.
+export async function getQuoteDetail(ticker) {
   const rawId = ticker.replace(/\.TA$/i, '');
+  // Strip .TA before testing so "1150184.TA" routes to the Israeli sources too.
+  const isNumericIsraeli = /^\d{6,7}$/.test(rawId);
 
   if (isNumericIsraeli) {
     const results = await fetchIsraeliCandidates(rawId);
     for (const { url, price } of results) {
-      if (price != null) { console.log(`[QuoteFetcher] OK: ${ticker} = ${price} via ${url}`); return price; }
+      if (price != null) {
+        console.log(`[QuoteFetcher] OK: ${ticker} = ${price} via ${url}`);
+        return { price, currency: 'ILS-Agorot', symbol: rawId, source: url };
+      }
     }
-  } else {
-    const endpoints = [
-      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}`,
-      `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}`,
-    ];
-    for (const ep of endpoints) {
-      try {
-        const text = await proxyFetch(ep);
-        if (!text) continue;
-        const data = JSON.parse(text);
-        const price = data?.chart?.result?.[0]?.meta?.regularMarketPrice;
-        if (typeof price === 'number') { console.log(`[QuoteFetcher] Yahoo OK: ${ticker} = ${price}`); return price; }
-      } catch (e) { console.warn(`[QuoteFetcher] Yahoo failed ${ticker}:`, e.message); }
-    }
+    return null;
   }
-  return null;
+
+  const hit = await getForeignQuote(ticker);
+  if (hit) {
+    rememberSymbol(ticker, hit.symbol);
+    console.log(`[QuoteFetcher] OK: ${ticker} = ${hit.price} via ${hit.source} (${hit.symbol})`);
+  } else {
+    console.warn(`[QuoteFetcher] no price found for ${ticker}`);
+  }
+  return hit;
+}
+
+export async function getQuote(ticker) {
+  const hit = await getQuoteDetail(ticker);
+  return hit ? hit.price : null;
 }
 
 // Run async tasks in parallel with a concurrency cap.
@@ -255,14 +451,16 @@ async function runWithConcurrency(items, limit, worker) {
 
 // Batch wrapper used by the UI. Runs in parallel with a concurrency cap so the
 // spinner can never hang for the sequential sum of all per-ticker timeouts.
+// Returns { [ticker]: { price, currency, symbol, source } } for the tickers
+// that resolved; missing keys mean no source had a price.
 export async function fetchQuotes(tickers, { onProgress } = {}) {
   const results = {};
   let done = 0;
   await runWithConcurrency(tickers, MAX_PARALLEL, async (ticker) => {
-    const price = await getQuote(ticker);
-    if (price != null) results[ticker] = price;
+    const hit = await getQuoteDetail(ticker);
+    if (hit) results[ticker] = hit;
     done++;
-    if (onProgress) onProgress({ done, total: tickers.length, ticker, ok: price != null });
+    if (onProgress) onProgress({ done, total: tickers.length, ticker, ok: !!hit });
   });
   return results;
 }

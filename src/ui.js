@@ -774,8 +774,9 @@ export class UI {
     const status = stickyToast(`מושך נתונים עבור ${tickers.length} טיקרים...`);
 
     // Hard cap: never let the spinner hang longer than this regardless of
-    // proxy/network state.
-    const HARD_TIMEOUT_MS = 30000;
+    // proxy/network state. Allows for a first-time symbol resolution (bounded
+    // at 20s per ticker inside QuoteFetcher) plus the surrounding round-trips.
+    const HARD_TIMEOUT_MS = 45000;
     const timeoutPromise = new Promise((_, reject) =>
       setTimeout(() => reject(new Error('timeout')), HARD_TIMEOUT_MS),
     );
@@ -794,16 +795,20 @@ export class UI {
       const failed = [];
 
       Object.keys(newPrices).forEach((t) => {
-        if (t === 'ILS=X') { this.sm.setFxRate(newPrices[t]); return; }
+        if (t === 'ILS=X') { this.sm.setFxRate(newPrices[t].price); return; }
         const q = state.quotes[t] || {};
-        const currency = q.currency || (t.endsWith('.TA') || /^\d+(\.TA)?$/.test(t) ? 'ILS-Agorot' : 'USD');
-        this.sm.upsertQuote({ ticker: t, company: q.company || t, price: newPrices[t], currency, asOf: new Date().toISOString().slice(0, 10), source: 'api' });
+        // A currency already on the quote is the user's choice and wins. Only
+        // when there is none do we take the source's, then the name heuristic.
+        const currency = q.currency
+          || newPrices[t].currency
+          || (t.endsWith('.TA') || /^\d+(\.TA)?$/.test(t) ? 'ILS-Agorot' : 'USD');
+        this.sm.upsertQuote({ ticker: t, company: q.company || t, price: newPrices[t].price, currency, asOf: new Date().toISOString().slice(0, 10), source: 'api' });
         succeeded.push(t);
       });
 
       stockTickers.forEach((t) => { if (!newPrices[t]) failed.push(t); });
 
-      const fxLine = newPrices['ILS=X'] ? ` · USD/ILS ${newPrices['ILS=X'].toFixed(3)}` : '';
+      const fxLine = newPrices['ILS=X'] ? ` · USD/ILS ${newPrices['ILS=X'].price.toFixed(3)}` : '';
       const summary = `✓ ${succeeded.length}/${stockTickers.length} עודכנו${fxLine}` +
         (failed.length ? ` | ✗ נכשלו: ${failed.join(', ')}` : '');
       status.finish(summary, succeeded.length ? 4000 : 7000);
@@ -812,7 +817,7 @@ export class UI {
     } catch (e) {
       console.error('[QuoteFetch] unexpected error:', e);
       const msg = e?.message === 'timeout'
-        ? 'התזמן עבר 30 שניות - כל הפרוקסים נכשלו. נסה שוב מאוחר יותר.'
+        ? 'הזמן עבר 45 שניות - כל הפרוקסים נכשלו. נסה שוב מאוחר יותר.'
         : 'שגיאה בעת משיכת הנתונים';
       status.finish(msg, 7000);
     } finally {

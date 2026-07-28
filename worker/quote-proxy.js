@@ -20,6 +20,9 @@ const ALLOWED_HOSTS = new Set([
   'market.tase.co.il',
   'maya.tase.co.il',
   'mayaapi.tase.co.il',
+  // Fallback quote source for listings Yahoo doesn't carry.
+  'stooq.com',
+  'www.stooq.com',
 ]);
 
 const CORS_HEADERS = {
