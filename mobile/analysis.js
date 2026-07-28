@@ -27,7 +27,7 @@ function M_renderAnalysis() {
     ${M_accordion('השוואה לשנה קודמת', `<div id="mAnYoY"></div>`)}
     ${M_accordion('דוח תזרים מזומנים', `<div id="cashFlowStatement"></div>`)}
     ${M_accordion('ספקים מובילים', `<div id="mAnVendors"></div>`)}
-    ${M_accordion('שאל את ה-AI 🤖', `
+    ${M_accordion('שאל את ה-AI', `
       <div id="chatMessages" class="m-chat-messages"></div>
       <label class="m-check" style="margin:.5rem 0"><input type="checkbox" onchange="toggleChatDeep(this)"> ניתוח מעמיק</label>
       <div class="m-chat-input-row">
@@ -143,7 +143,7 @@ function M_anVendors(periodTx) {
   el.innerHTML = rows.length === 0
     ? '<p class="m-empty-line">אין נתונים</p>'
     : rows.map((r, i) => {
-        const avatar = (typeof UK_vendorAvatar === 'function') ? UK_vendorAvatar(r.displayName, { size: 40 }) : '<div class="tx-avatar">🏷️</div>'
+        const avatar = (typeof UK_vendorAvatar === 'function') ? UK_vendorAvatar(r.displayName, { size: 40 }) : `<div class="tx-avatar">${uiIcon('tag', 18)}</div>`
         return `<div class="m-tx-row" onclick="M_anOpenVendor('v${i}')">
           ${avatar}
           <div class="m-tx-mid"><div class="m-tx-name">${escHtml(r.displayName)}</div><div class="m-tx-sub">${r.count} עסקאות</div></div>

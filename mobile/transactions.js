@@ -18,13 +18,13 @@ function M_renderTransactions() {
   host.innerHTML = `
     ${(typeof _txBackBarHTML === 'function') ? _txBackBarHTML() : ''}
     ${M_topbar('עסקאות', `
-      <button class="m-iconbtn" onclick="runAutoCategorize()" title="סווג אוטומטית">🔁</button>
-      <button class="m-iconbtn m-iconbtn-ai" onclick="runGeminiCategorize()" title="סווג עם AI">🤖</button>
+      <button class="m-iconbtn" onclick="runAutoCategorize()" title="סווג אוטומטית" aria-label="סווג אוטומטית">${uiIcon('refresh', 17)}</button>
+      <button class="m-iconbtn m-iconbtn-ai" onclick="runGeminiCategorize()" title="סווג עם AI" aria-label="סווג עם AI">${uiIcon('sparkles', 17)}</button>
     `)}
     <div id="mtxPeriod" class="m-period"></div>
 
     <div class="m-search-row">
-      <div class="m-search"><span>🔍</span>
+      <div class="m-search"><span>${uiIcon('search', 15)}</span>
         <input id="txSearch" placeholder="חיפוש ספק או תיאור…" oninput="M_txReset()">
       </div>
       <button class="m-filter-btn" id="mTxFilterBtn" onclick="M_openTxFilters()">⚙︎</button>
@@ -126,7 +126,7 @@ function M_drawTxList() {
   if (!list) return
   if (filtered.length === 0) {
     list.innerHTML = emptyStateHTML({
-      icon: '🧾', title: 'אין עסקאות להצגה',
+      icon: uiIcon('receipt', 30, 'var(--text-muted)'), title: 'אין עסקאות להצגה',
       text: 'ייבא דוח או הוסף עסקה ידנית. אם הגדרת סינון — נסה לנקות אותו.',
       actions: [{ label: 'הוסף עסקה', onclick: 'addManualTransaction()', primary: true }, { label: 'ייבוא קובץ', onclick: "navigate('import')" }],
     })
@@ -149,14 +149,14 @@ function M_txListRow(tx) {
     : ''
   // badges (installment / standing order / recurring group) — compact
   let badges = ''
-  if (tx.installmentCurrent && tx.installmentTotal) badges += `<span class="m-badge">💳 ${tx.installmentCurrent}/${tx.installmentTotal}</span>`
-  if (tx.standingOrder) badges += `<span class="m-badge">📌</span>`
+  if (tx.installmentCurrent && tx.installmentTotal) badges += `<span class="m-badge">${uiIcon('card', 11)} ${tx.installmentCurrent}/${tx.installmentTotal}</span>`
+  if (tx.standingOrder) badges += `<span class="m-badge" title="הוראת קבע">${uiIcon('pin', 11)}</span>`
   const cat = getCategoryById(tx.categoryId)
   const isNonCounted = tx.type === 'transfer' || tx.type === 'refund'
   const cls = isNonCounted ? 'm-muted' : (tx.amount > 0 ? 'pos' : 'neg')
   const name = escHtml(resolveVendor(tx.vendor, tx.amount, getTxAliasDay(tx)) || tx.description || '—')
   const sign = tx.amount > 0 ? '+' : ''
-  const avatar = (typeof UK_vendorAvatar === 'function') ? UK_vendorAvatar(tx, { size: 42 }) : `<div class="tx-avatar">📋</div>`
+  const avatar = (typeof UK_vendorAvatar === 'function') ? UK_vendorAvatar(tx, { size: 42 }) : `<div class="tx-avatar">${uiIcon('file', 18)}</div>`
   return `<div class="m-tx-row" data-id="${tx.id}" onclick="openEditModal('${tx.id}')">
     ${checkbox}${avatar}
     <div class="m-tx-mid">

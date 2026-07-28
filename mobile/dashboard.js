@@ -30,8 +30,8 @@ function M_renderDashboard() {
 
   host.innerHTML = `
     ${M_topbar('לוח בקרה', `
-      <button class="m-iconbtn" onclick="UK_togglePrivacy()" aria-label="הסתר סכומים">🙈</button>
-      <button class="m-iconbtn" onclick="navigate('settings')" aria-label="הגדרות">⚙️</button>
+      <button class="m-iconbtn" onclick="UK_togglePrivacy()" aria-label="הסתר סכומים">${uiIcon('eyeoff', 17)}</button>
+      <button class="m-iconbtn" onclick="navigate('settings')" aria-label="הגדרות">${uiIcon('gear', 17)}</button>
     `)}
     <div id="mDashPeriod" class="m-period"></div>
 
@@ -88,7 +88,7 @@ function M_dashLastImport(all) {
   if (!latest) { el.textContent = ''; return }
   const days = (typeof _daysAgoLocal === 'function') ? _daysAgoLocal(latest) : Math.floor((Date.now() - latest) / 86400000)
   const rel = days <= 0 ? 'היום' : days === 1 ? 'אתמול' : `לפני ${days} ימים`
-  el.textContent = `📥 עדכון אחרון ${rel}`
+  el.textContent = `עדכון אחרון ${rel}`
   if (file) el.title = `קובץ אחרון: ${file}`
 }
 
@@ -195,7 +195,7 @@ function M_dashRecent(all) {
   const recent = [...all].sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 8)
   if (recent.length === 0) {
     el.innerHTML = emptyStateHTML({
-      icon: '📊', title: 'נתחיל לעקוב אחר הכסף',
+      icon: uiIcon('chart', 30, 'var(--text-muted)'), title: 'נתחיל לעקוב אחר הכסף',
       text: 'ייבא דוח בנק/אשראי או הוסף עסקה ראשונה.',
       actions: [{ label: 'ייבוא קובץ', onclick: "navigate('import')", primary: true }, { label: 'הוסף עסקה', onclick: 'addManualTransaction()' }],
     })
@@ -212,7 +212,7 @@ function M_txRow(tx, opts = {}) {
   const name = escHtml(resolveVendor(tx.vendor, tx.amount, getTxAliasDay(tx)) || tx.description || '—')
   const sign = tx.amount > 0 ? '+' : ''
   const avatar = (typeof UK_vendorAvatar === 'function') ? UK_vendorAvatar(tx, { size: 40 })
-    : `<div class="tx-avatar">${cat ? (catIconHTML(cat, 18) || '📋') : '📋'}</div>`
+    : `<div class="tx-avatar">${catIconHTML(cat, 18) || uiIcon('file', 18)}</div>`
   return `<div class="m-tx-row" data-id="${tx.id}" onclick="openEditModal('${tx.id}')">
     ${avatar}
     <div class="m-tx-mid">

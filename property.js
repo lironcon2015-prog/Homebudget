@@ -12,16 +12,22 @@ const PROPERTY_TRACKS = {
 }
 
 const PROPERTY_TYPES = {
-  signing: { label: 'חתימה',     icon: '✍️' },
+  signing: { label: 'חתימה',     icon: 'ic:signature' },
   payment: { label: 'תשלום',     icon: '' },
-  tax:     { label: 'מס רכישה',  icon: '🧾' },
+  tax:     { label: 'מס רכישה',  icon: 'ic:institution' },
   other:   { label: 'אחר',       icon: '' },
 }
-// icon-or-nothing — several types render without an icon on purpose
-function _propTypeText(row) {
+// Text-only — for anything rendered through textContent (sheet titles).
+function _propTypeLabel(row) {
   const type = PROPERTY_TYPES[row.type] || PROPERTY_TYPES.other
   const num = row.type === 'payment' && row.paymentNumber ? ` #${row.paymentNumber}` : ''
-  return `${type.icon ? type.icon + ' ' : ''}${type.label}${num}`
+  return `${type.label}${num}`
+}
+// icon-or-nothing — several types render without an icon on purpose. HTML only.
+function _propTypeText(row) {
+  const type = PROPERTY_TYPES[row.type] || PROPERTY_TYPES.other
+  const ic = type.icon ? uiIcon(type.icon.slice(3), 13) + ' ' : ''
+  return `${ic}${_propTypeLabel(row)}`
 }
 
 function getProperty() {
@@ -131,11 +137,13 @@ function renderProperty() {
   const mortgageRemaining = Math.max(0, t.totalMortgage - mort.total)
   const monthsLeft = mort.recurringMonthly > 0 ? mortgageRemaining / mort.recurringMonthly : null
 
+  // Hero cards first — the numbers are what the screen is for. The setup card
+  // is a set-once form, so it sits folded near the bottom (above documents).
   container.innerHTML = `
-    ${_propSetupCard(p, cats)}
     ${_propSummaryCards(t)}
     ${_propPaymentsTable(t)}
     ${_propMortgageCard(t, mort, mortgageRemaining, monthsLeft, p)}
+    ${_propSetupCard(p, cats)}
     ${_propDocsCard()}
   `
   _syncPropDrawer()
@@ -168,6 +176,21 @@ function updatePropCost(idx, field, value) {
   }
 }
 
+// Folded by default: property details are entered once. openPropertySetup()
+// is the "I came here to edit" entry point (the total-price hero card).
+let _propSetupOpen = false
+
+function propToggleSetupCard(force) {
+  _propSetupOpen = force === undefined ? !_propSetupOpen : !!force
+  renderProperty()
+}
+
+function openPropertySetup() {
+  propToggleSetupCard(true)
+  const el = document.getElementById('propSetupCard')
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
 function _propSetupCard(p, cats) {
   const catOpts = ['<option value="">— בחר קטגוריה —</option>']
     .concat(cats.map(c => `<option value="${c.id}" ${p.mortgageCategoryId===c.id?'selected':''}>${catIconText(c)} ${escHtml(c.name)}</option>`))
@@ -181,15 +204,7 @@ function _propSetupCard(p, cats) {
     </div>
   `).join('')
 
-  return `
-    <div class="card">
-      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
-        <span>פרטי הנכס</span>
-        <div style="display:flex;gap:.5rem">
-          <input type="file" id="propXlsxInput" accept=".xlsx,.xls,.csv" style="display:none" onchange="importPropertyXlsx(this.files[0])">
-          <button class="btn-ghost" onclick="document.getElementById('propXlsxInput').click()" style="font-size:.85rem;padding:.4rem .9rem">📥 ייבוא מאקסל</button>
-        </div>
-      </div>
+  const body = !_propSetupOpen ? '' : `
       <div class="prop-setup-grid">
         <label class="form-row"><span class="form-label">שם הנכס</span>
           <input type="text" value="${escAttr(p.name||'')}" oninput="onPropertyMetaChange('name', this.value)" class="form-input"></label>
@@ -218,7 +233,23 @@ function _propSetupCard(p, cats) {
         
         <label class="form-row" style="grid-column: 1 / -1"><span class="form-label">הערות כלליות לנכס</span>
           <textarea rows="2" onchange="onPropertyMetaChange('notes', this.value)" class="form-input" placeholder="הערות לעצמך — קומה, מ״ר, חניות, מחסן…">${escHtml(p.notes||'')}</textarea></label>
+      </div>`
+
+  return `
+    <div class="card" id="propSetupCard">
+      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap">
+        <button class="propdoc-fold" onclick="propToggleSetupCard()"
+                aria-expanded="${_propSetupOpen}" aria-controls="propSetupBody"
+                title="${_propSetupOpen ? 'כווץ' : 'הצג פרטי נכס'}">
+          <span class="propdoc-chev${_propSetupOpen ? ' open' : ''}">›</span>
+          <span>פרטי הנכס</span>
+        </button>
+        <div style="display:flex;gap:.5rem">
+          <input type="file" id="propXlsxInput" accept=".xlsx,.xls,.csv" style="display:none" onchange="importPropertyXlsx(this.files[0])">
+          <button class="btn-ghost" onclick="document.getElementById('propXlsxInput').click()" style="font-size:.85rem;padding:.4rem .9rem">ייבוא מאקסל</button>
+        </div>
       </div>
+      <div id="propSetupBody">${body}</div>
     </div>`
 }
 
@@ -233,7 +264,7 @@ function _propSummaryCards(t) {
     : `<div class="prop-next-date" style="color:var(--text-muted)">אין תשלום פתוח</div>`
   return `
     <div class="prop-summary-grid">
-      <div class="prop-summary-card">
+      <div class="prop-summary-card prop-card-clickable" onclick="openPropertySetup()" title="לחץ לעדכון פרטי הנכס">
         <div class="prop-summary-label">מחיר כולל (כולל מיסים וע.נוספות)</div>
         <div class="prop-summary-val">${formatCurrency(t.totalDue)}</div>
         <div class="prop-summary-sub">מחיר חוזה בסיס: ${formatCurrency(Number(t.p.basePrice) || 0)}</div>
@@ -273,7 +304,7 @@ function _propSortedPays() {
 function _propSplitCell(eq, mo, track, mismatchGap) {
   if (eq <= 0 && mo <= 0) {
     return `<div class="prop-split-nums"><span style="color:var(--text-muted)">${mismatchGap ? '' : 'טרם שולם'}</span></div><div class="prop-bar"></div>
-      ${mismatchGap ? `<div class="prop-warn-sub">⚠ חסר פיצול הון/משכנתא</div>` : ''}`
+      ${mismatchGap ? `<div class="prop-warn-sub">${uiIcon('alert', 12)} חסר פיצול הון/משכנתא</div>` : ''}`
   }
   const sum = eq + mo
   const trackLabel = PROPERTY_TRACKS[track]?.label
@@ -281,7 +312,7 @@ function _propSplitCell(eq, mo, track, mismatchGap) {
     <div class="prop-split-nums"><span class="ps-eq">הון ${eq.toLocaleString('en-US')}</span><span class="ps-mo">משכ׳ ${mo.toLocaleString('en-US')}</span></div>
     <div class="prop-bar"><i class="pb-eq" style="width:${(eq / sum * 100).toFixed(1)}%"></i><i class="pb-mo" style="width:${(mo / sum * 100).toFixed(1)}%"></i></div>
     ${trackLabel && track ? `<div class="prop-track-sub">מסלול: ${trackLabel}</div>` : ''}
-    ${mismatchGap ? `<div class="prop-warn-sub">⚠ הון+משכנתא ≠ שולם (${mismatchGap > 0 ? 'חסר' : 'עודף'} ${Math.abs(mismatchGap).toLocaleString('en-US')})</div>` : ''}`
+    ${mismatchGap ? `<div class="prop-warn-sub">${uiIcon('alert', 12)} הון+משכנתא ≠ שולם (${mismatchGap > 0 ? 'חסר' : 'עודף'} ${Math.abs(mismatchGap).toLocaleString('en-US')})</div>` : ''}`
 }
 
 function _propPaymentsTable(t) {
@@ -320,7 +351,7 @@ function _propPaymentsTable(t) {
         </tbody>
       </table>
       <div style="font-size:.75rem;color:var(--text-muted);margin-top:.6rem">
-        💡 לחץ על שורה לעריכה. בהזנת "שולם בפועל" + "הון עצמי" — חלק המשכנתא מחושב אוטומטית.
+        לחץ על שורה לעריכה. בהזנת "שולם בפועל" + "הון עצמי" — חלק המשכנתא מחושב אוטומטית.
       </div>
     </div>`
 }
@@ -352,10 +383,10 @@ function _propRow(row) {
 
   const docCount = propDocCountForPayment(row.id)
   const docChip = docCount > 0
-    ? `<span class="prop-chip" onclick="propDocShowForPayment('${row.id}')" title="הצג ${docCount} מסמכים מקושרים">📎${docCount}</span>`
-    : `<span class="prop-chip prop-chip-dim" onclick="propDocBrowse('${row.id}')" title="צרף מסמך לתשלום זה">📎+</span>`
+    ? `<span class="prop-chip" onclick="propDocShowForPayment('${row.id}')" title="הצג ${docCount} מסמכים מקושרים">${uiIcon('paperclip', 13)}${docCount}</span>`
+    : `<span class="prop-chip prop-chip-dim" onclick="propDocBrowse('${row.id}')" title="צרף מסמך לתשלום זה">${uiIcon('paperclip', 13)}+</span>`
   const hasNote = !!row.notes && row.notes.trim() !== ''
-  const noteChip = hasNote ? `<span class="prop-chip" title="${escHtml(row.notes)}">💬</span>` : ''
+  const noteChip = hasNote ? `<span class="prop-chip" title="${escHtml(row.notes)}">${uiIcon('message', 13)}</span>` : ''
 
   return `
     <tr class="prop-rrow ${mismatch ? 'prop-row-mismatch' : ''} ${_propDrawerRowId === row.id ? 'prop-row-selected' : ''}" onclick="openPropDrawer('${row.id}')">
@@ -429,7 +460,7 @@ function _propDrawerHtml(row) {
 
   return `
     <div class="prop-drawer-head">
-      <h3>✏️ עריכת ${_propTypeText(row)}</h3>
+      <h3>עריכת ${_propTypeText(row)}</h3>
       <button class="modal-close" aria-label="סגור" onclick="closePropDrawer()">✕</button>
     </div>
     <div class="prop-fgrid">
@@ -451,7 +482,7 @@ function _propDrawerHtml(row) {
     <div class="prop-drawer-btns">
       ${hasNext ? `<button class="btn-primary" onclick="openPropDrawerNext()">שמור ופתח את הבא ↓</button>` : ''}
       <button class="btn-ghost" onclick="closePropDrawer()">${hasNext ? 'סגור' : 'שמור וסגור'}</button>
-      <button class="btn-ghost" style="color:var(--expense)" onclick="propDrawerDelete('${id}')" title="מחק שורה">🗑</button>
+      <button class="btn-ghost" style="color:var(--expense)" onclick="propDrawerDelete('${id}')" title="מחק שורה" aria-label="מחק שורה">${uiIcon('trash', 15)}</button>
     </div>`
 }
 
@@ -459,10 +490,10 @@ function _propDrawerDocsHtml(id) {
   const docs = (typeof getPropertyDocs === 'function' ? getPropertyDocs() : []).filter(d => d.linkedPaymentId === id)
   const items = docs.map(d => {
     const c = _pdCat(d.docType)
-    return `<div class="prop-drawer-doc" onclick="propDocView('${d.id}')">${c.icon} ${escHtml(_pdDisplayName(d))}${d.driveFileId ? ' <span style="opacity:.6">☁✓</span>' : ''}</div>`
+    return `<div class="prop-drawer-doc" onclick="propDocView('${d.id}')">${_pdCatIcon(c, 14)} ${escHtml(_pdDisplayName(d))}${d.driveFileId ? ` <span style="opacity:.6">${uiIcon('cloudcheck', 12)}</span>` : ''}</div>`
   }).join('')
   return `
-    <div class="prop-drawer-docs-title">📎 מסמכים מקושרים${docs.length ? ` (${docs.length})` : ''}</div>
+    <div class="prop-drawer-docs-title">מסמכים מקושרים${docs.length ? ` (${docs.length})` : ''}</div>
     ${items || '<div style="font-size:.75rem;color:var(--text-muted)">אין מסמכים מקושרים</div>'}
     <div class="prop-drawer-doc" style="color:var(--accent)" onclick="propDocBrowse('${id}')">＋ צרף מסמך</div>`
 }
@@ -493,12 +524,12 @@ function _propMortgageCard(t, mort, mortgageRemaining, monthsLeft, p) {
     : ''
   const subline = cat
     ? `מבוסס על קטגוריה: <b>${catIconHTML(cat)} ${escHtml(cat.name)}</b> + רישומים ידניים. לא כולל את תשלומי הרכישה למעלה.`
-    : 'בחר קטגוריה למעלה כדי לשלב גם החזרים אוטומטיים ממסך ההוצאות. ניתן להזין רישומים ידניים בכל מקרה.'
+    : 'בחר קטגוריה בכרטיס "פרטי הנכס" כדי לשלב גם החזרים אוטומטיים ממסך ההוצאות. ניתן להזין רישומים ידניים בכל מקרה.'
   return `
     <div class="card">
       <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
         <span>תשלומי משכנתא חודשיים (לבנק)</span>
-        <button class="btn-ghost" onclick="openMortgagePaidModal()" style="font-size:.85rem;padding:.4rem .9rem">📋 פירוט תשלומים</button>
+        <button class="btn-ghost" onclick="openMortgagePaidModal()" style="font-size:.85rem;padding:.4rem .9rem">פירוט תשלומים</button>
       </div>
       <div style="font-size:.85rem;color:var(--text-muted);margin-bottom:.75rem">${subline}</div>
       <div class="prop-summary-grid">
@@ -520,7 +551,7 @@ function _propMortgageCard(t, mort, mortgageRemaining, monthsLeft, p) {
         </div>
       </div>
       <div style="font-size:.75rem;color:var(--text-muted);margin-top:.6rem">
-        💡 "יתרת קרן" היא אומדן גס — היא לא מפרידה בין קרן לריבית. לחישוב מדויק נדרש לוח סילוקין מלא של כל מסלול.
+        "יתרת קרן" היא אומדן גס — היא לא מפרידה בין קרן לריבית. לחישוב מדויק נדרש לוח סילוקין מלא של כל מסלול.
       </div>
     </div>`
 }
@@ -619,7 +650,7 @@ function _renderMortgagePaidModal() {
           ? '<span class="prop-status prop-st-tba">ידני</span>'
           : '<span class="prop-status prop-st-paid">אוטו׳</span>'
         const delBtn = x.source === 'manual'
-          ? `<button class="btn-ghost" style="font-size:.75rem;padding:.2rem .55rem;color:var(--expense)" onclick="deleteManualMortgage('${x.id}')">🗑</button>`
+          ? `<button class="btn-ghost" style="font-size:.75rem;padding:.2rem .55rem;color:var(--expense)" onclick="deleteManualMortgage('${x.id}')" title="מחק" aria-label="מחק">${uiIcon('trash', 13)}</button>`
           : ''
         return `<tr>
           <td>${formatDate(x.date)}</td>

@@ -215,7 +215,7 @@ ${catList}
 ${uniqueVendors.map(v => `- ${v}`).join('\n')}`
 
   const btns = document.querySelectorAll('button[onclick="runGeminiCategorize()"]')
-  btns.forEach(b => { b.disabled = true; b.textContent = '🤖 מסווג עם AI...' })
+  btns.forEach(b => { b.disabled = true; b.textContent = 'מסווג עם AI...' })
 
   try {
     const body = {
@@ -262,6 +262,6 @@ ${uniqueVendors.map(v => `- ${v}`).join('\n')}`
     console.error('Gemini categorize error:', err)
     toast('שגיאה בסיווג עם AI: ' + err.message, { type: 'error', duration: 6000 })
   } finally {
-    btns.forEach(b => { b.disabled = false; b.textContent = '🤖 סווג לא־מסווגים עם AI' })
+    btns.forEach(b => { b.disabled = false; b.textContent = 'סווג לא־מסווגים עם AI' })
   }
 }

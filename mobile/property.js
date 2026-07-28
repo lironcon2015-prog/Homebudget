@@ -15,18 +15,20 @@ function M_renderProperty() {
   const mortgageRemaining = Math.max(0, t.totalMortgage - mort.total)
   const monthsLeft = mort.recurringMonthly > 0 ? mortgageRemaining / mort.recurringMonthly : null
 
+  // Same order as desktop: hero numbers, payments, mortgage, then the set-once
+  // property form (it folds itself — no M_accordion wrapper), then documents.
   host.innerHTML = `
     ${M_topbar('משכנתא ונכס')}
     ${_propSummaryCards(t)}
-    ${_propMortgageCard(t, mort, mortgageRemaining, monthsLeft, p)}
     ${M_sectionHead('תשלומים (מהקבלן/יזם)', `<button class="m-iconbtn" onclick="addPropertyPayment()" aria-label="הוסף תשלום">＋</button>`)}
     <div id="mPropPays">${
       t.pays.length === 0
         ? '<p class="m-empty-line">אין תשלומים. הוסף עם ＋</p>'
         : t.pays.slice().sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || '')).map(M_propPayCard).join('')
     }</div>
+    ${_propMortgageCard(t, mort, mortgageRemaining, monthsLeft, p)}
+    ${_propSetupCard(p, cats)}
     ${_propDocsCard()}
-    ${M_accordion('פרטי הנכס והגדרות', _propSetupCard(p, cats))}
   `
   if (typeof M_syncTabs === 'function') M_syncTabs('property')
   if (typeof M_repaintSync === 'function') M_repaintSync()
@@ -63,9 +65,9 @@ function M_propPayCard(row) {
     eq > 0 ? `<span class="m-pp-chip" style="color:#4ade80">הון ${M_fmtK(eq)}</span>` : '',
     mo > 0 ? `<span class="m-pp-chip" style="color:#60a5fa">משכ׳ ${M_fmtK(mo)}</span>` : '',
     row.track ? `<span class="m-pp-chip">${PROPERTY_TRACKS[row.track]?.label || ''}</span>` : '',
-    docCount > 0 ? `<span class="m-pp-chip" onclick="event.stopPropagation();propDocShowForPayment('${row.id}')">📎${docCount}</span>` : '',
-    row.notes ? `<span class="m-pp-chip">💬</span>` : '',
-    mismatch ? `<span class="m-pp-chip neg">⚠ הון+משכ׳ ≠ שולם</span>` : '',
+    docCount > 0 ? `<span class="m-pp-chip" onclick="event.stopPropagation();propDocShowForPayment('${row.id}')">${uiIcon('paperclip', 12)}${docCount}</span>` : '',
+    row.notes ? `<span class="m-pp-chip">${uiIcon('message', 12)}</span>` : '',
+    mismatch ? `<span class="m-pp-chip neg">${uiIcon('alert', 11)} הון+משכ׳ ≠ שולם</span>` : '',
   ].filter(Boolean).join('')
 
   return `<div class="m-prop-pay ${strip}" onclick="M_editPayment('${row.id}')">
@@ -92,7 +94,7 @@ function M_editPayment(id) {
   const docs = (typeof getPropertyDocs === 'function' ? getPropertyDocs() : []).filter(d => d.linkedPaymentId === id)
   const docRows = docs.map(d => {
     const c = _pdCat(d.docType)
-    return `<div class="m-pp-docrow" onclick="propDocView('${d.id}')">${c.icon} ${escHtml(_pdDisplayName(d))}${d.driveFileId ? ' <span style="opacity:.6">☁✓</span>' : ''}</div>`
+    return `<div class="m-pp-docrow" onclick="propDocView('${d.id}')">${_pdCatIcon(c, 14)} ${escHtml(_pdDisplayName(d))}${d.driveFileId ? ` <span style="opacity:.6">${uiIcon('cloudcheck', 12)}</span>` : ''}</div>`
   }).join('')
 
   const html = `
@@ -118,13 +120,13 @@ function M_editPayment(id) {
     <select class="m-filter-select" onchange="onPropertyRowChange('${id}','track',this.value)">${trackOpts}</select>
     <label class="m-filter-label">הערות</label>
     <input class="m-filter-select" value="${(row.notes || '').replace(/"/g, '&quot;')}" onchange="onPropertyRowChange('${id}','notes',this.value)">
-    <button class="btn-danger" style="width:100%;margin-top:1.1rem" onclick="M_delPayment('${id}')">🗑 מחק תשלום</button>
+    <button class="btn-danger" style="width:100%;margin-top:1.1rem" onclick="M_delPayment('${id}')">מחק תשלום</button>
   </div>
   <div id="mPPDocs" style="display:none">
     ${docRows || '<p class="m-empty-line">אין מסמכים מקושרים לתשלום זה</p>'}
-    <button class="btn-ghost" style="width:100%;margin-top:.8rem" onclick="if(M_propPaySheet){M_propPaySheet.close();M_propPaySheet=null};propDocBrowse('${id}')">📎 צרף מסמך / 📷 צלם שובר</button>
+    <button class="btn-ghost" style="width:100%;margin-top:.8rem" onclick="if(M_propPaySheet){M_propPaySheet.close();M_propPaySheet=null};propDocBrowse('${id}')">צרף מסמך / צלם שובר</button>
   </div>`
-  M_propPaySheet = UK_sheet({ title: `עריכת ${_propTypeText(row)}`, content: html })
+  M_propPaySheet = UK_sheet({ title: `עריכת ${_propTypeLabel(row)}`, content: html })
 }
 
 function M_ppTab(which) {

@@ -20,7 +20,7 @@ function _insInboxCard() {
   const n = INS_uncategorizedCount()
   if (!n) return ''
   return `<div class="card ins-inbox" onclick="INS_openInbox()">
-    <div class="ins-inbox-ic">🗂️</div>
+    <div class="ins-inbox-ic">${uiIcon('folder', 20)}</div>
     <div class="ins-inbox-txt"><strong>${n} עסקאות ללא קטגוריה</strong><span>סווג עכשיו לשיפור הדיוק בניתוח ובתקציב</span></div>
     <button class="btn-primary" onclick="event.stopPropagation();INS_openInbox()">סווג מהר</button>
   </div>`
@@ -31,7 +31,7 @@ let _insInboxSheet = null
 
 function INS_openInbox() {
   _insInboxQueue = getTransactions().filter(t => !t.categoryId && t.type !== 'transfer').map(t => t.id)
-  if (!_insInboxQueue.length) { if (typeof toast === 'function') toast('הכול מסווג! 🎉', { type: 'success' }); return }
+  if (!_insInboxQueue.length) { if (typeof toast === 'function') toast('הכול מסווג!', { type: 'success' }); return }
   if (typeof UK_sheet !== 'function') { navigate('transactions'); return }
   _insInboxSheet = UK_sheet({
     title: 'סיווג מהיר',
@@ -51,7 +51,7 @@ function _insInboxStep() {
     if (t && !t.categoryId) { id = c; break }
     _insInboxQueue.shift()
   }
-  if (!id) { body.innerHTML = '<div class="ins-inbox-done">🎉 סיימת! כל העסקאות סווגו.</div>'; return }
+  if (!id) { body.innerHTML = '<div class="ins-inbox-done">סיימת! כל העסקאות סווגו.</div>'; return }
   const t = getTransactions().find(x => x.id === id)
   const vn = (typeof resolveVendor === 'function' ? resolveVendor(t.vendor, t.amount, (typeof getTxAliasDay === 'function' ? getTxAliasDay(t) : undefined)) : t.vendor) || t.vendor || '—'
   const cats = getCategoriesSorted()
@@ -167,7 +167,7 @@ function _insUpcomingCard() {
   }).join('')
   return `<div class="card ins-upcoming">
     <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;gap:.5rem">
-      <span>📅 חיובים קבועים שטרם ירדו · ${formatCurrency(total)}</span>
+      <span>חיובים קבועים שטרם ירדו · ${formatCurrency(total)}</span>
       <button class="card-link" onclick="navigate('recurring')">כל הקבועות ›</button>
     </div>${rows}</div>`
 }

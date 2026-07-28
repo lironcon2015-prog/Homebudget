@@ -3,7 +3,7 @@ function renderSettings() {
   renderCategoryList()
   const key = getApiKey()
   document.getElementById('apiKeyInput').value = key
-  document.getElementById('apiKeyMsg').textContent = key ? '✅ מפתח שמור' : ''
+  document.getElementById('apiKeyMsg').textContent = key ? 'מפתח שמור' : ''
   document.getElementById('apiKeyMsg').style.color = 'var(--income)'
   loadGeminiModelsToUI()
   document.getElementById('accCount').textContent = `${getAccounts().length} חשבונות`
@@ -137,7 +137,7 @@ function renderReconcileTable() {
         ? '<span style="color:var(--income);font-weight:600">✓ תואם</span>'
         : `<span style="color:var(--expense);font-weight:600">${r.diff>0?'+':''}${formatCurrency(r.diff)}</span>`
     const indicator = (i === firstDivergent)
-      ? '<span class="type-badge type-expense" title="כאן מתחיל הפער — בדוק את העסקאות בחודש הזה">🚨 כאן הפער מתחיל</span>'
+      ? `<span class="type-badge type-expense" title="כאן מתחיל הפער — בדוק את העסקאות בחודש הזה">${uiIcon('siren', 12)} כאן הפער מתחיל</span>`
       : ''
     const bankVal = (r.bank == null) ? '' : r.bank
     // Adjust button — only when there's a real divergence to close. It posts a
@@ -147,7 +147,7 @@ function renderReconcileTable() {
     const adjustBtn = (r.diff != null && Math.abs(r.diff) > 0.005)
       ? `<button class="btn-primary" style="font-size:.78rem;padding:.3rem .6rem"
             onclick="performBalanceAdjustment('${accountId}','${r.ym}', ${r.diff})"
-            title="צור עסקת התאמה בסכום ההפרש לסוף החודש">⚖️ התאם יתרה</button>`
+            title="צור עסקת התאמה בסכום ההפרש לסוף החודש">התאם יתרה</button>`
       : ''
     return `<tr class="${cls}">
       <td style="font-weight:600">${ymDisp}</td>
@@ -630,10 +630,10 @@ function renderAccountList() {
           ? `<button class="btn-ghost" style="font-size:.75rem;padding:.3rem .7rem" onclick="editAccountPatterns('${a.id}')">דפוסי זיהוי (${(a.paymentVendorPatterns||[]).length})</button>`
           : ''
         const billingDayBtn = a.type === 'credit_card'
-          ? `<button class="btn-ghost" style="font-size:.75rem;padding:.3rem .7rem" onclick="editAccountBillingDay('${a.id}')">⚙️ יום חיוב: ${a.billingDay || 10}</button>`
+          ? `<button class="btn-ghost" style="font-size:.75rem;padding:.3rem .7rem" onclick="editAccountBillingDay('${a.id}')">יום חיוב: ${a.billingDay || 10}</button>`
           : ''
         const identCount = (a.identifiers || []).length
-        const identBtn = `<button class="btn-ghost" style="font-size:.75rem;padding:.3rem .7rem" onclick="editAccountIdentifiers('${a.id}')" title="4 ספרות אחרונות של הכרטיס / מספר חשבון – משמש לזיהוי אוטומטי של הדוח">🔑 מזהים${identCount ? ` (${identCount})` : ''}</button>`
+        const identBtn = `<button class="btn-ghost" style="font-size:.75rem;padding:.3rem .7rem" onclick="editAccountIdentifiers('${a.id}')" title="4 ספרות אחרונות של הכרטיס / מספר חשבון – משמש לזיהוי אוטומטי של הדוח">מזהים${identCount ? ` (${identCount})` : ''}</button>`
         return `
         <div class="list-item">
           <div style="flex:1">
@@ -641,11 +641,11 @@ function renderAccountList() {
             <div class="list-item-sub">${TYPE[a.type]||a.type}${a.institution?' · '+escHtml(a.institution):''}${balLine}</div>
           </div>
           <div style="display:flex;gap:.4rem;align-items:center">
-            <button class="btn-ghost" style="font-size:.75rem;padding:.3rem .7rem" onclick="editAccountBasics('${a.id}')" title="עריכת שם / מוסד / יתרת פתיחה">✏️ ערוך</button>
+            <button class="btn-ghost" style="font-size:.75rem;padding:.3rem .7rem" onclick="editAccountBasics('${a.id}')" title="עריכת שם / מוסד / יתרת פתיחה">ערוך</button>
             ${identBtn}
             ${patternsBtn}
             ${billingDayBtn}
-            <button class="list-item-del" onclick="deleteAccount('${a.id}')">🗑️</button>
+            <button class="list-item-del" onclick="deleteAccount('${a.id}')" title="מחק" aria-label="מחק">${uiIcon('trash', 15)}</button>
           </div>
         </div>`
       }).join('')
@@ -670,7 +670,7 @@ function saveCategory() {
     id:     genId(),
     name,
     type:   document.getElementById('catType').value,
-    icon:   document.getElementById('catIcon').value || '📋',
+    icon:   document.getElementById('catIcon').value || 'ic:file',
     color:  document.getElementById('catColor').value,
     system: false,
   })
@@ -717,9 +717,9 @@ function renderCategoryList() {
           <div class="cat-chip" onclick="openCatEditModal('${c.id}')" style="cursor:pointer">
             <div class="cat-chip-left">
               <span class="cat-dot" style="background:${c.color}"></span>
-              ${catIconHTML(c)} ${escHtml(c.name)}${c.isSavings ? ' <span class="cat-savings-badge" title="חיסכון חבוי">🪙</span>' : ''}${c.isSavingsReduction ? ' <span class="cat-savings-badge" title="הכנסה הונית">📉</span>' : ''}
+              ${catIconHTML(c)} ${escHtml(c.name)}${c.isSavings ? ` <span class="cat-savings-badge" title="חיסכון חבוי">${uiIcon('coins', 12)}</span>` : ''}${c.isSavingsReduction ? ` <span class="cat-savings-badge" title="הכנסה הונית">${uiIcon('trendingdown', 12)}</span>` : ''}
             </div>
-            <span class="cat-chip-edit">✏️</span>
+            <span class="cat-chip-edit">${uiIcon('pencil', 13)}</span>
           </div>`).join('')}
       </div>
     </div>`).join('')
@@ -743,7 +743,7 @@ function openCatEditModal(id) {
     <div class="modal-row" id="catEditSavingsRow" style="display:${cat.type==='expense'?'block':'none'}">
       <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer">
         <input type="checkbox" id="catEditIsSavings" ${cat.isSavings?'checked':''} style="width:auto;margin:0">
-        <span>🪙 הוצאה שהיא בעצם חיסכון</span>
+        <span>הוצאה שהיא בעצם חיסכון</span>
       </label>
       <div style="font-size:.78rem;color:var(--text-muted);margin-top:.35rem;line-height:1.5">
         עסקאות בקטגוריה זו ימשיכו להיספר כהוצאה (הכסף אכן יצא מהעו"ש),<br>
@@ -755,7 +755,7 @@ function openCatEditModal(id) {
     <div class="modal-row" id="catEditCapitalRow" style="display:${cat.type==='income'?'block':'none'}">
       <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer">
         <input type="checkbox" id="catEditIsSavingsReduction" ${cat.isSavingsReduction?'checked':''} style="width:auto;margin:0">
-        <span>📉 הכנסה הונית (שבירת חיסכון/דיבידנד/מכירת ני"ע)</span>
+        <span>הכנסה הונית (שבירת חיסכון/דיבידנד/מכירת ני"ע)</span>
       </label>
       <div style="font-size:.78rem;color:var(--text-muted);margin-top:.35rem;line-height:1.5">
         הכנסות בקטגוריה זו ימשיכו להיכלל בסך ההכנסות, אבל ינוטרלו<br>
@@ -794,7 +794,7 @@ function saveCatEdit() {
   const name = document.getElementById('catEditName').value.trim()
   if (!name) { toast('שם חובה', { type: 'error' }); return }
   cats[idx].name  = name
-  cats[idx].icon  = document.getElementById('catEditIcon').value.trim() || '📋'
+  cats[idx].icon  = document.getElementById('catEditIcon').value.trim() || 'ic:file'
   cats[idx].color = document.getElementById('catEditColor').value
   if (!cats[idx].system) cats[idx].type = document.getElementById('catEditType').value
   const isSavingsInput = document.getElementById('catEditIsSavings')
@@ -823,14 +823,14 @@ function savePrompt() {
   const val = document.getElementById('promptInput').value.trim()
   if (!val) { toast('ההנחיות לא יכולות להיות ריקות', { type: 'error' }); return }
   localStorage.setItem('geminiPrompt', val)
-  document.getElementById('promptMsg').textContent = '✅ ההנחיות נשמרו'
+  document.getElementById('promptMsg').textContent = 'ההנחיות נשמרו'
   document.getElementById('promptMsg').style.color = 'var(--income)'
 }
 async function resetPrompt() {
   if (!await confirmDialog('לאפס את ההנחיות לברירת המחדל?', { confirmText: 'אפס' })) return
   localStorage.removeItem('geminiPrompt')
   document.getElementById('promptInput').value = DEFAULT_PROMPT
-  document.getElementById('promptMsg').textContent = '✅ אופס לברירת מחדל'
+  document.getElementById('promptMsg').textContent = 'אופס לברירת מחדל'
   document.getElementById('promptMsg').style.color = 'var(--income)'
 }
 
@@ -899,7 +899,7 @@ function saveApiKey() {
   const key = document.getElementById('apiKeyInput').value.trim()
   if (!key) { toast('הזן מפתח API', { type: 'error' }); return }
   localStorage.setItem('geminiApiKey', key)
-  document.getElementById('apiKeyMsg').textContent = '✅ מפתח נשמר בהצלחה'
+  document.getElementById('apiKeyMsg').textContent = 'מפתח נשמר בהצלחה'
   document.getElementById('apiKeyMsg').style.color = 'var(--income)'
 }
 
@@ -924,7 +924,7 @@ function saveGeminiModelsFromUI() {
   if (!list.length) { toast('צריך לפחות מודל אחד', { type: 'error' }); return }
   setGeminiModels(list)
   const msg = document.getElementById('modelsMsg')
-  msg.textContent = `✅ נשמרו ${list.length} מודלים`
+  msg.textContent = `נשמרו ${list.length} מודלים`
   msg.style.color = 'var(--income)'
 }
 
@@ -933,7 +933,7 @@ async function resetGeminiModelsFromUI() {
   localStorage.removeItem('geminiModels')
   loadGeminiModelsToUI()
   const msg = document.getElementById('modelsMsg')
-  msg.textContent = '✅ אופס לברירת מחדל'
+  msg.textContent = 'אופס לברירת מחדל'
   msg.style.color = 'var(--income)'
 }
 
@@ -946,7 +946,7 @@ async function runGeminiModelsTest() {
   const list = _parseModelsInput()
   if (!list.length) { toast('הזן מודלים לבדיקה', { type: 'error' }); return }
   const out = document.getElementById('modelsTestResult')
-  out.innerHTML = `<div style="color:var(--text-muted)">⏳ בודק ${list.length} מודלים...</div>`
+  out.innerHTML = `<div style="color:var(--text-muted)">${uiIcon('clock', 13)} בודק ${list.length} מודלים...</div>`
   const btn = document.getElementById('modelsTestBtn')
   if (btn) btn.disabled = true
   try {
@@ -957,12 +957,12 @@ async function runGeminiModelsTest() {
       ${results.map(r => {
         if (r.ok) {
           return `<div style="padding:.55rem .75rem;margin-bottom:.4rem;border-radius:6px;background:rgba(46,160,67,.12);border:1px solid rgba(46,160,67,.4)">
-            <div style="font-family:monospace;font-weight:600;color:var(--income)">✅ ${_escHtml(r.model)} <span style="font-weight:400;opacity:.7">· ${r.ms}ms</span></div>
+            <div style="font-family:monospace;font-weight:600;color:var(--income)">${uiIcon('check', 13)} ${_escHtml(r.model)} <span style="font-weight:400;opacity:.7">· ${r.ms}ms</span></div>
             <div style="font-size:.8rem;margin-top:.3rem;opacity:.85">${_escHtml(r.reply) || '<i>(תגובה ריקה)</i>'}</div>
           </div>`
         }
         return `<div style="padding:.55rem .75rem;margin-bottom:.4rem;border-radius:6px;background:rgba(220,53,69,.1);border:1px solid rgba(220,53,69,.35)">
-          <div style="font-family:monospace;font-weight:600;color:var(--expense)">❌ ${_escHtml(r.model)} <span style="font-weight:400;opacity:.7">· ${r.ms}ms</span></div>
+          <div style="font-family:monospace;font-weight:600;color:var(--expense)">${uiIcon('xmark', 13)} ${_escHtml(r.model)} <span style="font-weight:400;opacity:.7">· ${r.ms}ms</span></div>
           <div style="font-size:.8rem;margin-top:.3rem;opacity:.85">${_escHtml(r.error)}</div>
         </div>`
       }).join('')}`

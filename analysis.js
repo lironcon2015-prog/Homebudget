@@ -36,11 +36,11 @@ function _drawAnalysis() {
   const showSavingsCard = hasHidden || hasCapital
 
   const cards = [
-    { label: 'סך הכנסות', value: income,   color: 'var(--income)',  icon: '📈', bg: 'var(--income-bg)' },
-    { label: 'סך הוצאות', value: expenses, color: 'var(--expense)', icon: '📉', bg: 'var(--expense-bg)' },
-    { label: 'רווח / הפסד', value: net,    color: net>=0?'var(--income)':'var(--expense)', icon: '⚖️', bg: net>=0?'var(--income-bg)':'var(--expense-bg)' },
+    { label: 'סך הכנסות', value: income,   color: 'var(--income)',  icon: uiIcon('trendingup', 18), bg: 'var(--income-bg)' },
+    { label: 'סך הוצאות', value: expenses, color: 'var(--expense)', icon: uiIcon('trendingdown', 18), bg: 'var(--expense-bg)' },
+    { label: 'רווח / הפסד', value: net,    color: net>=0?'var(--income)':'var(--expense)', icon: uiIcon('chart', 18), bg: net>=0?'var(--income-bg)':'var(--expense-bg)' },
     { label: showSavingsCard ? 'רווח/הפסד כאחוז מהכנסה' : 'אחוז חיסכון', value: pnlPct,
-      color: pnlPct>=0?'var(--income)':'var(--expense)', icon: '🎯',
+      color: pnlPct>=0?'var(--income)':'var(--expense)', icon: uiIcon('percent', 18),
       bg: pnlPct>=0?'var(--income-bg)':'var(--expense-bg)', pct: true,
       tooltip: '(הכנסות − הוצאות) / הכנסות — רווח/הפסד מתוך סך ההכנסה' },
   ]
@@ -51,7 +51,7 @@ function _drawAnalysis() {
     cards.push({
       label: 'אחוז חיסכון אמיתי',
       value: savingsPct,
-      color: savingsPct>=0?'var(--income)':'var(--expense)', icon: '🪙',
+      color: savingsPct>=0?'var(--income)':'var(--expense)', icon: uiIcon('piggy', 18),
       bg: savingsPct>=0?'var(--income-bg)':'var(--expense-bg)', pct: true,
       tooltip: 'מוסיף בחזרה הוצאות שסומנו כחיסכון ומנטרל הכנסה הונית'
     })
@@ -65,7 +65,7 @@ function _drawAnalysis() {
         label: 'קבועות חודשי שקול',
         value: rt.net,
         color: rt.net >= 0 ? 'var(--income)' : 'var(--expense)',
-        icon: '🔁',
+        icon: uiIcon('refresh', 18),
         bg: rt.net >= 0 ? 'var(--income-bg)' : 'var(--expense-bg)',
         tooltip: `${rt.count} פעולות קבועות · חודשי שקול`
       })
@@ -241,7 +241,7 @@ function _renderIncomeBreakdown(periodTx, income) {
     : incRows.map(r => `
       <div class="cat-bar-item cat-bar-clickable" onclick="goToTransactionsByCategory('${r.catId}')" title="לחץ כדי לראות עסקאות בקטגוריה זו">
         <div class="cat-bar-header">
-          <span>${escHtml(r.name)}${r.isCapital ? ' <span class="cat-capital-badge" title="הכנסה הונית — מנוכה מאחוז החיסכון האמיתי">📉</span>' : ''}</span>
+          <span>${escHtml(r.name)}${r.isCapital ? ` <span class="cat-capital-badge" title="הכנסה הונית — מנוכה מאחוז החיסכון האמיתי">${uiIcon('trendingdown', 12)}</span>` : ''}</span>
           <span style="color:var(--income);font-weight:600">${formatCurrency(r.total)}</span>
         </div>
         <div class="cat-bar-track">
@@ -448,7 +448,7 @@ function _renderTopVendors(periodTx) {
     : `<table class="data-table top-vendors-table" style="font-size:.85rem">
         <thead><tr><th>ספק</th><th>עסקאות</th><th>סה"כ</th><th style="width:2.5rem"></th></tr></thead>
         <tbody>${rows.map((r, i) => {
-          const aliased = r.rawVendors.size > 1 ? ` <span title="מאוחד מ-${r.rawVendors.size} שמות" style="font-size:.72rem;color:var(--text-muted)">🔗</span>` : ''
+          const aliased = r.rawVendors.size > 1 ? ` <span title="מאוחד מ-${r.rawVendors.size} שמות" style="font-size:.72rem;color:var(--text-muted)">${uiIcon('link', 11)}</span>` : ''
           return `<tr class="vendor-row">
             <td style="font-weight:500" onclick="openVendorDrillByIdx('v${i}')" title="לחץ כדי לראות את כל העסקאות">${escHtml(r.displayName)}${aliased}</td>
             <td onclick="openVendorDrillByIdx('v${i}')">${r.count}</td>
@@ -565,7 +565,7 @@ function _renderVendorDrill() {
   const aliasBlock = `
     <div class="vendor-alias-panel">
       <div class="vendor-alias-head">
-        🔗 איחוד שמות ספקים
+        איחוד שמות ספקים
         ${existingAlias ? '<span class="vendor-alias-tag">קיים</span>' : ''}
       </div>
       <div class="vendor-alias-sub">כל ביטוי (שורה אחת לכל אחד) שיימצא בשם הספק יוצג מעתה כ־"${escHtml(displayName)}". ההאחדה חלה מיידית על כל העסקאות הקיימות ועל כל ייבוא עתידי. ניתן להגביל את האיחוד לטווח סכומים — שימושי כשאותה מילת מפתח (למשל "העברה בנקאית") מציינת תשלומים שונים בסכומים שונים.</div>
@@ -810,7 +810,7 @@ ${accBalances.join('\n')}
 סיכום חודשי — עד ${monthsBack} חודשים אחרונים שיש בהם נתונים (effMonth = חודש חיוב אפקטיבי; חיובי אשראי משויכים לחודש שבו ירדו בעו"ש):
 ${monthlyLines.join('\n')}
 ${deep ? `\nפירוט חודשי לפי קטגוריה (הוצאות, ${monthsBack} חודשים, כיסוי מלא ללא חיתוך; analysisExpenseAmount — בלי כפל-ספירה של חיובי אשראי מרוכזים):\n${catLines.join('\n')}\n` : ''}
-${deep ? '🔬 מצב ניתוח מעמיק מופעל — נתח לעומק, כולל מגמות ארוכות טווח.\n' : ''}עסקאות ${windowDays} הימים האחרונים, ללא העברות (${recent.length} שורות; amount חיובי = הכנסה, שלילי = הוצאה, refund חיובי = החזר שמקטין הוצאות):
+${deep ? 'מצב ניתוח מעמיק מופעל — נתח לעומק, כולל מגמות ארוכות טווח.\n' : ''}עסקאות ${windowDays} הימים האחרונים, ללא העברות (${recent.length} שורות; amount חיובי = הכנסה, שלילי = הוצאה, refund חיובי = החזר שמקטין הוצאות):
 ${JSON.stringify(recent)}
 
 שאלת המשתמש: ${question}`
@@ -824,12 +824,12 @@ function _renderChat(loading = false) {
   }
   container.innerHTML = _chatMessages.map(m => `
     <div class="chat-msg ${m.role}">
-      <div class="chat-avatar">${m.role==='user'?'👤':'🤖'}</div>
+      <div class="chat-avatar">${m.role==='user'?'את/ה':'AI'}</div>
       <div class="chat-bubble">${escHtml(m.text).replace(/\n/g, '<br>')}</div>
     </div>`).join('')
   if (loading) container.innerHTML += `
     <div class="chat-msg ai">
-      <div class="chat-avatar">🤖</div>
+      <div class="chat-avatar">AI</div>
       <div class="chat-bubble"><span class="spinner" style="width:16px;height:16px;border-width:2px;display:inline-block;vertical-align:middle"></span></div>
     </div>`
   container.scrollTop = container.scrollHeight

@@ -76,6 +76,50 @@ const CAT_ICON_META = {
   calendar:    { he: 'מנוי/תאריך',  kw: 'calendar subscription מנוי',svg: '<path d="M8 2v4M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>' },
   refresh:     { he: 'העברה',       kw: 'refresh transfer העברה',    svg: '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>' },
   file:        { he: 'מסמך/אחר',    kw: 'file document other אחר',   svg: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8M16 17H8M10 9H8"/>' },
+
+  // --- UI glyphs (status, affordances, document categories) ---
+  // Same registry so `ic:<id>` resolves identically for a category icon and a
+  // status marker; they're kept out of CAT_ICON_GROUPS so the category picker
+  // grid stays a list of *categories*, not of app chrome.
+  check:       { he: 'הצלחה',       kw: 'check ok success',          svg: '<path d="M20 6 9 17l-5-5"/>' },
+  xmark:       { he: 'כשל',         kw: 'x fail error',              svg: '<path d="M18 6 6 18M6 6l12 12"/>' },
+  alert:       { he: 'אזהרה',       kw: 'alert warning אזהרה',       svg: '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/>' },
+  clock:       { he: 'בתהליך',      kw: 'clock pending wait',        svg: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>' },
+  cloud:       { he: 'ענן',         kw: 'cloud drive sync',          svg: '<path d="M17.5 19a4.5 4.5 0 0 0 .5-8.97A6 6 0 0 0 6.34 9.5 4 4 0 0 0 7 19z"/>' },
+  cloudcheck:  { he: 'מסונכרן',     kw: 'cloud synced ok',           svg: '<path d="M17.5 19a4.5 4.5 0 0 0 .5-8.97A6 6 0 0 0 6.34 9.5 4 4 0 0 0 7 19z"/><path d="m9 15 2 2 4-4"/>' },
+  clouddown:   { he: 'הורדה מהענן', kw: 'cloud download',            svg: '<path d="M17.5 19a4.5 4.5 0 0 0 .5-8.97A6 6 0 0 0 6.34 9.5 4 4 0 0 0 7 19"/><path d="M12 13v8M8.5 17.5 12 21l3.5-3.5"/>' },
+  upload:      { he: 'העלאה',       kw: 'upload להעלות',             svg: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8 12 3 7 8"/><path d="M12 3v13"/>' },
+  bug:         { he: 'באג',         kw: 'bug issue תקלה',            svg: '<path d="M8 2 9.5 4M16 2 14.5 4"/><rect width="12" height="12" x="6" y="6" rx="6"/><path d="M6 12H2M22 12h-4M6.5 8 3 6M17.5 8 21 6M6.5 16 3 18M17.5 16 21 18"/>' },
+  paperclip:   { he: 'מסמך מצורף',  kw: 'clip attachment מסמך',      svg: '<path d="M13.2 9.8 8.5 14.5a2 2 0 0 0 2.8 2.8l6.4-6.4a4 4 0 1 0-5.7-5.7l-6.4 6.4a6 6 0 0 0 8.5 8.5l4.4-4.4"/>' },
+  folder:      { he: 'תיקייה',      kw: 'folder תיקייה כללי',        svg: '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z"/>' },
+  scroll:      { he: 'מסמך משכנתא', kw: 'scroll deed mortgage',      svg: '<path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/>' },
+  signature:   { he: 'חתימה/חוזה',  kw: 'signature contract חוזה',   svg: '<path d="M3 17c3.5 0 3.5-10 7-10s3.5 10 7 10c1.5 0 2.5-1 3-2"/><path d="M2 21h20"/>' },
+  institution: { he: 'רשות/מיסים',  kw: 'institution tax מס',        svg: '<path d="M3 9h18M4 9V7l8-4 8 4v2"/><path d="M6 9v9M10 9v9M14 9v9M18 9v9"/><path d="M2 21h20"/>' },
+  pencil:      { he: 'עריכה',       kw: 'edit pencil',               svg: '<path d="M21.17 6.83a2.83 2.83 0 0 0-4-4L3.6 16.4a2 2 0 0 0-.5.86l-1.07 3.7a.5.5 0 0 0 .62.62l3.7-1.07a2 2 0 0 0 .86-.5z"/><path d="m15 5 4 4"/>' },
+  trash:       { he: 'מחיקה',       kw: 'delete trash',              svg: '<path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M10 11v6M14 11v6"/>' },
+  download:    { he: 'הורדה',       kw: 'download',                  svg: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/>' },
+  message:     { he: 'הערה',        kw: 'note comment הערה',         svg: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>' },
+  sparkles:    { he: 'AI',          kw: 'ai magic sparkles',         svg: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><path d="m5.6 5.6 2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/>' },
+  gear:        { he: 'הגדרות',      kw: 'settings gear הגדרות',      svg: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6 1.65 1.65 0 0 0 10 3.09V3a2 2 0 1 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>' },
+  link:        { he: 'קישור',       kw: 'link url',                  svg: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>' },
+  eye:         { he: 'הצגה',        kw: 'eye show view',             svg: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>' },
+  eyeoff:      { he: 'הסתרה',       kw: 'hide eye-off',              svg: '<path d="M10.7 5.1A9 9 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3 3.9M6.6 6.6A17 17 0 0 0 2 12s3.6 7 10 7a9 9 0 0 0 4.4-1.1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/><path d="m2 2 20 20"/>' },
+  pin:         { he: 'נעיצה',       kw: 'pin bookmark',              svg: '<path d="M12 17v5"/><path d="M9 10.8V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v6.8a2 2 0 0 0 .6 1.4l1.7 1.7a1 1 0 0 1-.7 1.7H6.4a1 1 0 0 1-.7-1.7l1.7-1.7a2 2 0 0 0 .6-1.4z"/>' },
+  chart:       { he: 'דוח',         kw: 'chart report export',       svg: '<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M7 16v-4M12 16V8M17 16v-6"/>' },
+  search:      { he: 'חיפוש',       kw: 'search find',               svg: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>' },
+  printer:     { he: 'הדפסה',       kw: 'print printer',             svg: '<path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v8H6z"/>' },
+  mail:        { he: 'מייל',        kw: 'mail email gmail',          svg: '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>' },
+  bot:         { he: 'AI',          kw: 'bot ai robot',              svg: '<rect width="18" height="12" x="3" y="8" rx="2"/><path d="M12 2v6M8 14h.01M16 14h.01"/><path d="M2 14h1M21 14h1"/>' },
+  key:         { he: 'מפתח',        kw: 'key token api',             svg: '<circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 8.3-8.3 3 3-2 2-2-2-2.2 2.2 2 2-2 2-2-2"/>' },
+  camera:      { he: 'מצלמה',       kw: 'camera photo screenshot',   svg: '<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3.5"/>' },
+  broom:       { he: 'ניקוי',       kw: 'clean sweep broom',         svg: '<path d="M13 11 20 4"/><path d="M14 9.5 16.5 12"/><path d="M9.5 12.5 4 18l2 2 5.5-5.5"/><path d="M11 10.5a3.5 3.5 0 0 1 4.9 4.9L11 10.5z"/>' },
+  siren:       { he: 'התראה',       kw: 'alert siren anomaly',       svg: '<path d="M7 18v-6a5 5 0 0 1 10 0v6"/><path d="M5 21h14"/><path d="M12 2v2M4.9 6.3 3.5 5M19.1 6.3 20.5 5"/>' },
+  lifebuoy:    { he: 'שחזור',       kw: 'restore recovery backup',   svg: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><path d="m4.9 4.9 4.2 4.2M14.9 14.9l4.2 4.2M14.9 9.1l4.2-4.2M4.9 19.1l4.2-4.2"/>' },
+  trendingdown:{ he: 'ירידה',       kw: 'trending down decline',     svg: '<path d="m22 17-8.5-8.5-5 5L2 7"/><path d="M16 17h6v-6"/>' },
+  flask:       { he: 'ניסוי',       kw: 'flask lab test',            svg: '<path d="M10 2v7.5L4.6 18A2 2 0 0 0 6.3 21h11.4a2 2 0 0 0 1.7-3L14 9.5V2"/><path d="M8.5 2h7M7 15h10"/>' },
+  monitor:     { he: 'מערכת',       kw: 'monitor system device',     svg: '<rect width="20" height="14" x="2" y="3" rx="2"/><path d="M8 21h8M12 17v4"/>' },
+  sun:         { he: 'בהיר',        kw: 'sun light theme',           svg: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>' },
+  moon:        { he: 'כהה',         kw: 'moon dark theme',           svg: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z"/>' },
 }
 
 // Ordered groups for the picker. Each references ids from CAT_ICON_META.
@@ -106,6 +150,16 @@ function catIconHTML(cat, size = 18) {
     if (svg) return `<span class="cat-ic" style="color:${cat.color || 'currentColor'}">${svg}</span>`
   }
   return ic ? `<span class="cat-emoji">${ic}</span>` : ''
+}
+
+// Status / affordance glyph outside the category system. The app carries no
+// emoji, so every "✅/⚠/☁" style marker goes through here; `color` is a CSS
+// colour (usually a var) and `label` becomes the accessible name.
+function uiIcon(id, size = 16, color = 'currentColor', label = '') {
+  const svg = _catIconSvg(id, size)
+  if (!svg) return ''
+  const a = label ? ` role="img" aria-label="${String(label).replace(/"/g, '&quot;')}"` : ''
+  return `<span class="ui-ic" style="color:${color}"${a}>${svg}</span>`
 }
 
 // Text-only fallback for <option> contexts (selects can't hold SVG). Legacy

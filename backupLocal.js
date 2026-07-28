@@ -163,7 +163,7 @@ async function renderLocalSnapshots() {
     el.innerHTML = '<p style="color:var(--text-muted);font-size:.85rem">גיבוי מקומי לא זמין בדפדפן זה.</p>'
     return
   }
-  if (summary) summary.textContent = `🗂 הצג רשימת גיבויים (${metas.length})`
+  if (summary) summary.textContent = `הצג רשימת גיבויים (${metas.length})`
   if (metas.length === 0) {
     el.innerHTML = '<p style="color:var(--text-muted);font-size:.85rem">אין עדיין גיבויים מקומיים — נוצרים אוטומטית אחרי כל שינוי.</p>'
     return

@@ -20,18 +20,26 @@
 // backup payload) merge after these; docs reference a category by id, so a
 // deleted custom category falls back to 'general'.
 const PROP_DOC_BUILTIN_CATS = [
-  { id: 'voucher',   label: 'שובר תשלום',         icon: '🧾', hint: 'שובר תשלום לתשלום בבנק — לרוב עם ברקוד/מסלקה' },
-  { id: 'receipt',   label: 'אישור ביצוע תשלום',  icon: '💳', hint: 'אישור/קבלה על תשלום שבוצע' },
-  { id: 'guarantee', label: 'ערבות בנקאית',       icon: '🏦', hint: 'ערבות בנקאית לפי חוק המכר שהתקבלה מהבנק המלווה של היזם' },
-  { id: 'schedule',  label: 'לוח תשלומים מעודכן', icon: '📅', hint: 'לוח/חשבון תשלומים מעודכן מהיזם, כולל הצמדות מדד' },
-  { id: 'mortgage',  label: 'מסמכי משכנתא',       icon: '📜', hint: 'הסכם הלוואה/משכנתא, לוח סילוקין, דוח יתרות' },
-  { id: 'approval',  label: 'אישור עקרוני',       icon: '✅', hint: 'אישור עקרוני למשכנתא' },
-  { id: 'contract',  label: 'חוזה רכישה',         icon: '✍️', hint: 'חוזה/הסכם רכישת הדירה' },
-  { id: 'tax',       label: 'מס רכישה',           icon: '🏛️', hint: 'שובר או אישור מס רכישה' },
-  { id: 'insurance', label: 'ביטוח',              icon: '🛡️', hint: 'ביטוח חיים/מבנה למשכנתא' },
-  { id: 'general',   label: 'מסמכים כלליים',      icon: '🗂️', hint: 'מסמך כללי שלא שייך לתשלום ספציפי' },
-  { id: 'other',     label: 'אחר',                icon: '📄', hint: 'כל דבר אחר' },
+  { id: 'voucher',   label: 'שובר תשלום',         icon: 'ic:receipt',     hint: 'שובר תשלום לתשלום בבנק — לרוב עם ברקוד/מסלקה' },
+  { id: 'receipt',   label: 'אישור ביצוע תשלום',  icon: 'ic:card',        hint: 'אישור/קבלה על תשלום שבוצע' },
+  { id: 'guarantee', label: 'ערבות בנקאית',       icon: 'ic:landmark',    hint: 'ערבות בנקאית לפי חוק המכר שהתקבלה מהבנק המלווה של היזם' },
+  { id: 'schedule',  label: 'לוח תשלומים מעודכן', icon: 'ic:calendar',    hint: 'לוח/חשבון תשלומים מעודכן מהיזם, כולל הצמדות מדד' },
+  { id: 'mortgage',  label: 'מסמכי משכנתא',       icon: 'ic:scroll',      hint: 'הסכם הלוואה/משכנתא, לוח סילוקין, דוח יתרות' },
+  { id: 'approval',  label: 'אישור עקרוני',       icon: 'ic:check',       hint: 'אישור עקרוני למשכנתא' },
+  { id: 'contract',  label: 'חוזה רכישה',         icon: 'ic:signature',   hint: 'חוזה/הסכם רכישת הדירה' },
+  { id: 'tax',       label: 'מס רכישה',           icon: 'ic:institution', hint: 'שובר או אישור מס רכישה' },
+  { id: 'insurance', label: 'ביטוח',              icon: 'ic:shield',      hint: 'ביטוח חיים/מבנה למשכנתא' },
+  { id: 'general',   label: 'מסמכים כלליים',      icon: 'ic:folder',      hint: 'מסמך כללי שלא שייך לתשלום ספציפי' },
+  { id: 'other',     label: 'אחר',                icon: 'ic:file',        hint: 'כל דבר אחר' },
 ]
+
+// Category icons are 'ic:<id>' entries in the shared icon registry (icons.js).
+// Custom categories created before the SVG switch carry a legacy emoji — they
+// fall back to the generic folder glyph rather than rendering the emoji.
+function _pdCatIcon(c, size = 16, color = 'currentColor') {
+  const raw = (c && c.icon) || ''
+  return uiIcon(raw.indexOf('ic:') === 0 ? raw.slice(3) : 'folder', size, color, (c && c.label) || '')
+}
 
 function getPropDocCustomCats() { return DB.get('finPropertyDocCats', []) }
 function savePropDocCustomCats(list) { DB.set('finPropertyDocCats', list) }
@@ -124,7 +132,7 @@ async function _pdDeleteFile(id) {
 // ===== UPLOAD PIPELINE =====
 let _pdPresetPaymentId = ''   // set when uploading from a specific payment row
 let _pdFilter = 'all'         // doc-type chip filter
-let _pdPayFilter = ''         // show only docs of one payment (row 📎 click)
+let _pdPayFilter = ''         // show only docs of one payment (row clip click)
 let _pdBusy = 0               // uploads in flight (spinner in card header)
 // The list grows without bound (years of vouchers) and sits at the bottom of a
 // screen whose real subject is the payments table, so it starts folded. The
@@ -207,7 +215,7 @@ async function propDocHandleFiles(fileList, extra = {}) {
     _pdBusy--
     _pdRerender()
   }
-  if (!apiKey && added.length) toast('להשלמת סיווג אוטומטי הזן מפתח Gemini בהגדרות. ניתן לסווג ידנית עם ✏️', { type: 'info' })
+  if (!apiKey && added.length) toast('להשלמת סיווג אוטומטי הזן מפתח Gemini בהגדרות. ניתן לסווג ידנית בכפתור העריכה', { type: 'info' })
   propDocSyncDrive()
 }
 
@@ -281,17 +289,17 @@ async function _pdClassify(meta, blob) {
   const t = _pdCat(doc.docType)
   if (doc.linkedPaymentId) {   // uploaded from a specific payment row
     const row = getPropertyPayments().find(x => x.id === doc.linkedPaymentId)
-    toast(`✨ ${t.icon} סווג: ${t.label}${row ? ` · קושר לתשלום${row.paymentNumber ? ' #' + row.paymentNumber : ''}` : ''}`, { type: 'success' })
+    toast(`סווג: ${t.label}${row ? ` · קושר לתשלום${row.paymentNumber ? ' #' + row.paymentNumber : ''}` : ''}`, { type: 'success' })
     return
   }
 
   const link = _pdMatchPayment(doc, out.paymentNumber)
   if (link.row && link.confidence >= PD_LINK_MIN_CONFIDENCE) {
     _pdSetLink(doc.id, link.row.id)
-    toast(`✨ ${t.icon} סווג: ${t.label} · קושר לתשלום${link.row.paymentNumber ? ' #' + link.row.paymentNumber : ''}`, { type: 'success' })
+    toast(`סווג: ${t.label} · קושר לתשלום${link.row.paymentNumber ? ' #' + link.row.paymentNumber : ''}`, { type: 'success' })
     return
   }
-  toast(`✨ ${t.icon} סווג: ${t.label}`, { type: 'success' })
+  toast(`סווג: ${t.label}`, { type: 'success' })
   // Below the confidence bar the app does not guess — it asks.
   if (link.rule !== 'skip') await _pdAskLink(doc.id, link)
 }
@@ -464,7 +472,7 @@ function _pdAskLink(docId, m) {
     actions.push({ label: 'דלג', onClick: () => {} })
 
     UK_sheet({
-      title: '🔗 לאן לשייך את המסמך?',
+      title: 'לאן לשייך את המסמך?',
       width: 'min(520px,95vw)',
       content: `
         <div style="display:flex;flex-direction:column;gap:.7rem">
@@ -527,8 +535,8 @@ function _propDocsCard() {
       ${docs.length ? `<button class="propdoc-chip ${_pdFilter === 'all' && !_pdPayFilter ? 'active' : ''}" onclick="propDocSetFilter('all')">הכל (${docs.length})</button>` : ''}
       ${getPropDocCats().filter(c => counts[c.id]).map(c =>
         `<button class="propdoc-chip ${_pdFilter === c.id && !_pdPayFilter ? 'active' : ''}" onclick="propDocSetFilter('${c.id}')">${c.icon} ${escHtml(c.label)} (${counts[c.id]})</button>`).join('')}
-      ${payFilterRow ? `<button class="propdoc-chip active" onclick="propDocSetFilter('all')">📎 ${_pdPaymentLabel(payFilterRow)} ✕</button>` : ''}
-      <button class="propdoc-chip" onclick="propDocManageCats()" title="ניהול קטגוריות מסמכים">⚙ קטגוריות</button>
+      ${payFilterRow ? `<button class="propdoc-chip active" onclick="propDocSetFilter('all')">${uiIcon('paperclip', 13)} ${_pdPaymentLabel(payFilterRow)} ✕</button>` : ''}
+      <button class="propdoc-chip" onclick="propDocManageCats()" title="ניהול קטגוריות מסמכים">${uiIcon('gear', 13)} קטגוריות</button>
     </div>`
 
   const items = shown.length === 0
@@ -536,7 +544,7 @@ function _propDocsCard() {
     : shown.map(_pdItemHtml).join('')
 
   const totalBytes = docs.reduce((s, d) => s + (d.size || 0), 0)
-  const busy = _pdBusy > 0 ? `<span class="propdoc-busy">⏳ מעבד ${_pdBusy} מסמכים…</span>` : ''
+  const busy = _pdBusy > 0 ? `<span class="propdoc-busy">${uiIcon('clock', 13)} מעבד ${_pdBusy} מסמכים…</span>` : ''
 
   // The hidden file input stays outside the folded region — propDocBrowse()
   // clicks it, and pasting works on the property screen whether or not the
@@ -546,7 +554,7 @@ function _propDocsCard() {
            ondragover="event.preventDefault();this.classList.add('drag')"
            ondragleave="this.classList.remove('drag')"
            ondrop="event.preventDefault();this.classList.remove('drag');propDocHandleFiles(event.dataTransfer.files)">
-        <div style="font-size:1.4rem">📤</div>
+        <div>${uiIcon('upload', 26, 'var(--text-muted)')}</div>
         <div>לחץ לבחירת קובץ, גרור לכאן, או הדבק (Ctrl+V)</div>
         <div style="font-size:.75rem;color:var(--text-muted)">תמונות ו-PDF · שוברים, ערבויות, לוחות תשלומים, מסמכי משכנתא</div>
       </div>
@@ -565,10 +573,10 @@ function _propDocsCard() {
                 aria-expanded="${_pdCardOpen}" aria-controls="propDocsBody"
                 title="${_pdCardOpen ? 'כווץ' : 'הצג מסמכים'}">
           <span class="propdoc-chev${_pdCardOpen ? ' open' : ''}">›</span>
-          <span>📎 מסמכים${docs.length ? ` (${docs.length})` : ''}</span> ${busy}
+          <span>מסמכים${docs.length ? ` (${docs.length})` : ''}</span> ${busy}
         </button>
         <span style="display:flex;gap:.5rem">
-          <button class="btn-ghost" onclick="propDocScanGmail()" style="padding:.4rem .9rem;font-size:.85rem" title="ייבוא מסמכים ממיילים מתויגים ב-Gmail">📧 סריקת מייל</button>
+          <button class="btn-ghost" onclick="propDocScanGmail()" style="padding:.4rem .9rem;font-size:.85rem" title="ייבוא מסמכים ממיילים מתויגים ב-Gmail">סריקת מייל</button>
           <button class="btn-primary" onclick="propDocBrowse()" style="padding:.4rem .9rem;font-size:.85rem">+ העלה מסמך</button>
         </span>
       </div>
@@ -582,27 +590,29 @@ function _pdItemHtml(d) {
   const linkedRow = d.linkedPaymentId ? getPropertyPayments().find(x => x.id === d.linkedPaymentId) : null
   const local = _pdHasLocal(d.id)
   const cloud = d.driveFileId
-    ? (local ? '<span title="מסונכרן ל-Drive">☁✓</span>' : '<span title="נמצא ב-Drive — יורד בלחיצה">☁⬇</span>')
-    : (local ? '<span title="ממתין לסנכרון ל-Drive">☁…</span>' : '<span title="הקובץ לא זמין במכשיר זה ולא ב-Drive" style="color:var(--expense)">⚠</span>')
+    ? (local ? `<span title="מסונכרן ל-Drive">${uiIcon('cloudcheck', 14, 'var(--income)', 'מסונכרן ל-Drive')}</span>`
+              : `<span title="נמצא ב-Drive — יורד בלחיצה">${uiIcon('clouddown', 14, 'currentColor', 'נמצא ב-Drive')}</span>`)
+    : (local ? `<span title="ממתין לסנכרון ל-Drive">${uiIcon('cloud', 14, 'var(--text-muted)', 'ממתין לסנכרון')}</span>`
+             : `<span title="הקובץ לא זמין במכשיר זה ולא ב-Drive">${uiIcon('alert', 14, 'var(--expense)', 'הקובץ לא זמין')}</span>`)
   const metaBits = [
     d.docDate ? formatDate(d.docDate) : '',
     d.amount > 0 ? formatCurrency(d.amount) : '',
-    linkedRow ? `📎 ${linkedRow.paymentNumber ? 'תשלום #' + linkedRow.paymentNumber : _pdPaymentLabel(linkedRow)}` : '',
-    d.source === 'gmail' ? '📧 ממייל' : '',
+    linkedRow ? `${uiIcon('paperclip', 12)} ${linkedRow.paymentNumber ? 'תשלום #' + linkedRow.paymentNumber : _pdPaymentLabel(linkedRow)}` : '',
+    d.source === 'gmail' ? 'ממייל' : '',
     _pdFmtSize(d.size || 0),
   ].filter(Boolean).join(' · ')
   return `
     <div class="propdoc-item" onclick="propDocView('${d.id}')">
-      <div class="propdoc-icon">${t.icon}</div>
+      <div class="propdoc-icon">${_pdCatIcon(t, 20)}</div>
       <div class="propdoc-info">
-        <div class="propdoc-name">${escHtml(_pdDisplayName(d))} ${d.ai ? '<span class="propdoc-ai" title="סווג אוטומטית ע&quot;י AI">✨</span>' : ''}</div>
+        <div class="propdoc-name">${escHtml(_pdDisplayName(d))} ${d.ai ? `<span class="propdoc-ai" title="סווג אוטומטית ע&quot;י AI">${uiIcon('sparkles', 12)}</span>` : ''}</div>
         <div class="propdoc-meta"><span class="prop-status prop-st-tba">${escHtml(t.label)}</span> ${metaBits} ${cloud}</div>
         ${d.summary ? `<div class="propdoc-meta" style="opacity:.8">${escHtml(d.summary)}</div>` : ''}
       </div>
       <div class="propdoc-actions" onclick="event.stopPropagation()">
-        <button class="btn-ghost" onclick="propDocEdit('${d.id}')" title="עריכה">✏️</button>
-        <button class="btn-ghost" onclick="propDocDownload('${d.id}')" title="הורדה">⬇</button>
-        <button class="btn-ghost" onclick="propDocDelete('${d.id}')" title="מחיקה" style="color:var(--expense)">🗑</button>
+        <button class="btn-ghost" onclick="propDocEdit('${d.id}')" title="עריכה" aria-label="עריכה">${uiIcon('pencil', 15)}</button>
+        <button class="btn-ghost" onclick="propDocDownload('${d.id}')" title="הורדה" aria-label="הורדה">${uiIcon('download', 15)}</button>
+        <button class="btn-ghost" onclick="propDocDelete('${d.id}')" title="מחיקה" aria-label="מחיקה" style="color:var(--expense)">${uiIcon('trash', 15)}</button>
       </div>
     </div>`
 }
@@ -616,7 +626,7 @@ function propDocSetFilter(k) {
 function propDocShowForPayment(paymentId) {
   _pdPayFilter = paymentId
   _pdFilter = 'all'
-  _pdCardOpen = true   // the 📎 on a payment row asks for the list, not the card
+  _pdCardOpen = true   // the clip on a payment row asks for the list, not the card
   _pdRerender()
   setTimeout(() => document.getElementById('propDocsCard')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60)
 }
@@ -656,15 +666,15 @@ async function propDocView(id) {
     : `<iframe src="${url}" style="width:100%;height:65vh;border:1px solid var(--border);border-radius:.5rem;background:#fff"></iframe>`
   const t = _pdCat(d.docType)
   UK_sheet({
-    title: `${t.icon} ${_pdDisplayName(d)}`,
+    title: _pdDisplayName(d),
     width: 'min(860px,96vw)',
     content: `
       ${d.summary ? `<div style="font-size:.85rem;color:var(--text-muted);margin-bottom:.6rem">${escHtml(d.summary)}</div>` : ''}
       ${preview}`,
     actions: [
-      { label: '⬇ הורדה', onClick: () => { propDocDownload(id); return true } },
-      { label: '🔗 פתח בכרטיסייה', onClick: () => { window.open(url, '_blank'); return true } },
-      { label: '✏️ עריכה', onClick: () => { setTimeout(() => propDocEdit(id), 50) } },
+      { label: 'הורדה', onClick: () => { propDocDownload(id); return true } },
+      { label: 'פתח בכרטיסייה', onClick: () => { window.open(url, '_blank'); return true } },
+      { label: 'עריכה', onClick: () => { setTimeout(() => propDocEdit(id), 50) } },
       { label: 'סגור', onClick: () => {} },
     ],
     onClose: () => setTimeout(() => URL.revokeObjectURL(url), 30000),
@@ -675,7 +685,7 @@ function propDocEdit(id) {
   const d = getPropertyDocs().find(x => x.id === id)
   if (!d) return
   const typeOpts = getPropDocCats()
-    .map(c => `<option value="${c.id}" ${d.docType === c.id ? 'selected' : ''}>${c.icon} ${escHtml(c.label)}</option>`).join('')
+    .map(c => `<option value="${c.id}" ${d.docType === c.id ? 'selected' : ''}>${escHtml(c.label)}</option>`).join('')
   const pays = getPropertyPayments().slice().sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''))
   const payOpts = ['<option value="">— ללא שיוך —</option>']
     .concat(pays.map(r => `<option value="${r.id}" ${d.linkedPaymentId === r.id ? 'selected' : ''}>${_pdPaymentLabel(r)}</option>`)).join('')
@@ -811,7 +821,7 @@ async function propDocSyncDrive() {
       }
     }
   } finally { _pdDriveSyncBusy = false }
-  if (uploaded) { toast(`☁ ${uploaded} מסמכים הועלו ל-Drive`, { type: 'success' }); _pdRerender() }
+  if (uploaded) { toast(`${uploaded} מסמכים הועלו ל-Drive`, { type: 'success' }); _pdRerender() }
 }
 
 // Late Drive sign-in (silent auto-connect finishes after first render) —
@@ -827,7 +837,7 @@ async function propDocAddCat() {
   const all = getPropDocCats()
   const existing = all.find(c => c.label === label)
   if (existing) return existing
-  const cat = { id: 'c' + genId(), label, icon: '📁' }
+  const cat = { id: 'c' + genId(), label, icon: 'ic:folder' }
   savePropDocCustomCats(getPropDocCustomCats().concat(cat))
   return cat
 }
@@ -839,7 +849,7 @@ async function propDocAddCatInline(selectId) {
   if (sel && !sel.querySelector(`option[value="${cat.id}"]`)) {
     const opt = document.createElement('option')
     opt.value = cat.id
-    opt.textContent = `${cat.icon} ${cat.label}`
+    opt.textContent = cat.label
     sel.appendChild(opt)
     sel.value = cat.id
   }
@@ -852,14 +862,14 @@ function propDocManageCats() {
     ? '<p style="font-size:.85rem;color:var(--text-muted);margin:.4rem 0">אין עדיין קטגוריות מותאמות אישית.</p>'
     : custom.map(c => `
       <div style="display:flex;align-items:center;gap:.5rem;padding:.35rem 0">
-        <span style="flex:1">${c.icon} ${escHtml(c.label)}</span>
-        <button class="btn-ghost" style="padding:.2rem .5rem" onclick="propDocRenameCat('${c.id}')">✏️</button>
-        <button class="btn-ghost" style="padding:.2rem .5rem;color:var(--expense)" onclick="propDocDeleteCat('${c.id}')">🗑</button>
+        <span style="flex:1;display:inline-flex;align-items:center;gap:.4rem">${_pdCatIcon(c)} ${escHtml(c.label)}</span>
+        <button class="btn-ghost" style="padding:.2rem .5rem" onclick="propDocRenameCat('${c.id}')">שנה שם</button>
+        <button class="btn-ghost" style="padding:.2rem .5rem;color:var(--expense)" onclick="propDocDeleteCat('${c.id}')">מחק</button>
       </div>`).join('')
-  const builtins = PROP_DOC_BUILTIN_CATS.map(c => `${c.icon} ${c.label}`).join(' · ')
+  const builtins = PROP_DOC_BUILTIN_CATS.map(c => c.label).join(' · ')
   if (_pdCatSheet) { _pdCatSheet.close(); _pdCatSheet = null }
   _pdCatSheet = UK_sheet({
-    title: '⚙ קטגוריות מסמכים',
+    title: 'קטגוריות מסמכים',
     content: `
       <div style="font-size:.8rem;color:var(--text-muted);margin-bottom:.6rem">קטגוריות מובנות: ${builtins}</div>
       <div style="font-weight:600;font-size:.9rem;margin:.4rem 0 .2rem">קטגוריות שלי</div>
@@ -991,7 +1001,7 @@ async function propDocScanGmail() {
   if (!label) {
     label = await promptDialog(
       'שם התווית ב-Gmail שממנה יישאבו מסמכים.\nתייג ב-Gmail את המיילים הרלוונטיים (שוברים, ערבויות, לוחות תשלומים) בתווית הזו — כל קובץ מצורף (תמונה/PDF) יימשך לאפליקציה.',
-      { defaultValue: 'HomeBudget', title: '📧 סריקת מייל — הגדרה חד-פעמית' })
+      { defaultValue: 'HomeBudget', title: 'סריקת מייל — הגדרה חד-פעמית' })
     if (!label || !label.trim()) return
     label = label.trim()
     localStorage.setItem('finGmailDocLabel', label)
@@ -1029,7 +1039,7 @@ async function propDocScanGmail() {
       seen.add(m.id)
       DB.set('finGmailDocSeen', [...seen])
     }
-    toast(imported ? `📧 יובאו ${imported} מסמכים מ-${fresh.length} מיילים` : 'לא נמצאו קבצים מתאימים (תמונות/PDF) במיילים החדשים', { type: imported ? 'success' : 'info' })
+    toast(imported ? `יובאו ${imported} מסמכים מ-${fresh.length} מיילים` : 'לא נמצאו קבצים מתאימים (תמונות/PDF) במיילים החדשים', { type: imported ? 'success' : 'info' })
   } catch (e) {
     toast('שגיאה בסריקת המייל: ' + (e.message || e), { type: 'error' })
   }

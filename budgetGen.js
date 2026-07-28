@@ -262,14 +262,14 @@ function _renderBudgetGenModal() {
       ? `<div>חודש קודם: ${formatCurrency(p.prevBudget)}</div><div>בלנד 70/30: ${formatCurrency(p.blended)}</div>`
       : ''
     const fixedLine = p.recurringFixed > 0
-      ? `<div class="bgen-fixed-tag" title="חלק זה של התקציב מקורו בהוצאות/הכנסות שזוהו כקבועות (חודשי שקול)">📌 מתוך זה ${formatCurrency(p.recurringFixed)} קבוע</div>`
+      ? `<div class="bgen-fixed-tag" title="חלק זה של התקציב מקורו בהוצאות/הכנסות שזוהו כקבועות (חודשי שקול)">${uiIcon('pin', 11)} מתוך זה ${formatCurrency(p.recurringFixed)} קבוע</div>`
       : ''
     const floorLine = p.flooredByRecurring
-      ? `<div class="bgen-floor-tag" title="הרצפה ממחזורי גבוהה מהבסיס ההיסטורי — התקציב הועלה להתאמה">📌 רצפה ממחזורי: ${formatCurrency(p.recurringFloor)}</div>`
+      ? `<div class="bgen-floor-tag" title="הרצפה ממחזורי גבוהה מהבסיס ההיסטורי — התקציב הועלה להתאמה">${uiIcon('pin', 11)} רצפה ממחזורי: ${formatCurrency(p.recurringFloor)}</div>`
       : ''
     const aiAdvice = _budgetGenAdvicePerCat[p.categoryId]
     const aiLine = aiAdvice
-      ? `<div class="bgen-ai-advice" title="המלצת AI">💡 ${escHtml(aiAdvice)}</div>`
+      ? `<div class="bgen-ai-advice" title="המלצת AI">${escHtml(aiAdvice)}</div>`
       : ''
     return `
       <tr>
@@ -315,7 +315,7 @@ function _renderBudgetGenModal() {
 
   const advice = _budgetGenAdvice ? `
     <div class="bgen-advice">
-      <strong>💡 סיכום AI כללי</strong>
+      <strong>סיכום AI כללי</strong>
       <div style="white-space:pre-wrap;margin-top:.5rem">${escHtml(_budgetGenAdvice)}</div>
     </div>` : ''
 
@@ -497,6 +497,6 @@ ${JSON.stringify(snapshot)}`
   } catch (e) {
     _budgetGenAdvice = 'שגיאה: ' + (e.message || e)
   }
-  if (btn) { btn.disabled = false; btn.textContent = '💡 ייעוץ AI' }
+  if (btn) { btn.disabled = false; btn.textContent = 'ייעוץ AI' }
   _renderBudgetGenModal()
 }

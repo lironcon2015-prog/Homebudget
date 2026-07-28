@@ -23,7 +23,7 @@ function renderDashboard() {
     const dmy = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`
     const days = (typeof _daysAgoLocal === 'function') ? _daysAgoLocal(latest) : Math.floor((Date.now() - latest) / 86400000)
     const rel = days <= 0 ? 'היום' : days === 1 ? 'אתמול' : `לפני ${days} ימים`
-    el.textContent = `📥 עדכון אחרון: ${dmy} (${rel})`
+    el.textContent = `עדכון אחרון: ${dmy} (${rel})`
     el.title = file ? `קובץ אחרון: ${file}` : ''
   })()
   const periodTx = filterByEffectivePeriod(all, period)
@@ -37,9 +37,9 @@ function renderDashboard() {
 
   // Stats row
   const cards = [
-    { label: 'הכנסות התקופה', value: income,   color: 'var(--income)',  icon: '📈', bg: 'var(--income-bg)' },
-    { label: 'הוצאות התקופה', value: expenses, color: 'var(--expense)', icon: '📉', bg: 'var(--expense-bg)' },
-    { label: 'נטו התקופה',    value: net,      color: net >= 0 ? 'var(--income)' : 'var(--expense)', icon: '⚖️', bg: net >= 0 ? 'var(--income-bg)' : 'var(--expense-bg)' },
+    { label: 'הכנסות התקופה', value: income,   color: 'var(--income)',  icon: uiIcon('trendingup', 18), bg: 'var(--income-bg)' },
+    { label: 'הוצאות התקופה', value: expenses, color: 'var(--expense)', icon: uiIcon('trendingdown', 18), bg: 'var(--expense-bg)' },
+    { label: 'נטו התקופה',    value: net,      color: net >= 0 ? 'var(--income)' : 'var(--expense)', icon: uiIcon('chart', 18), bg: net >= 0 ? 'var(--income-bg)' : 'var(--expense-bg)' },
   ]
   if (hiddenSavings > 0 || capitalIncome > 0) {
     const parts = []
@@ -49,7 +49,7 @@ function renderDashboard() {
       label: 'חיסכון חבוי נטו',
       value: netHidden,
       color: netHidden >= 0 ? 'var(--income)' : 'var(--expense)',
-      icon: '🪙',
+      icon: uiIcon('piggy', 18),
       bg: netHidden >= 0 ? 'var(--income-bg)' : 'var(--expense-bg)',
       tooltip: 'חסכונות חבויים פחות הכנסה הונית'
     })
@@ -64,7 +64,7 @@ function renderDashboard() {
         label: 'קבועות חודשי שקול',
         value: rt.net,
         color: rt.net >= 0 ? 'var(--income)' : 'var(--expense)',
-        icon: '🔁',
+        icon: uiIcon('refresh', 18),
         bg: rt.net >= 0 ? 'var(--income-bg)' : 'var(--expense-bg)',
         tooltip: `${rt.count} פעולות קבועות · חודשי שקול`
       })
@@ -162,7 +162,7 @@ function _renderNonLiquidFlows(period) {
 
   el.innerHTML = `
     <div class="card-title" style="display:flex;justify-content:space-between;align-items:baseline">
-      <span>💰 תזרים חיסכון והשקעות</span>
+      <span>תזרים חיסכון והשקעות</span>
       <span style="font-size:.85rem;font-weight:600;color:${totalNet>=0?'var(--income)':'var(--expense)'}">נטו: ${totalNet>=0?'+':''}${formatCurrency(totalNet)}</span>
     </div>
     <div class="nonliquid-flow-list">
@@ -271,7 +271,7 @@ function _renderRecentTx(all) {
   const TYPE_LABEL = { income:'הכנסה', expense:'הוצאה', transfer:'העברה', refund:'החזר' }
   document.getElementById('recentTx').innerHTML = recent.length === 0
     ? emptyStateHTML({
-        icon: '📊',
+        icon: uiIcon('chart', 30, 'var(--text-muted)'),
         title: 'נתחיל לעקוב אחר הכסף',
         text: 'ייבא דוח בנק/אשראי לסיווג אוטומטי עם AI, או הוסף עסקה ראשונה ידנית.',
         actions: [
@@ -287,7 +287,7 @@ function _renderRecentTx(all) {
         return `
         <div class="recent-tx-item">
           <div class="recent-tx-left">
-            <div class="recent-tx-icon">${cat ? (catIconHTML(cat, 18) || '📋') : '📋'}</div>
+            <div class="recent-tx-icon">${catIconHTML(cat, 18) || uiIcon('file', 18)}</div>
             <div>
               <div class="recent-tx-name">${escHtml(resolveVendor(tx.vendor, tx.amount, getTxAliasDay(tx)) || tx.description || '—')}${badge}</div>
               <div class="recent-tx-meta">${formatDate(tx.date)} · ${escHtml(cat?.name || 'לא מסווג')}</div>

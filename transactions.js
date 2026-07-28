@@ -12,7 +12,7 @@ function _richAmount(dispAmt) {
 
 // Bulk-select mode: when on, each row gets a checkbox and a toolbar lets
 // the user merge them into a manual recurring group. Tx that belong to a
-// manual group (`recurringGroupId`) STAY in the list (with a 🔗 chip) —
+// manual group (`recurringGroupId`) STAY in the list (with a link chip) —
 // they only appear merged on the recurring screen.
 let _txSelectMode = false
 let _txSelected   = new Set()
@@ -180,7 +180,7 @@ function _getFiltered() {
       if (_dropCcLump(t)) return false
       // Tx that belong to a manual recurring group STAY in the tx list (the
       // user's bank still reflects them as separate operations) — they only
-      // appear merged on the recurring screen. The row gets a 🔗 chip so it's
+      // appear merged on the recurring screen. The row gets a link chip so it's
       // visually obvious which entries are linked.
       if (type !== 'all') {
         if (type === 'uncategorized') { if (!isUncat(t)) return false }
@@ -332,7 +332,7 @@ function _drawTxTable() {
       </tr></thead>
       <tbody>
       ${page.length === 0 ? `<tr><td colspan="${colspan}">${emptyStateHTML({
-          icon: '🧾',
+          icon: uiIcon('receipt', 30, 'var(--text-muted)'),
           title: 'אין עסקאות להצגה',
           text: 'ייבא דוח או הוסף עסקה ידנית. אם הגדרת סינון — נסה לנקות אותו.',
           actions: [
@@ -364,31 +364,31 @@ function _drawTxTable() {
             ? `<div style="font-size:.72rem;color:var(--text-muted)" title="תאריך החיוב בפועל">חיוב: ${formatDate(tx.chargeDate)}</div>`
             : ''
           const recurringFlagBadge = tx.recurringFlag
-            ? `<span class="type-badge type-refund" title="מסומן כקבוע (${recurringCadenceLabel(tx.recurringFlag)})" style="margin-inline-start:.3rem">🔁 ${recurringCadenceLabel(tx.recurringFlag)}</span>`
+            ? `<span class="type-badge type-refund" title="מסומן כקבוע (${recurringCadenceLabel(tx.recurringFlag)})" style="margin-inline-start:.3rem">${uiIcon('refresh', 12)} ${recurringCadenceLabel(tx.recurringFlag)}</span>`
             : ''
           const installmentBadge = (tx.installmentCurrent && tx.installmentTotal)
             ? (() => {
                 const fm = tx.installmentFinalMonth || ''
                 const fmDisp = fm ? (fm.slice(5) + '/' + fm.slice(0,4)) : ''
                 const title = `תשלום ${tx.installmentCurrent} מתוך ${tx.installmentTotal}${fmDisp?` · חודש חיוב אחרון ${fmDisp}`:''}`
-                return `<span class="type-badge type-transfer" title="${title}" style="margin-inline-start:.3rem">💳 ${tx.installmentCurrent}/${tx.installmentTotal}</span>`
+                return `<span class="type-badge type-transfer" title="${title}" style="margin-inline-start:.3rem">${uiIcon('card', 12)} ${tx.installmentCurrent}/${tx.installmentTotal}</span>`
               })()
             : ''
           const standingOrderBadge = tx.standingOrder
-            ? `<span class="type-badge type-income" title="הוראת קבע" style="margin-inline-start:.3rem">📌 ה.ק.</span>`
+            ? `<span class="type-badge type-income" title="הוראת קבע" style="margin-inline-start:.3rem">${uiIcon('pin', 12)} ה.ק.</span>`
             : ''
           const groupBadge = tx.recurringGroupId && typeof getManualRecurringGroups === 'function'
             ? (() => {
                 const grp = getManualRecurringGroups().find(g => g.id === tx.recurringGroupId)
                 if (!grp) return ''
-                return `<span class="type-badge type-transfer" title="חלק מקבוצת קבועה: ${escAttr(grp.label)}" style="margin-inline-start:.3rem;cursor:pointer" onclick="event.stopPropagation();openRecurringDrill('mgroup:${grp.id}')">🔗 ${escHtml(grp.label)}</span>`
+                return `<span class="type-badge type-transfer" title="חלק מקבוצת קבועה: ${escAttr(grp.label)}" style="margin-inline-start:.3rem;cursor:pointer" onclick="event.stopPropagation();openRecurringDrill('mgroup:${grp.id}')">${uiIcon('link', 11)} ${escHtml(grp.label)}</span>`
               })()
             : ''
           const selectCell = _txSelectMode
             ? `<td onclick="event.stopPropagation()"><input type="checkbox" ${_txSelected.has(tx.id)?'checked':''} onclick="toggleTxSelected('${tx.id}')"></td>`
             : ''
           const avatarBg = cat ? cat.color + '22' : 'rgba(100,116,139,.15)'
-          const avatarIcon = cat ? (catIconHTML(cat, 18) || '📋') : '📋'
+          const avatarIcon = catIconHTML(cat, 18) || uiIcon('file', 18)
           const catLabel = cat
             ? `<span class="tx-vendor-cat cat-badge-clickable" onclick="event.stopPropagation();openTxCategoryPicker('${tx.id}')" title="שנה קטגוריה${tx.categorySource && typeof categorySourceLabel === 'function' && categorySourceLabel(tx.categorySource) ? ' · מקור: ' + categorySourceLabel(tx.categorySource) : ''}" style="color:${cat.color}">${catIconHTML(cat)} ${escHtml(cat.name)} ▾</span>`
             : `<span class="tx-vendor-cat cat-badge-clickable cat-badge-add" onclick="event.stopPropagation();openTxCategoryPicker('${tx.id}')" title="הוסף קטגוריה" style="color:var(--text-muted)">+ סווג</span>`
@@ -422,7 +422,7 @@ function _drawTxTable() {
             <td class="tx-cell-sec">${typeBadge}</td>
             ${balCell}
             <td class="tx-cell-sec" style="color:var(--text-muted);font-size:.8rem">${escHtml(tx.notes||'')}</td>
-            <td class="tx-cell-edit"><button class="edit-btn" onclick="openEditModal('${tx.id}')">✏️</button></td>
+            <td class="tx-cell-edit"><button class="edit-btn" onclick="openEditModal('${tx.id}')" title="ערוך" aria-label="ערוך">${uiIcon('pencil', 15)}</button></td>
           </tr>`
         }).join('')}
       </tbody>
@@ -517,16 +517,16 @@ function _renderTxSelectToolbar(_filteredCount) {
   if (!el) return
   if (!_txSelectMode) {
     el.innerHTML = `
-      <button class="btn-ghost" onclick="toggleTxSelectMode()" style="font-size:.85rem">📦 בחר לקיבוץ</button>`
+      <button class="btn-ghost" onclick="toggleTxSelectMode()" style="font-size:.85rem">בחר לקיבוץ</button>`
     return
   }
   const n = _txSelected.size
   el.innerHTML = `
     <button class="btn-ghost" onclick="toggleTxSelectMode()" style="font-size:.85rem">בטל בחירה</button>
     <span style="color:var(--text-muted);font-size:.85rem">${n} נבחרו</span>
-    <button class="btn-ghost" ${n<1?'disabled':''} onclick="bulkRecategorize()" style="font-size:.85rem">🏷️ סווג</button>
-    <button class="btn-ghost" ${n<1?'disabled':''} onclick="bulkExportCsv()" style="font-size:.85rem">⬇️ CSV</button>
-    <button class="btn-danger" ${n<1?'disabled':''} onclick="bulkDelete()" style="font-size:.85rem">🗑️ מחק</button>
+    <button class="btn-ghost" ${n<1?'disabled':''} onclick="bulkRecategorize()" style="font-size:.85rem">סווג</button>
+    <button class="btn-ghost" ${n<1?'disabled':''} onclick="bulkExportCsv()" style="font-size:.85rem">CSV</button>
+    <button class="btn-danger" ${n<1?'disabled':''} onclick="bulkDelete()" style="font-size:.85rem">מחק</button>
     <button class="btn-primary" ${n<2?'disabled':''} onclick="openMergeRecurringModal()" style="font-size:.85rem">אחד לקבועה</button>`
 }
 
@@ -684,9 +684,9 @@ function _openTxSwipeActions(id) {
   UK_sheet({
     title: 'פעולות',
     actions: [
-      { label: '✏️ ערוך', onClick: () => { openEditModal(id) } },
-      { label: '🏷️ סווג', onClick: () => { openTxCategoryPicker(id) } },
-      { label: '🗑️ מחק', className: 'btn-danger', onClick: () => { _deleteTxById(id) } },
+      { label: 'ערוך', onClick: () => { openEditModal(id) } },
+      { label: 'סווג', onClick: () => { openTxCategoryPicker(id) } },
+      { label: 'מחק', className: 'btn-danger', onClick: () => { _deleteTxById(id) } },
     ],
   })
 }
@@ -714,7 +714,7 @@ function openMergeRecurringModal() {
 
   document.getElementById('mergeRecurringBody').innerHTML = `
     <div class="modal-row" style="font-size:.85rem;color:var(--text-muted)">
-      ${ids.length} עסקאות · סך ${formatCurrency(sumAmount)} ${allSameSign?'':'<span style="color:var(--expense)">⚠ סימני סכום מעורבים</span>'}
+      ${ids.length} עסקאות · סך ${formatCurrency(sumAmount)} ${allSameSign?'':`<span style="color:var(--expense)">${uiIcon('alert', 12)} סימני סכום מעורבים</span>`}
     </div>
     <div class="modal-row">
       <label class="form-label">תווית הקבוצה</label>
@@ -729,7 +729,7 @@ function openMergeRecurringModal() {
       </select>
     </div>
     <div class="modal-row" style="font-size:.78rem;color:var(--text-muted)">
-      העסקאות יישארו במסך העסקאות עם חיווי קישור (🔗) ויוצגו במסך הקבועות כפעולה אחת מאוחדת.
+      העסקאות יישארו במסך העסקאות עם חיווי קישור ויוצגו במסך הקבועות כפעולה אחת מאוחדת.
       כל עסקה קיימת או עתידית מאותם ספקים תצורף אוטומטית לקבוצה — אין צורך לאחד שוב בכל חודש.
     </div>`
   document.getElementById('mergeRecurringModal').classList.add('open')

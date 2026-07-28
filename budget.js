@@ -18,12 +18,12 @@
 
 const UNFORESEEN_ID = '__unforeseen__'
 const UNFORESEEN_NAME = 'בלת״ם'
-const UNFORESEEN_ICON = '🎲'
+const UNFORESEEN_ICON = 'ic:file'
 const UNFORESEEN_COLOR = '#a78bfa'
 
 const OTHER_INCOME_ID = '__other_income__'
 const OTHER_INCOME_NAME = 'הכנסות אחרות'
-const OTHER_INCOME_ICON = '💵'
+const OTHER_INCOME_ICON = 'ic:banknote'
 const OTHER_INCOME_COLOR = '#22d3ee'
 
 const CARRYOVER_INCOME_ID  = '__carryover_income__'
@@ -149,10 +149,10 @@ function _budgetCategoryProxy(catId) {
     return { id: OTHER_INCOME_ID, name: OTHER_INCOME_NAME, icon: OTHER_INCOME_ICON, color: OTHER_INCOME_COLOR, type: 'income', _virtual: true }
   }
   if (catId === CARRYOVER_INCOME_ID) {
-    return { id: CARRYOVER_INCOME_ID, name: 'יתרה מחודש קודם', icon: '💰', color: '#22c55e', type: 'income', _virtual: true }
+    return { id: CARRYOVER_INCOME_ID, name: 'יתרה מחודש קודם', icon: 'ic:piggy', color: '#22c55e', type: 'income', _virtual: true }
   }
   if (catId === CARRYOVER_EXPENSE_ID) {
-    return { id: CARRYOVER_EXPENSE_ID, name: 'גירעון מחודש קודם', icon: '📊', color: '#f97316', type: 'expense', _virtual: true }
+    return { id: CARRYOVER_EXPENSE_ID, name: 'גירעון מחודש קודם', icon: 'ic:chart', color: '#f97316', type: 'expense', _virtual: true }
   }
   return getCategoryById(catId)
 }
@@ -303,7 +303,7 @@ function renderBudgetCard(containerId, monthKey) {
   const el = document.getElementById(containerId)
   if (!el) return
   const { rows, expBudget, expActual, incBudget, incActual } = computeBudgetTotals(monthKey)
-  const openBtn = `<button class="btn-ghost" onclick="openBudgetScreenAtMonth('${monthKey}')">🔍 הרחב למסך תקציב ↗</button>`
+  const openBtn = `<button class="btn-ghost" onclick="openBudgetScreenAtMonth('${monthKey}')">הרחב למסך תקציב ↗</button>`
   // Synthetic residual rows always exist; treat the card as empty unless
   // the user set something OR there are uncovered actuals worth showing.
   const hasContent = rows.some(r => !r._synthetic || r.actual > 0)
@@ -323,7 +323,7 @@ function renderBudgetCard(containerId, monthKey) {
   const incCls = incPct >= 100 ? 'budget-ok' : incPct >= 70 ? 'budget-warn' : 'budget-danger'
   const incRow = !hasInc ? '' : `
     <div class="budget-agg-row ${incCls}">
-      <div class="budget-agg-head"><span>📈 הכנסות צפויות</span>
+      <div class="budget-agg-head"><span>הכנסות צפויות</span>
         <span class="budget-agg-nums">${formatCurrency(incActual)} / ${formatCurrency(incBudget)}</span></div>
       <div class="budget-agg-bar-track"><div class="budget-agg-bar-fill" style="width:${incW}%"></div></div>
       <div class="budget-agg-foot"><span>${incPct.toFixed(0)}%</span>
@@ -332,7 +332,7 @@ function renderBudgetCard(containerId, monthKey) {
   el.innerHTML = `
     <div class="budget-agg-grid">
       <div class="budget-agg-row ${expCls}">
-        <div class="budget-agg-head"><span>📉 הוצאות</span>
+        <div class="budget-agg-head"><span>הוצאות</span>
           <span class="budget-agg-nums">${formatCurrency(expActual)} / ${formatCurrency(expBudget)}</span></div>
         <div class="budget-agg-bar-track"><div class="budget-agg-bar-fill" style="width:${expW}%"></div></div>
         <div class="budget-agg-foot"><span>${expPct.toFixed(0)}%</span>
@@ -417,16 +417,16 @@ function renderBudgetScreen() {
 
   const actions = isPast ? '' : `
     <div class="budget-actions">
-      <button class="btn-primary" onclick="openBudgetGenModalForMonth('${monthKey}')">✨ הצע תקציב ל${_budgetFormatMonth(monthKey)}</button>
-      <button class="btn-ghost" onclick="copyBudgetFromPrevMonth()">📋 העתק מחודש קודם</button>
-      <button class="btn-ghost" onclick="importCarryoverFromPrevMonth()">💰 ייבא יתרת חודש קודם</button>
-      <button class="btn-ghost" onclick="clearBudgetForMonth()">🗑️ נקה חודש זה</button>
+      <button class="btn-primary" onclick="openBudgetGenModalForMonth('${monthKey}')">הצע תקציב ל${_budgetFormatMonth(monthKey)}</button>
+      <button class="btn-ghost" onclick="copyBudgetFromPrevMonth()">העתק מחודש קודם</button>
+      <button class="btn-ghost" onclick="importCarryoverFromPrevMonth()">ייבא יתרת חודש קודם</button>
+      <button class="btn-ghost" onclick="clearBudgetForMonth()">נקה חודש זה</button>
     </div>`
 
   const filterBar = `
     <div class="budget-filterbar">
-      <button class="btn-ghost" onclick="openBudgetUnder('${monthKey}')">💤 טרם מומשו</button>
-      <button class="btn-ghost" onclick="openBudgetOver('${monthKey}')">🚨 חריגות תקציב</button>
+      <button class="btn-ghost" onclick="openBudgetUnder('${monthKey}')">טרם מומשו</button>
+      <button class="btn-ghost" onclick="openBudgetOver('${monthKey}')">חריגות תקציב</button>
     </div>`
 
   container.innerHTML = monthNav + summary + filterBar + actions + _renderBudgetScreenTable(monthKey, isPast)
@@ -469,7 +469,7 @@ function _openBudgetFilterSheet(monthKey, mode) {
         const good = mode === 'under' ? !isInc : isInc
         const cls = good ? 'income-color' : 'expense-color'
         return `<button class="bf-row" onclick="_budgetFilterGo('${r.categoryId}','${monthKey}')">
-          <span class="bf-cat">${catIconHTML(r.cat) || '📋'} ${escHtml(r.cat.name)}${isInc ? ' <span class="bf-badge">הכנסה</span>' : ''}</span>
+          <span class="bf-cat">${catIconHTML(r.cat) || uiIcon('file', 16)} ${escHtml(r.cat.name)}${isInc ? ' <span class="bf-badge">הכנסה</span>' : ''}</span>
           <div class="bf-side">
             <span class="bf-nums"><span class="${cls}">${formatCurrency(r.actual)}</span> / ${formatCurrency(r.budget)}</span>
             <span class="bf-sub ${cls}">${Math.round(r.pct)}% · ${sub}</span>
@@ -528,7 +528,7 @@ function _renderBudgetScreenTable(monthKey, readOnly) {
     const linkTitle = noClick ? '' : (residual ? residualTitle : 'ערוך אילו עסקאות נכללות בשורה זו')
     return `
       <div class="budget-screen-row ${residualRowCls} ${cls}">
-        <span ${catAttrs}${linkTitle ? ` title="${linkTitle}"` : ''}>${catIconHTML(c) || '📋'} ${escHtml(c.name)}${tag}</span>
+        <span ${catAttrs}${linkTitle ? ` title="${linkTitle}"` : ''}>${catIconHTML(c) || uiIcon('file', 16)} ${escHtml(c.name)}${tag}</span>
         <span class="budget-screen-actual-wrap"${onClick ? ` onclick="${onClick}" style="cursor:pointer"` : ''}>${actualCell}</span>
         ${input}
         <div class="budget-screen-bar-track"><div class="budget-screen-bar-fill" style="width:${pct}%"></div></div>
@@ -710,7 +710,7 @@ function _renderBudgetRowModal() {
   if (!body || !state) return
   const { catId, monthKey, type } = state
   const cat = _budgetCategoryProxy(catId)
-  const catLabel = cat ? `${catIconText(cat) || '📋'} ${cat.name}` : 'קטגוריה'
+  const catLabel = cat ? `${catIconText(cat)} ${cat.name}`.trim() : 'קטגוריה'
   if (title) title.textContent = `${catLabel} – ${_budgetFormatMonth(monthKey)}`
 
   const rows = computeBudgetRowTxs(catId, monthKey, type, { includeExcluded: true })
@@ -735,7 +735,7 @@ function _renderBudgetRowModal() {
 
   const lines = rows.map(({ tx, amount }) => {
     const c = tx.categoryId ? getCategoryById(tx.categoryId) : null
-    const catLbl = c ? `${catIconHTML(c) || '📋'} ${escHtml(c.name)}` : '<span style="color:var(--text-muted)">ללא קטגוריה</span>'
+    const catLbl = c ? `${catIconHTML(c) || uiIcon('file', 16)} ${escHtml(c.name)}` : '<span style="color:var(--text-muted)">ללא קטגוריה</span>'
     const vendor = (typeof resolveVendor === 'function')
       ? (resolveVendor(tx.vendor, tx.amount, typeof getTxAliasDay === 'function' ? getTxAliasDay(tx) : null) || tx.vendor || '')
       : (tx.vendor || '')
@@ -757,7 +757,7 @@ function _renderBudgetRowModal() {
   // V2 hero: category tile + month + actual-vs-budget at a glance.
   const heroBudget = getBudgetsForMonth(monthKey).find(b => b.categoryId === catId && (b.type || 'expense') === type)
   const heroHtml = (typeof v2ModalHero === 'function') ? v2ModalHero({
-    icon: cat ? (catIconHTML(cat, 20) || '📋') : '📋',
+    icon: catIconHTML(cat, 20) || uiIcon('file', 20),
     tileBg: cat && cat.color ? cat.color + '22' : 'rgba(79,139,255,.13)',
     name: escHtml(cat ? cat.name : 'קטגוריה'),
     meta: `${_budgetFormatMonth(monthKey)} · ${rows.length} עסקאות${excludedCount ? ` · ${excludedCount} מוחרגות` : ''}`,

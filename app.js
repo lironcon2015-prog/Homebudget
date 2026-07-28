@@ -1,4 +1,4 @@
-const APP_VERSION = '1.43.0'
+const APP_VERSION = '1.44.0'
 
 // ===== STORAGE =====
 // Hot keys are cached as parsed objects: getTransactions() etc. used to
@@ -149,26 +149,26 @@ function closeMobileMenu() {
 
 // ===== DEFAULT DATA =====
 const DEFAULT_CATEGORIES = [
-  { id: 'cat_food',      name: 'מזון וסופרמרקט',  type: 'expense', color: '#ef4444', icon: '🛒', system: true },
-  { id: 'cat_rest',      name: 'מסעדות ובתי קפה',  type: 'expense', color: '#f97316', icon: '🍽️', system: true },
-  { id: 'cat_transport', name: 'תחבורה',            type: 'expense', color: '#eab308', icon: '🚗', system: true },
-  { id: 'cat_fuel',      name: 'דלק',               type: 'expense', color: '#84cc16', icon: '⛽', system: true },
-  { id: 'cat_rent',      name: 'דיור ושכירות',      type: 'expense', color: '#06b6d4', icon: '🏠', system: true },
-  { id: 'cat_bills',     name: 'חשבונות וחשמל',    type: 'expense', color: '#3b82f6', icon: '💡', system: true },
-  { id: 'cat_health',    name: 'בריאות ורפואה',     type: 'expense', color: '#a855f7', icon: '🏥', system: true },
-  { id: 'cat_clothing',  name: 'ביגוד והנעלה',      type: 'expense', color: '#ec4899', icon: '👕', system: true },
-  { id: 'cat_leisure',   name: 'בידור ופנאי',       type: 'expense', color: '#14b8a6', icon: '🎮', system: true },
-  { id: 'cat_insurance', name: 'ביטוח',              type: 'expense', color: '#6366f1', icon: '🛡️', system: true },
-  { id: 'cat_bank',      name: 'עמלות בנק',         type: 'expense', color: '#64748b', icon: '🏦', system: true },
-  { id: 'cat_online',    name: 'קניות אונליין',     type: 'expense', color: '#0ea5e9', icon: '📦', system: true },
-  { id: 'cat_invest_out', name: 'חסכונות והשקעות',   type: 'expense', color: '#0ea5e9', icon: '💰', system: true, isSavings: true },
-  { id: 'cat_other_exp', name: 'אחר – הוצאה',       type: 'expense', color: '#9ca3af', icon: '📋', system: true },
-  { id: 'cat_salary',    name: 'משכורת',             type: 'income',  color: '#22c55e', icon: '💼', system: true },
-  { id: 'cat_extra',     name: 'הכנסה נוספת',       type: 'income',  color: '#10b981', icon: '💰', system: true },
-  { id: 'cat_taxback',   name: 'החזר מס',            type: 'income',  color: '#34d399', icon: '📑', system: true },
-  { id: 'cat_invest',    name: 'ריבית והשקעות',     type: 'income',  color: '#6ee7b7', icon: '📈', system: true },
-  { id: 'cat_other_inc', name: 'אחר – הכנסה',       type: 'income',  color: '#a7f3d0', icon: '📋', system: true },
-  { id: 'cat_transfer',  name: 'העברה',              type: 'transfer',color: '#94a3b8', icon: '🔄', system: true },
+  { id: 'cat_food',      name: 'מזון וסופרמרקט',  type: 'expense', color: '#ef4444', icon: 'ic:cart', system: true },
+  { id: 'cat_rest',      name: 'מסעדות ובתי קפה',  type: 'expense', color: '#f97316', icon: 'ic:utensils', system: true },
+  { id: 'cat_transport', name: 'תחבורה',            type: 'expense', color: '#eab308', icon: 'ic:car', system: true },
+  { id: 'cat_fuel',      name: 'דלק',               type: 'expense', color: '#84cc16', icon: 'ic:fuel', system: true },
+  { id: 'cat_rent',      name: 'דיור ושכירות',      type: 'expense', color: '#06b6d4', icon: 'ic:home', system: true },
+  { id: 'cat_bills',     name: 'חשבונות וחשמל',    type: 'expense', color: '#3b82f6', icon: 'ic:lightbulb', system: true },
+  { id: 'cat_health',    name: 'בריאות ורפואה',     type: 'expense', color: '#a855f7', icon: 'ic:hospital', system: true },
+  { id: 'cat_clothing',  name: 'ביגוד והנעלה',      type: 'expense', color: '#ec4899', icon: 'ic:shirt', system: true },
+  { id: 'cat_leisure',   name: 'בידור ופנאי',       type: 'expense', color: '#14b8a6', icon: 'ic:gamepad', system: true },
+  { id: 'cat_insurance', name: 'ביטוח',              type: 'expense', color: '#6366f1', icon: 'ic:shield', system: true },
+  { id: 'cat_bank',      name: 'עמלות בנק',         type: 'expense', color: '#64748b', icon: 'ic:landmark', system: true },
+  { id: 'cat_online',    name: 'קניות אונליין',     type: 'expense', color: '#0ea5e9', icon: 'ic:package', system: true },
+  { id: 'cat_invest_out', name: 'חסכונות והשקעות',   type: 'expense', color: '#0ea5e9', icon: 'ic:piggy', system: true, isSavings: true },
+  { id: 'cat_other_exp', name: 'אחר – הוצאה',       type: 'expense', color: '#9ca3af', icon: 'ic:file', system: true },
+  { id: 'cat_salary',    name: 'משכורת',             type: 'income',  color: '#22c55e', icon: 'ic:briefcase', system: true },
+  { id: 'cat_extra',     name: 'הכנסה נוספת',       type: 'income',  color: '#10b981', icon: 'ic:banknote', system: true },
+  { id: 'cat_taxback',   name: 'החזר מס',            type: 'income',  color: '#34d399', icon: 'ic:receipt', system: true },
+  { id: 'cat_invest',    name: 'ריבית והשקעות',     type: 'income',  color: '#6ee7b7', icon: 'ic:trendingup', system: true },
+  { id: 'cat_other_inc', name: 'אחר – הכנסה',       type: 'income',  color: '#a7f3d0', icon: 'ic:file', system: true },
+  { id: 'cat_transfer',  name: 'העברה',              type: 'transfer',color: '#94a3b8', icon: 'ic:refresh', system: true },
 ]
 
 function initDefaultData() {
@@ -454,10 +454,10 @@ function openEditModal(id) {
     else {
       const hCat = tx.categoryId ? getCategoryById(tx.categoryId) : null
       const srcLbl = tx.categorySource && typeof categorySourceLabel === 'function' ? categorySourceLabel(tx.categorySource) : ''
-      const metaBits = [formatDate(tx.date), accs.find(a => a.id === tx.accountId)?.name, srcLbl ? srcLbl + ' ✨' : '']
+      const metaBits = [formatDate(tx.date), accs.find(a => a.id === tx.accountId)?.name, srcLbl || '']
         .filter(Boolean).map(escHtml).join(' · ')
       heroEl.innerHTML = (typeof v2ModalHero === 'function') ? v2ModalHero({
-        icon: hCat ? (catIconHTML(hCat, 20) || '📋') : '📋',
+        icon: catIconHTML(hCat, 20) || uiIcon('file', 20),
         tileBg: hCat ? hCat.color + '22' : 'rgba(79,139,255,.13)',
         name: escHtml(resolveVendor(tx.vendor, tx.amount, getTxAliasDay(tx)) || tx.vendor || '—'),
         meta: metaBits,
@@ -495,7 +495,7 @@ function openEditModal(id) {
       const grp = (typeof getManualRecurringGroups === 'function') ? getManualRecurringGroups().find(g => g.id === tx.recurringGroupId) : null
       const label = grp?.label || 'קבוצה ידנית'
       return `<div class="modal-row" style="background:var(--bg-elevated);padding:.6rem .8rem;border-radius:8px;font-size:.85rem">
-        🔗 חלק מקבוצת קבועה: <strong>${escHtml(label)}</strong>
+        חלק מקבוצת קבועה: <strong>${escHtml(label)}</strong>
         <div style="font-size:.72rem;color:var(--text-muted);margin-top:.3rem">הקבוצה אחראית על ה-cadence והאיחוד במסך הקבועות. כדי להוציא את העסקה — פרק את הקבוצה במסך הקבועות.</div>
         <input type="hidden" id="editRecurringFlag" value="${tx.recurringFlag || ''}">
       </div>`

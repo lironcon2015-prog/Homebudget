@@ -1839,6 +1839,15 @@ select option { background-color: #141417; color: var(--text-primary); }
 .cat-ic { display: inline-flex; align-items: center; justify-content: center; vertical-align: -0.16em; }
 .cat-ic svg { display: block; }
 .cat-emoji { display: inline-flex; align-items: center; }
+/* Status / affordance glyphs (uiIcon). Same optical alignment as .cat-ic so a
+   marker sits on the text baseline wherever it is inlined. */
+.ui-ic { display: inline-flex; align-items: center; justify-content: center; vertical-align: -0.16em; }
+.ui-ic svg { display: block; }
+/* Severity is colour + size, not a pictograph. */
+.sev-dot { display: inline-block; width: .6rem; height: .6rem; border-radius: 50%; background: currentColor; vertical-align: middle; }
+.sev-high { color: var(--expense); }
+.sev-med { color: #f59e0b; }
+.sev-low { color: var(--text-muted); }
 
 /* ===== ICON PICKER ===== */
 .icon-picker { border: 1px solid var(--border); border-radius: 10px; padding: .6rem .7rem; background: var(--bg-surface); }

@@ -255,9 +255,9 @@ let _UK_fabSheet = null
 function UK_openFab() {
   UK_haptic('tap')
   const html = `<div class="fab-actions">
-    <button class="fab-action" onclick="_UK_fabAct('tx')"><span class="fab-action-ic">➕</span> עסקה חדשה</button>
-    <button class="fab-action" onclick="_UK_fabAct('import')"><span class="fab-action-ic">📥</span> ייבוא דוח</button>
-    <button class="fab-action" onclick="_UK_fabAct('privacy')"><span class="fab-action-ic">🙈</span> ${UK_isPrivacy() ? 'הצג סכומים' : 'הסתר סכומים'}</button>
+    <button class="fab-action" onclick="_UK_fabAct('tx')"><span class="fab-action-ic">+</span> עסקה חדשה</button>
+    <button class="fab-action" onclick="_UK_fabAct('import')"><span class="fab-action-ic">${uiIcon('download', 15)}</span> ייבוא דוח</button>
+    <button class="fab-action" onclick="_UK_fabAct('privacy')"><span class="fab-action-ic">${uiIcon(UK_isPrivacy() ? 'eye' : 'eyeoff', 15)}</span> ${UK_isPrivacy() ? 'הצג סכומים' : 'הסתר סכומים'}</button>
   </div>`
   _UK_fabSheet = UK_sheet({ title: 'פעולה מהירה', content: html })
 }
@@ -317,7 +317,7 @@ function UK_vendorAvatar(arg, opts = {}) {
     name = String(arg || '')
   }
   if (cat) {
-    const icon = (typeof catIconHTML === 'function' ? catIconHTML(cat, Math.round(size * 0.5)) : '') || '📋'
+    const icon = (typeof catIconHTML === 'function' ? catIconHTML(cat, Math.round(size * 0.5)) : '') || uiIcon('file', Math.round(size * 0.5))
     return `<div class="tx-avatar uk-avatar" style="width:${size}px;height:${size}px;background:${cat.color}22">${icon}</div>`
   }
   const color = _UK_hashColor(name)

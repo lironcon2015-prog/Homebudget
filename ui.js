@@ -89,7 +89,7 @@ function confirmDialog(message, opts = {}) {
 
     const ico = document.createElement('div')
     ico.className = 'confirm2-ico' + (danger ? ' confirm2-ico-danger' : '')
-    ico.textContent = icon || (danger ? '🗑' : '❔')
+    ico.innerHTML = icon || uiIcon(danger ? 'trash' : 'alert', 24)
     box.appendChild(ico)
 
     const h3 = document.createElement('h3')
@@ -143,7 +143,7 @@ function confirmDialog(message, opts = {}) {
 // ===== V2 MODAL HERO =====
 // Shared header band for drill/edit modals: icon tile · name + meta · big
 // number. Pass amountHtml pre-formatted (formatCurrency output is HTML).
-function v2ModalHero({ icon = '📋', tileBg = 'rgba(79,139,255,.13)', name = '', meta = '', amountHtml = '', amountCls = '' }) {
+function v2ModalHero({ icon = uiIcon('file', 20), tileBg = 'rgba(79,139,255,.13)', name = '', meta = '', amountHtml = '', amountCls = '' }) {
   return `
     <div class="mhero2">
       <div class="mhero2-tile" style="background:${tileBg}">${icon}</div>
@@ -293,7 +293,7 @@ function clearInvalid(input) {
 
 // ===== EMPTY STATE =====
 // Guided empty/first-run placeholder with optional CTA buttons.
-//   emptyStateHTML({ icon:'📥', title:'אין עסקאות', text:'...', actions:[
+//   emptyStateHTML({ icon: uiIcon('download', 30), title:'אין עסקאות', text:'...', actions:[
 //     { label:'ייבוא קובץ', onclick:"navigate('import')", primary:true } ]})
 function emptyStateHTML({ icon = '', title = '', text = '', actions = [] } = {}) {
   const btns = actions.map(a =>

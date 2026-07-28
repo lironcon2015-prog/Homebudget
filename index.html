@@ -25,9 +25,9 @@
     } catch (e) {}
   })();
   </script>
-  <link rel="stylesheet" href="style.css?v=1.43.0">
-  <link rel="stylesheet" href="mobile.css?v=1.43.0">
-  <script src="mobile/mobile-detect.js?v=1.43.0"></script>
+  <link rel="stylesheet" href="style.css?v=1.44.0">
+  <link rel="stylesheet" href="mobile.css?v=1.44.0">
+  <script src="mobile/mobile-detect.js?v=1.44.0"></script>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
@@ -176,8 +176,8 @@
     <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.75rem">
       <h1 class="page-title">עסקאות</h1>
       <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-        <button class="btn-ghost" onclick="runAutoCategorize()">🔁 סווג אוטומטית</button>
-        <button class="btn-ghost" onclick="runGeminiCategorize()">🤖 סווג לא־מסווגים עם AI</button>
+        <button class="btn-ghost" onclick="runAutoCategorize()">סווג אוטומטית</button>
+        <button class="btn-ghost" onclick="runGeminiCategorize()">סווג לא־מסווגים עם AI</button>
         <button class="btn-primary" onclick="addManualTransaction()">+ עסקה חדשה</button>
       </div>
     </div>
@@ -213,8 +213,8 @@
           <input id="txAmountMax" type="number" step="0.01" min="0" placeholder="ללא" oninput="_onTxAdvChange()">
         </div>
         <div class="tx-adv-group tx-adv-checks">
-          <label class="tx-adv-check"><input type="checkbox" id="txInstallmentFilter" onchange="_onTxAdvChange()"> 💳 רק עסקאות תשלומים</label>
-          <label class="tx-adv-check"><input type="checkbox" id="txStandingOrderFilter" onchange="_onTxAdvChange()"> 📌 רק הוראות קבע</label>
+          <label class="tx-adv-check"><input type="checkbox" id="txInstallmentFilter" onchange="_onTxAdvChange()"> רק עסקאות תשלומים</label>
+          <label class="tx-adv-check"><input type="checkbox" id="txStandingOrderFilter" onchange="_onTxAdvChange()"> רק הוראות קבע</label>
         </div>
         <div class="tx-adv-actions">
           <button type="button" class="btn-ghost" onclick="clearTxAdvFilters()">נקה סינונים נוספים</button>
@@ -251,7 +251,7 @@
       </div>
 
       <div id="importStepKnown" style="display:none;text-align:center;padding:2.5rem">
-        <div style="font-size:2.5rem;margin-bottom:.75rem">📄</div>
+        <div style="margin-bottom:.75rem;color:var(--text-muted)"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:inline-block"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8M16 17H8M10 9H8"/></svg></div>
         <div style="font-weight:600;margin-bottom:.5rem" id="importKnownMsg"></div>
         <div style="color:var(--text-muted);font-size:.85rem">אפשר להשוות שוב — עסקאות שכבר קיימות לא ייובאו פעמיים.</div>
         <div style="display:flex;gap:.75rem;justify-content:center;margin-top:1.25rem">
@@ -289,7 +289,7 @@
       </div>
 
       <div id="importStep4" style="display:none;text-align:center;padding:2.5rem">
-        <div style="font-size:2.5rem;margin-bottom:.75rem">✅</div>
+        <div style="margin-bottom:.75rem;color:var(--income)"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:inline-block"><circle cx="12" cy="12" r="10"/><path d="m8 12 3 3 5-6"/></svg></div>
         <div style="font-weight:700;font-size:1.1rem" id="importDoneMsg"></div>
         <div style="display:flex;gap:.75rem;justify-content:center;margin-top:1.25rem">
           <button class="btn-ghost" onclick="resetImport()">ייבוא נוסף</button>
@@ -298,7 +298,7 @@
       </div>
 
       <div id="importStepError" style="display:none;text-align:center;padding:2.5rem">
-        <div style="font-size:2.5rem;margin-bottom:.75rem">❌</div>
+        <div style="margin-bottom:.75rem;color:var(--expense)"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:inline-block"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/></svg></div>
         <div style="font-weight:600;margin-bottom:.5rem">שגיאה בניתוח הקובץ</div>
         <div style="color:var(--expense);font-size:.85rem" id="importErrMsg"></div>
         <button class="btn-ghost" style="margin-top:1rem" onclick="resetImport()">נסה שוב</button>
@@ -313,8 +313,8 @@
       <span class="page-subtitle" id="analysisPeriodLabel"></span>
     </div>
     <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem">
-      <button class="btn-ghost" onclick="exportExcel()" title="ייצוא נתוני התקופה ל-Excel">📊 Excel</button>
-      <button class="btn-ghost" onclick="printReport()" title="דוח להדפסה / שמירה כ-PDF">🖨️ דוח</button>
+      <button class="btn-ghost" onclick="exportExcel()" title="ייצוא נתוני התקופה ל-Excel">Excel</button>
+      <button class="btn-ghost" onclick="printReport()" title="דוח להדפסה / שמירה כ-PDF">דוח</button>
     </div>
     <div id="analysisPeriodSelector"></div>
     <div class="stat-grid" id="pnlStats"></div>
@@ -356,7 +356,7 @@
     </div>
 
     <div class="card" style="margin-top:1.25rem">
-      <div class="card-title">🤖 יועץ AI</div>
+      <div class="card-title">יועץ AI</div>
       <div class="chat-messages" id="chatMessages">
         <div class="chat-empty">שאל שאלה על הנתונים הפיננסיים שלך<br><small>לדוגמה: "מה הקטגוריה היקרה ביותר?"</small></div>
       </div>
@@ -366,7 +366,7 @@
       </div>
       <label class="chat-deep-toggle" style="display:flex;align-items:center;gap:.4rem;margin-top:.5rem;font-size:.8rem;color:var(--text-muted);cursor:pointer">
         <input type="checkbox" id="chatDeepMode" onchange="toggleChatDeep(this)" style="cursor:pointer">
-        🔬 ניתוח מעמיק (טווח ארוך יותר — צורך יותר טוקנים)
+        ניתוח מעמיק (טווח ארוך יותר — צורך יותר טוקנים)
       </label>
     </div>
   </section>
@@ -408,8 +408,8 @@
       <h1 class="page-title">הגדרות</h1>
       <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
         <span id="appVersion" style="font-size:.75rem;color:var(--text-muted)"></span>
-        <button class="btn-ghost" id="updateCheckBtn" onclick="checkForUpdate()" style="padding:.35rem .75rem;font-size:.8rem">🔄 בדוק עדכון</button>
-        <button class="btn-ghost" onclick="forceResetAppCache()" style="padding:.35rem .75rem;font-size:.8rem" title="נקה את מטמון השירות (Service Worker + caches) וטען מחדש. שימושי כשהעדכון תקוע במובייל.">🧹 אפס מטמון</button>
+        <button class="btn-ghost" id="updateCheckBtn" onclick="checkForUpdate()" style="padding:.35rem .75rem;font-size:.8rem">בדוק עדכון</button>
+        <button class="btn-ghost" onclick="forceResetAppCache()" style="padding:.35rem .75rem;font-size:.8rem" title="נקה את מטמון השירות (Service Worker + caches) וטען מחדש. שימושי כשהעדכון תקוע במובייל.">אפס מטמון</button>
         <span id="updateCheckMsg" style="font-size:.8rem"></span>
       </div>
     </div>
@@ -434,9 +434,9 @@
         <div class="card-title">מראה</div>
         <label class="form-label">ערכת נושא</label>
         <div class="seg-control" id="themeSeg">
-          <button type="button" data-theme-mode="light" onclick="UK_setTheme('light')">☀️ בהיר</button>
-          <button type="button" data-theme-mode="dark" onclick="UK_setTheme('dark')">🌙 כהה</button>
-          <button type="button" data-theme-mode="system" onclick="UK_setTheme('system')">🖥️ מערכת</button>
+          <button type="button" data-theme-mode="light" onclick="UK_setTheme('light')">בהיר</button>
+          <button type="button" data-theme-mode="dark" onclick="UK_setTheme('dark')">כהה</button>
+          <button type="button" data-theme-mode="system" onclick="UK_setTheme('system')">מערכת</button>
         </div>
         <label class="form-label" style="margin-top:1.1rem">צבע מערכת</label>
         <div class="accent-swatches" id="accentSwatches">
@@ -492,7 +492,7 @@
       </div>
       <div id="accList"></div>
       <div style="margin-top:1rem">
-        <button class="btn-ghost" onclick="runAutoLinkTransfers()">🔍 סרוק עסקאות ובצע קישור אוטומטי לחשבונות (אשראי, חיסכון, ני"ע)</button>
+        <button class="btn-ghost" onclick="runAutoLinkTransfers()">סרוק עסקאות ובצע קישור אוטומטי לחשבונות (אשראי, חיסכון, ני"ע)</button>
       </div>
     </div>
 
@@ -665,7 +665,7 @@
         <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap;margin-bottom:1rem">
           <label class="form-label" style="margin:0">חשבון:</label>
           <select id="reconcileAccount" onchange="renderReconcileTable()" style="max-width:240px"></select>
-          <button class="btn-ghost" onclick="renderReconcileTable()" style="font-size:.85rem;padding:.4rem .8rem">🔄 רענן</button>
+          <button class="btn-ghost" onclick="renderReconcileTable()" style="font-size:.85rem;padding:.4rem .8rem">רענן</button>
         </div>
         <div id="reconcileTable"></div>
       </div>
@@ -690,46 +690,46 @@
 
     <div class="tab-panel" id="tab-backup" style="display:none">
       <div class="card" style="max-width:480px;margin-bottom:1rem">
-        <div class="card-title">📑 דוחות וייצוא</div>
+        <div class="card-title">דוחות וייצוא</div>
         <p style="font-size:.85rem;color:var(--text-muted);margin-bottom:1.25rem">ייצוא נתוני התקופה הפעילה לאקסל, או הפקת דוח מודפס (ניתן לשמור כ-PDF).</p>
         <div style="display:flex;gap:.75rem;flex-wrap:wrap">
-          <button class="btn-primary" onclick="exportExcel()">📊 ייצוא ל-Excel</button>
-          <button class="btn-ghost" onclick="printReport()">🖨️ דוח להדפסה / PDF</button>
+          <button class="btn-primary" onclick="exportExcel()">ייצוא ל-Excel</button>
+          <button class="btn-ghost" onclick="printReport()">דוח להדפסה / PDF</button>
         </div>
       </div>
       <div class="card" style="max-width:480px">
         <div class="card-title">גיבוי ושחזור</div>
         <p style="font-size:.85rem;color:var(--text-muted);margin-bottom:1.25rem">יצא את כל הנתונים לקובץ JSON, או ייבא גיבוי קיים.</p>
         <div style="display:flex;flex-direction:column;gap:.75rem">
-          <button class="btn-primary" onclick="exportData()">⬇️ יצא גיבוי</button>
+          <button class="btn-primary" onclick="exportData()">יצא גיבוי</button>
           <label class="btn-ghost" style="cursor:pointer;text-align:center">
-            ⬆️ ייבא גיבוי
+            ייבא גיבוי
             <input type="file" accept=".json" style="display:none" onchange="importData(this)">
           </label>
         </div>
       </div>
       <div class="card" style="max-width:480px;margin-top:1rem">
-        <div class="card-title">🛟 גיבויים מקומיים (אוטומטי)</div>
+        <div class="card-title">גיבויים מקומיים (אוטומטי)</div>
         <p style="font-size:.85rem;color:var(--text-muted);margin-bottom:1rem">
           המערכת שומרת snapshots של כל הנתונים בזיכרון הדפדפן (IndexedDB) אחרי כל שינוי, כולל snapshot אוטומטי לפני כל שחזור — כך ששחזור שגוי תמיד הפיך.
         </p>
-        <div style="margin-bottom:.75rem"><button class="btn-ghost" onclick="createLocalSnapshotNow()" style="font-size:.85rem">📸 צור גיבוי עכשיו</button></div>
+        <div style="margin-bottom:.75rem"><button class="btn-ghost" onclick="createLocalSnapshotNow()" style="font-size:.85rem">צור גיבוי עכשיו</button></div>
         <details id="localSnapshotsDetails">
-          <summary id="localSnapshotsSummary" style="cursor:pointer;font-size:.85rem;color:var(--text-secondary);user-select:none">🗂 הצג רשימת גיבויים</summary>
+          <summary id="localSnapshotsSummary" style="cursor:pointer;font-size:.85rem;color:var(--text-secondary);user-select:none">הצג רשימת גיבויים</summary>
           <div id="localSnapshotsList" style="margin-top:.75rem"></div>
         </details>
       </div>
       <div class="card" style="max-width:480px;margin-top:1rem">
-        <div class="card-title">☁️ גיבוי לגוגל דרייב</div>
+        <div class="card-title">גיבוי לגוגל דרייב</div>
         <p style="font-size:.85rem;color:var(--text-muted);margin-bottom:1.25rem">גיבוי מאובטח של כל הנתונים לקובץ בגוגל דרייב שלך.</p>
         <div id="driveNotSignedIn">
-          <button class="btn-primary" onclick="driveSignIn()">🔑 התחבר עם Google</button>
+          <button class="btn-primary" onclick="driveSignIn()">התחבר עם Google</button>
         </div>
         <div id="driveSignedIn" style="display:none;flex-direction:column;gap:.75rem">
           <div id="driveLastBackupInfo" style="font-size:.85rem;color:var(--text-muted)"></div>
           <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-            <button class="btn-primary" onclick="driveBackup()">☁️ גבה עכשיו</button>
-            <button class="btn-ghost" onclick="driveRestore()">⬇️ שחזר מהענן</button>
+            <button class="btn-primary" onclick="driveBackup()">גבה עכשיו</button>
+            <button class="btn-ghost" onclick="driveRestore()">שחזר מהענן</button>
             <button class="btn-ghost" onclick="driveSignOut()" style="margin-right:auto">התנתק</button>
           </div>
           <div id="driveStatus" style="font-size:.85rem"></div>
@@ -739,7 +739,7 @@
 
     <div class="tab-panel" id="tab-feedback" style="display:none">
       <details class="card" style="margin-bottom:1rem">
-        <summary style="cursor:pointer;font-weight:600">🔗 חיבור ל-GitHub (אוטומציה)</summary>
+        <summary style="cursor:pointer;font-weight:600">חיבור ל-GitHub (אוטומציה)</summary>
         <p style="font-size:.83rem;color:var(--text-muted);margin:.75rem 0 1rem;line-height:1.6">
           חיבור אופציונלי: כל באג/רעיון ייפתח אוטומטית כ-issue ברפו (תווית <code>user-feedback</code>), וקלוד יקרא אותם בכל סשן וישאל אם לטפל.
           מומלץ <b>fine-grained token</b> עם הרשאת <b>Issues: Read &amp; write</b> לרפו זה בלבד. הטוקן נשמר מקומית ואינו נכלל בגיבוי.
@@ -753,7 +753,7 @@
       </details>
       <div class="card">
         <div class="card-title">משוב ורעיונות</div>
-        <p style="font-size:.85rem;color:var(--text-muted);margin-bottom:1.25rem">באגים ורעיונות שתיעדת דרך כפתורי 🐞 / 💡 שבראש כל מסך. אפשר לסמן כטופל, למחוק, ולהעתיק הכל כדי להעביר לקלוד.</p>
+        <p style="font-size:.85rem;color:var(--text-muted);margin-bottom:1.25rem">באגים ורעיונות שתיעדת דרך כפתורי הבאג והרעיון שבראש כל מסך. אפשר לסמן כטופל, למחוק, ולהעתיק הכל כדי להעביר לקלוד.</p>
         <div id="feedbackList"></div>
       </div>
     </div>
@@ -934,7 +934,7 @@
     </div>
     <div id="budgetGenBody"></div>
     <div style="display:flex;gap:.75rem;justify-content:space-between;margin-top:1.25rem;flex-wrap:wrap">
-      <button class="btn-ghost" id="bgenAdviceBtn" onclick="adviseBudgetWithGemini()">💡 ייעוץ AI</button>
+      <button class="btn-ghost" id="bgenAdviceBtn" onclick="adviseBudgetWithGemini()">ייעוץ AI</button>
       <div style="display:flex;gap:.75rem">
         <button class="btn-ghost" onclick="closeBudgetGenModal()">ביטול</button>
         <button class="btn-primary" onclick="applyBudgetProposals()">החל</button>
@@ -959,48 +959,48 @@
 
 <!-- Update Toast -->
 <div id="updateToast" class="update-toast">
-  <span>✨ גרסה חדשה זמינה!</span>
+  <span>גרסה חדשה זמינה!</span>
   <button onclick="applyUpdate()">עדכן עכשיו</button>
 </div>
 
-<script>const _v = '1.43.0';</script>
-<script src="app.js?v=1.43.0"></script>
-<script src="core.js?v=1.43.0"></script>
-<script src="txmatch.js?v=1.43.0"></script>
-<script src="source.js?v=1.43.0"></script>
-<script src="ui.js?v=1.43.0"></script>
-<script src="uikit.js?v=1.43.0"></script>
-<script src="icons.js?v=1.43.0"></script>
-<script src="templates.js?v=1.43.0"></script>
-<script src="autocat.js?v=1.43.0"></script>
-<script src="detect.js?v=1.43.0"></script>
-<script src="budget.js?v=1.43.0"></script>
-<script src="budgetGen.js?v=1.43.0"></script>
-<script src="recurring.js?v=1.43.0"></script>
-<script src="dashboard.js?v=1.43.0"></script>
-<script src="transactions.js?v=1.43.0"></script>
-<script src="wizard.js?v=1.43.0"></script>
-<script src="import.js?v=1.43.0"></script>
-<script src="analysis.js?v=1.43.0"></script>
-<script src="settings.js?v=1.43.0"></script>
-<script src="drive.js?v=1.43.0"></script>
-<script src="backupLocal.js?v=1.43.0"></script>
-<script src="property.js?v=1.43.0"></script>
-<script src="propertyDocs.js?v=1.43.0"></script>
-<script src="reports.js?v=1.43.0"></script>
-<script src="feedback.js?v=1.43.0"></script>
-<script src="scrollMirror.js?v=1.43.0"></script>
-<script src="palette.js?v=1.43.0"></script>
-<script src="insights.js?v=1.43.0"></script>
-<script src="anomalies.js?v=1.43.0"></script>
+<script>const _v = '1.44.0';</script>
+<script src="app.js?v=1.44.0"></script>
+<script src="core.js?v=1.44.0"></script>
+<script src="txmatch.js?v=1.44.0"></script>
+<script src="source.js?v=1.44.0"></script>
+<script src="ui.js?v=1.44.0"></script>
+<script src="uikit.js?v=1.44.0"></script>
+<script src="icons.js?v=1.44.0"></script>
+<script src="templates.js?v=1.44.0"></script>
+<script src="autocat.js?v=1.44.0"></script>
+<script src="detect.js?v=1.44.0"></script>
+<script src="budget.js?v=1.44.0"></script>
+<script src="budgetGen.js?v=1.44.0"></script>
+<script src="recurring.js?v=1.44.0"></script>
+<script src="dashboard.js?v=1.44.0"></script>
+<script src="transactions.js?v=1.44.0"></script>
+<script src="wizard.js?v=1.44.0"></script>
+<script src="import.js?v=1.44.0"></script>
+<script src="analysis.js?v=1.44.0"></script>
+<script src="settings.js?v=1.44.0"></script>
+<script src="drive.js?v=1.44.0"></script>
+<script src="backupLocal.js?v=1.44.0"></script>
+<script src="property.js?v=1.44.0"></script>
+<script src="propertyDocs.js?v=1.44.0"></script>
+<script src="reports.js?v=1.44.0"></script>
+<script src="feedback.js?v=1.44.0"></script>
+<script src="scrollMirror.js?v=1.44.0"></script>
+<script src="palette.js?v=1.44.0"></script>
+<script src="insights.js?v=1.44.0"></script>
+<script src="anomalies.js?v=1.44.0"></script>
 
 <!-- MOBILE LAYER (Dark Glass) — activates only on mobile via IS_MOBILE_UI / html.m-ui -->
-<script src="mobile/shell.js?v=1.43.0"></script>
-<script src="mobile/dashboard.js?v=1.43.0"></script>
-<script src="mobile/transactions.js?v=1.43.0"></script>
-<script src="mobile/analysis.js?v=1.43.0"></script>
-<script src="mobile/recurring.js?v=1.43.0"></script>
-<script src="mobile/property.js?v=1.43.0"></script>
+<script src="mobile/shell.js?v=1.44.0"></script>
+<script src="mobile/dashboard.js?v=1.44.0"></script>
+<script src="mobile/transactions.js?v=1.44.0"></script>
+<script src="mobile/analysis.js?v=1.44.0"></script>
+<script src="mobile/recurring.js?v=1.44.0"></script>
+<script src="mobile/property.js?v=1.44.0"></script>
 
 <!-- SERVICE WORKER REGISTRATION & UPDATE LOGIC -->
 <script>
@@ -1052,7 +1052,7 @@
 
   // Nuclear reload: unregister every SW, drop every cache, replace the URL
   // with a cache-busting query so the browser HTTP cache can't return stale
-  // HTML either. Used both by the manual "🧹 אפס מטמון" button and by the
+  // HTML either. Used both by the manual "אפס מטמון" button and by the
   // post-confirm path in checkForUpdate (the SW skipWaiting+postMessage flow
   // is too fragile on iOS to rely on for the user-initiated update).
   async function _hardResetCachesAndReload() {
@@ -1131,7 +1131,7 @@
           await _hardResetCachesAndReload();
         }
       } else {
-        if (msgEl) { msgEl.textContent = `✅ האפליקציה מעודכנת (גרסה ${APP_VERSION})`; msgEl.style.color = 'var(--income)'; }
+        if (msgEl) { msgEl.textContent = `האפליקציה מעודכנת (גרסה ${APP_VERSION})`; msgEl.style.color = 'var(--income)'; }
       }
     } catch (e) {
       if (msgEl) { msgEl.textContent = 'שגיאה בבדיקת עדכון: ' + e.message; msgEl.style.color = 'var(--expense)'; }

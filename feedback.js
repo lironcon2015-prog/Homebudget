@@ -74,8 +74,8 @@ async function syncFeedbackItem(id) {
 // Two subtle ghost buttons mounted into every screen's .page-header.
 const FEEDBACK_DOCK_HTML = `
   <div class="feedback-dock" role="group" aria-label="משוב">
-    <button class="fb-btn" type="button" title="דיווח על באג" aria-label="דיווח על באג" onclick="openFeedbackModal('bug')"><span class="fb-ic" aria-hidden="true">🐞</span><span class="fb-label">באג</span></button>
-    <button class="fb-btn" type="button" title="הצעת רעיון לפיתוח" aria-label="הצעת רעיון לפיתוח" onclick="openFeedbackModal('idea')"><span class="fb-ic" aria-hidden="true">💡</span><span class="fb-label">רעיון</span></button>
+    <button class="fb-btn" type="button" title="דיווח על באג" aria-label="דיווח על באג" onclick="openFeedbackModal('bug')"><span class="fb-ic" aria-hidden="true">${uiIcon('bug', 15)}</span><span class="fb-label">באג</span></button>
+    <button class="fb-btn" type="button" title="הצעת רעיון לפיתוח" aria-label="הצעת רעיון לפיתוח" onclick="openFeedbackModal('idea')"><span class="fb-ic" aria-hidden="true">${uiIcon('lightbulb', 15)}</span><span class="fb-label">רעיון</span></button>
   </div>`
 
 function mountFeedbackButtons() {
@@ -99,7 +99,7 @@ function openFeedbackModal(type) {
   overlay.style.zIndex = '1200'
   overlay.innerHTML = `
     <div class="modal-box" style="width:min(460px,95vw)" role="dialog" aria-modal="true">
-      <div class="modal-header"><h3>${isBug ? '🐞 דיווח על באג' : '💡 הצעת רעיון לפיתוח'}</h3><button class="modal-close" type="button" data-x>✕</button></div>
+      <div class="modal-header"><h3>${isBug ? 'דיווח על באג' : 'הצעת רעיון לפיתוח'}</h3><button class="modal-close" type="button" data-x>✕</button></div>
       <div class="modal-row"><label class="form-label">כותרת קצרה</label><input id="fbTitle" placeholder="${isBug ? 'מה לא עבד?' : 'מה תרצה להוסיף?'}"></div>
       <div class="modal-row"><label class="form-label">פירוט</label><textarea id="fbText" rows="4" style="resize:vertical" placeholder="${isBug ? 'תיאור הבאג: מה עשית, מה ציפית שיקרה, ומה קרה בפועל.' : 'תיאור הרעיון והערך שהוא מוסיף.'}"></textarea></div>
       <div style="font-size:.75rem;color:var(--text-muted);margin-bottom:1rem">נשמר אוטומטית עם המסך הנוכחי (${_currentScreenLabel()}), הגרסה והתאריך.</div>
@@ -125,7 +125,7 @@ function openFeedbackModal(type) {
       list.push(item)
       saveFeedback(list)
       close()
-      toast(isBug ? 'הבאג נשמר 🐞' : 'הרעיון נשמר 💡', { type: 'success' })
+      toast(isBug ? 'הבאג נשמר' : 'הרעיון נשמר', { type: 'success' })
       if (document.getElementById('feedbackList')) renderFeedbackList()
       // Best-effort GitHub sync (non-blocking; local copy already saved).
       if (getGithubToken()) {
@@ -190,29 +190,29 @@ function renderFeedbackList() {
     return `
       <div class="fb-item ${x.status === 'done' ? 'fb-item-done' : ''}">
         <div class="fb-item-main">
-          <div class="fb-item-title">${isBug ? '🐞' : '💡'} ${escHtml(x.title || '(ללא כותרת)')} ${syncBadge}</div>
+          <div class="fb-item-title">${uiIcon(isBug ? 'bug' : 'lightbulb', 14)} ${escHtml(x.title || '(ללא כותרת)')} ${syncBadge}</div>
           ${x.text ? `<div class="fb-item-text">${escHtml(x.text)}</div>` : ''}
           <div class="fb-item-meta">${escHtml(x.screen)} · גרסה ${escHtml(x.appVersion || '—')} · ${fmt(x.createdAt)}</div>
         </div>
         <div class="fb-item-actions">
           <button class="btn-ghost" style="font-size:.75rem;padding:.3rem .6rem" onclick="toggleFeedbackStatus('${x.id}')">${x.status === 'done' ? 'פתח מחדש' : 'סמן כטופל'}</button>
-          <button class="btn-ghost" style="font-size:.75rem;padding:.3rem .55rem;color:var(--expense)" onclick="deleteFeedbackItem('${x.id}')" title="מחק">🗑</button>
+          <button class="btn-ghost" style="font-size:.75rem;padding:.3rem .55rem;color:var(--expense)" onclick="deleteFeedbackItem('${x.id}')" title="מחק" aria-label="מחק">${uiIcon('trash', 14)}</button>
         </div>
       </div>`
   }
 
   if (list.length === 0) {
     el.innerHTML = emptyStateHTML({
-      icon: '📝',
+      icon: uiIcon('message', 30, 'var(--text-muted)'),
       title: 'אין משוב עדיין',
-      text: 'השתמש בכפתורי 🐞 / 💡 שבראש כל מסך כדי לתעד באגים ורעיונות תוך כדי שימוש.',
+      text: 'השתמש בכפתורי הבאג והרעיון שבראש כל מסך כדי לתעד באגים ורעיונות תוך כדי שימוש.',
     })
     return
   }
   el.innerHTML = `
     <div class="fb-toolbar">
       <span style="color:var(--text-muted);font-size:.85rem">${list.length} פריטים · ${open} פתוחים</span>
-      <button class="btn-primary" style="font-size:.8rem;padding:.4rem .8rem" onclick="copyAllFeedback()">📋 העתק הכל ל-Claude</button>
+      <button class="btn-primary" style="font-size:.8rem;padding:.4rem .8rem" onclick="copyAllFeedback()">העתק הכל ל-Claude</button>
     </div>
     <div class="fb-list">${list.map(card).join('')}</div>`
 }

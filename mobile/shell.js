@@ -7,25 +7,25 @@ const MOBILE = { moreSheet: null, periodSheet: null }
 
 // Secondary screens that don't get a primary tab — reached from the "עוד" tab.
 const M_MORE_ITEMS = [
-  { screen: 'budget',    icon: '🎯', label: 'תקציב' },
-  { screen: 'recurring', icon: '🔁', label: 'הוצאות/הכנסות קבועות' },
-  { screen: 'property',  icon: '🏠', label: 'משכנתא ונכס' },
-  { screen: 'import',    icon: '📥', label: 'ייבוא קובץ' },
-  { screen: 'settings',  icon: '⚙️', label: 'הגדרות' },
+  { screen: 'budget',    icon: 'percent',  label: 'תקציב' },
+  { screen: 'recurring', icon: 'refresh',  label: 'הוצאות/הכנסות קבועות' },
+  { screen: 'property',  icon: 'home',     label: 'משכנתא ונכס' },
+  { screen: 'import',    icon: 'download', label: 'ייבוא קובץ' },
+  { screen: 'settings',  icon: 'gear',     label: 'הגדרות' },
 ]
 
 function M_openMore() {
   if (typeof UK_haptic === 'function') UK_haptic('tap')
   const rows = M_MORE_ITEMS.map(it => `
     <button class="m-more-row" onclick="M_navMore('${it.screen}')">
-      <span class="m-more-ic">${it.icon}</span>
+      <span class="m-more-ic">${uiIcon(it.icon, 18)}</span>
       <span class="m-more-label">${it.label}</span>
       <span class="m-more-chev">‹</span>
     </button>`).join('')
   const driveOn = (typeof _driveToken !== 'undefined' && _driveToken)
   const driveRow = `
     <button class="m-more-row" onclick="M_openDriveBackup()">
-      <span class="m-more-ic">☁️</span>
+      <span class="m-more-ic">${uiIcon('cloud', 18)}</span>
       <span class="m-more-label">גיבוי וסנכרון (Google Drive)</span>
       <span class="m-more-status ${driveOn ? 'pos' : ''}">${driveOn ? 'מחובר ✓' : 'התחבר'}</span>
     </button>`

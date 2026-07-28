@@ -155,7 +155,7 @@ async function driveBackup() {
     // תיקון: זמן העלאה נשמר בנפרד מזמן שחזור כדי לא לחסום משיכות ממשתמשים אחרים
     localStorage.setItem('driveLastUploadAt', fileResult.modifiedTime || new Date().toISOString())
     _updateDriveLastInfo()
-    _showDriveStatus('✅ גובה בהצלחה', false)
+    _showDriveStatus('גובה בהצלחה', false)
   } catch (e) {
     _showDriveStatus('שגיאה: ' + e.message, true)
   }
@@ -183,7 +183,7 @@ async function driveRestore() {
     applyBackupData(data)
     localStorage.setItem('driveBackupFileId', file.id)
     localStorage.setItem('driveBackupAt', new Date(file.modifiedTime).toISOString())
-    _showDriveStatus('✅ שוחזר — מרענן…', false)
+    _showDriveStatus('שוחזר — מרענן…', false)
     setTimeout(() => location.reload(), 1500)
   } catch (e) {
     _showDriveStatus('שגיאה: ' + e.message, true)
@@ -221,11 +221,11 @@ function driveAutoSyncEnabled() { return localStorage.getItem('driveAutoSync') =
 function _setSyncStatus(s) {
   const map = {
     'off':        { txt: '',                  cls: '',              title: '' },
-    'signed-out': { txt: '🔌 חיבור ל-Drive',   cls: 'sync-warn',     title: 'סנכרון פעיל אך לא מחובר — לחץ להתחבר' },
+    'signed-out': { txt: 'חיבור ל-Drive',      cls: 'sync-warn',     title: 'סנכרון פעיל אך לא מחובר — לחץ להתחבר' },
     'idle':       { txt: '✓ מסונכרן',          cls: 'sync-ok',       title: 'הנתונים מסונכרנים ל-Drive' },
     'syncing':    { txt: '↻ מסנכרן…',         cls: 'sync-syncing',  title: '' },
-    'offline':    { txt: '📴 לא מקוון',        cls: 'sync-warn',     title: 'אין חיבור — נסנכרן כשיחזור' },
-    'error':      { txt: '⚠ שגיאת סנכרון',    cls: 'sync-err',      title: '' },
+    'offline':    { txt: 'לא מקוון',           cls: 'sync-warn',     title: 'אין חיבור — נסנכרן כשיחזור' },
+    'error':      { txt: 'שגיאת סנכרון',       cls: 'sync-err',      title: '' },
   }
   _syncState = (map[s] ? s : 'off')
   const m = map[s] || map.off

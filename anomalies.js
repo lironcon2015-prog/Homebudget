@@ -316,7 +316,7 @@ async function ANOM_askAI() {
   const apiKey = (typeof getApiKey === 'function') ? getApiKey() : null
   if (!apiKey) { if (typeof toast === 'function') toast('חסר מפתח Gemini API – הזן בהגדרות', { type: 'error' }); return }
   const resultEl = document.getElementById('anomAIResult')
-  if (resultEl) resultEl.innerHTML = '<div class="anom-ai-loading">⏳ בודק עם AI…</div>'
+  if (resultEl) resultEl.innerHTML = `<div class="anom-ai-loading">${uiIcon('clock', 14)} בודק עם AI…</div>`
   const list = ANOM_detect()
   if (!list.length) { if (resultEl) resultEl.innerHTML = ''; return }
   const allTx = (typeof getTransactions === 'function') ? getTransactions() : []
@@ -332,7 +332,7 @@ async function ANOM_askAI() {
     return `• ${a.vendor} | ${a.date} | ${a.amount > 0 ? '+' : ''}${a.amount} ₪\n  חשד: ${a.title} — ${a.detail}${history ? '\n  היסטוריה:\n' + history : ' (אין היסטוריה)'}`
   }).join('\n\n')
   const prompt = `אתה מומחה לאבטחה פיננסית. להלן ${list.length > 20 ? 20 : list.length} עסקאות שסומנו כחשודות, עם היסטוריית הספק.
-בדוק כל עסקה ואמור: ✅ מוצדק / ⚠️ ייתכן / ❌ לא מוצדק — ופסקה קצרה מדוע.
+בדוק כל עסקה ופתח את השורה באחת המילים בדיוק: "מוצדק" / "ייתכן" / "לא מוצדק" — ואז פסקה קצרה מדוע. אל תשתמש באימוג'ים.
 ענה בעברית, תמציתי.
 
 ${lines}`
@@ -343,7 +343,7 @@ ${lines}`
     let text = ''
     for (const p of allParts) { if (!p.thought && p.text) { text = p.text; break } }
     if (!text) text = allParts.filter(p => !p.thought).map(p => p.text || '').join('')
-    if (resultEl) resultEl.innerHTML = `<div class="anom-ai-result">${(typeof _insEsc === 'function' ? _insEsc(text) : text).replace(/\n/g, '<br>').replace(/✅|⚠️|❌/g, '<b>$&</b>')}</div>`
+    if (resultEl) resultEl.innerHTML = `<div class="anom-ai-result">${(typeof _insEsc === 'function' ? _insEsc(text) : text).replace(/\n/g, '<br>').replace(/(^|<br>)\s*(לא מוצדק|מוצדק|ייתכן)/g, '$1<b>$2</b>')}</div>`
   } catch (err) {
     if (resultEl) resultEl.innerHTML = `<div class="anom-ai-error">שגיאת AI: ${err.message}</div>`
   }
@@ -353,7 +353,7 @@ ${lines}`
 // Anomaly keys/vendors can contain Hebrew/quotes that break inline onclick
 // strings, so render-time we map a safe idx ('r0','r1'…) → anomaly and the
 // handlers look it up (same pattern as recurring.js _recKeyMap).
-const _ANOM_SEV_ICON = { high: '🔴', med: '🟠', low: '🟡' }
+const _ANOM_SEV_CLS = { high: 'sev-high', med: 'sev-med', low: 'sev-low' }
 let ANOM_rowMap = {}
 
 function ANOM_actIdx(idx) {
@@ -404,7 +404,7 @@ function ANOM_goToTxCategory(catId, dateIso) {
 
 function _anomRowHTML(a, idx) {
   return `<div class="ins-anom-row" onclick="ANOM_actIdx('${idx}')">
-    <span class="ins-anom-sev">${_ANOM_SEV_ICON[a.severity] || '🟡'}</span>
+    <span class="ins-anom-sev"><i class="sev-dot ${_ANOM_SEV_CLS[a.severity] || 'sev-low'}" title="חומרה: ${a.severity || 'low'}"></i></span>
     <div class="ins-anom-main">
       <div class="ins-anom-vendor">${_insEsc(a.vendor)} <span class="ins-anom-tag">${_insEsc(a.title)}</span></div>
       <div class="ins-anom-detail">${_insEsc(a.detail)} · ${formatDate(a.date)}</div>
@@ -426,7 +426,7 @@ function ANOM_cardHTML() {
   const preview = list.slice(0, ANOM_CONFIG.cardPreview)
   return `<div class="card ins-anomalies">
     <div class="card-title ins-anom-titlerow" ${n > ANOM_CONFIG.cardPreview ? 'onclick="ANOM_openReview()"' : ''}>
-      <span>⚠ עסקאות לבדיקה · ${n}</span>
+      <span>${uiIcon('siren', 14)} עסקאות לבדיקה · ${n}</span>
       ${n > ANOM_CONFIG.cardPreview ? '<span class="ins-anom-expand">הצג הכל ›</span>' : ''}
     </div>
     ${preview.map((a, i) => _anomRowHTML(a, 'c' + i)).join('')}
@@ -466,7 +466,7 @@ function ANOM_renderReviewBody() {
   const body = document.getElementById('anomReviewBody')
   if (!body) return
   const full = ANOM_detect()
-  if (!full.length) { body.innerHTML = '<div class="ins-inbox-done">🎉 אין עסקאות חשודות</div>'; return }
+  if (!full.length) { body.innerHTML = '<div class="ins-inbox-done">אין עסקאות חשודות</div>'; return }
   // counts per group, for the filter chips
   const counts = { all: full.length }
   full.forEach(a => { const g = _ANOM_GROUPS[a.rule] || 'period'; counts[g] = (counts[g] || 0) + 1 })
@@ -482,7 +482,7 @@ function ANOM_renderReviewBody() {
     <div class="ins-anom-reviewtop">
       <span>${list.length} התראות</span>
       <div style="display:flex;gap:.5rem">
-        <button class="btn-ghost" onclick="ANOM_askAI()">🤖 בדוק עם AI</button>
+        <button class="btn-ghost" onclick="ANOM_askAI()">בדוק עם AI</button>
         <button class="btn-ghost" onclick="ANOM_dismissAllReview()">סמן הכל כתקין</button>
       </div>
     </div>

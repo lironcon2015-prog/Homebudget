@@ -31,14 +31,14 @@ function CP_render(q) {
   const items = []
 
   const actions = [
-    { icon: '➕', label: 'עסקה חדשה', run: () => { CP_close(); if (typeof addManualTransaction === 'function') addManualTransaction() } },
-    { icon: '📥', label: 'ייבוא דוח', run: () => { CP_close(); navigate('import') } },
-    { icon: '☁️', label: 'גיבוי ל-Drive', run: () => { CP_close(); if (typeof driveBackup === 'function') driveBackup() } },
-    { icon: '🌓', label: 'החלף ערכת נושא (בהיר/כהה)', run: () => { UK_setTheme(_UK_resolveTheme(UK_getTheme()) === 'light' ? 'dark' : 'light') } },
-    { icon: '🙈', label: 'הסתר/הצג סכומים', run: () => { UK_togglePrivacy() } },
+    { icon: '+', label: 'עסקה חדשה', run: () => { CP_close(); if (typeof addManualTransaction === 'function') addManualTransaction() } },
+    { icon: uiIcon('download', 15), label: 'ייבוא דוח', run: () => { CP_close(); navigate('import') } },
+    { icon: uiIcon('cloud', 15), label: 'גיבוי ל-Drive', run: () => { CP_close(); if (typeof driveBackup === 'function') driveBackup() } },
+    { icon: uiIcon('moon', 15), label: 'החלף ערכת נושא (בהיר/כהה)', run: () => { UK_setTheme(_UK_resolveTheme(UK_getTheme()) === 'light' ? 'dark' : 'light') } },
+    { icon: uiIcon('eyeoff', 15), label: 'הסתר/הצג סכומים', run: () => { UK_togglePrivacy() } },
   ]
   if (typeof SCREENS !== 'undefined') {
-    SCREENS.forEach(s => actions.push({ icon: '📄', label: 'מעבר: ' + (CP_SCREEN_LABELS[s] || s), run: () => { CP_close(); navigate(s) } }))
+    SCREENS.forEach(s => actions.push({ icon: uiIcon('file', 15), label: 'מעבר: ' + (CP_SCREEN_LABELS[s] || s), run: () => { CP_close(); navigate(s) } }))
   }
   actions.forEach(a => { if (!q || a.label.toLowerCase().includes(ql)) items.push(a) })
 
@@ -50,14 +50,14 @@ function CP_render(q) {
       const vn = (typeof resolveVendor === 'function' ? resolveVendor(t.vendor, t.amount, (typeof getTxAliasDay === 'function' ? getTxAliasDay(t) : undefined)) : t.vendor) || t.vendor || ''
       if (vn && vn.toLowerCase().includes(ql) && !seen.has(vn)) {
         seen.add(vn)
-        const av = (typeof UK_vendorAvatar === 'function') ? UK_vendorAvatar(vn, { size: 26 }) : '🔎'
+        const av = (typeof UK_vendorAvatar === 'function') ? UK_vendorAvatar(vn, { size: 26 }) : uiIcon('search', 15)
         items.push({ html: av, label: vn, sub: 'חיפוש עסקאות', run: () => { CP_close(); CP_gotoTxSearch(vn) } })
         if (++added >= 6) break
       }
     }
     if (typeof getCategories === 'function') {
       getCategories().forEach(c => {
-        if (c.name.toLowerCase().includes(ql)) items.push({ icon: '🏷️', label: c.name, sub: 'סנן לפי קטגוריה', run: () => { CP_close(); CP_gotoCategory(c.id) } })
+        if (c.name.toLowerCase().includes(ql)) items.push({ icon: uiIcon('tag', 15), label: c.name, sub: 'סנן לפי קטגוריה', run: () => { CP_close(); CP_gotoCategory(c.id) } })
       })
     }
   }

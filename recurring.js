@@ -937,15 +937,15 @@ function renderRecurring() {
   const modeLabel = _recFlowMode === 'income' ? 'הכנסות' : 'הוצאות'
   const toggle = `
     <div class="recurring-mode-toggle">
-      <button class="mode-btn ${_recFlowMode==='expense'?'active':''}" onclick="setRecurringFlowMode('expense')">📉 הוצאות קבועות <span class="mode-count">${expenseItems.length}</span></button>
-      <button class="mode-btn ${_recFlowMode==='income'?'active':''}" onclick="setRecurringFlowMode('income')">📈 הכנסות קבועות <span class="mode-count">${incomeItems.length}</span></button>
+      <button class="mode-btn ${_recFlowMode==='expense'?'active':''}" onclick="setRecurringFlowMode('expense')">הוצאות קבועות <span class="mode-count">${expenseItems.length}</span></button>
+      <button class="mode-btn ${_recFlowMode==='income'?'active':''}" onclick="setRecurringFlowMode('income')">הכנסות קבועות <span class="mode-count">${incomeItems.length}</span></button>
     </div>`
 
   const toolbar = `
     <div class="recurring-toolbar">
       <div style="color:var(--text-muted);font-size:.85rem">${visible.length} ${modeLabel} פעילות · ${hiddenList.length} מוסתרות</div>
       <div style="display:flex;gap:.4rem;align-items:center">
-        ${installmentCount > 0 ? `<button class="btn-ghost ${_recInstallmentsOnly?'active':''}" onclick="toggleRecurringInstallmentsOnly()" title="הצג רק עסקאות תשלומים פעילות">💳 תשלומים בלבד${_recInstallmentsOnly?' ✓':''}</button>` : ''}
+        ${installmentCount > 0 ? `<button class="btn-ghost ${_recInstallmentsOnly?'active':''}" onclick="toggleRecurringInstallmentsOnly()" title="הצג רק עסקאות תשלומים פעילות">תשלומים בלבד${_recInstallmentsOnly?' ✓':''}</button>` : ''}
         ${hiddenList.length > 0 ? `<button class="btn-ghost" onclick="toggleShowHiddenRecurring()">${_recShowHidden?'הסתר מוסתרות':'הצג מוסתרות'}</button>` : ''}
       </div>
     </div>`
@@ -960,11 +960,11 @@ function renderRecurring() {
     const idx = idxOf(r)
     const amountCls = r.smoothedMonthly > 0 ? 'amount-inc' : 'amount-exp'
     const sourceBadge = r.source === 'manual-group'
-      ? '<span class="type-badge type-refund" title="קבוצה ידנית מאוחדת">📦 ידנית</span>'
+      ? '<span class="type-badge type-refund" title="קבוצה ידנית מאוחדת">ידנית</span>'
       : r.source === 'manual-flag'
-      ? '<span class="type-badge type-refund" title="סומן ידנית">✋ ידנית</span>'
+      ? '<span class="type-badge type-refund" title="סומן ידנית">ידנית</span>'
       : r.source === 'installment'
-      ? '<span class="type-badge type-transfer" title="עסקת תשלומים שזוהתה מדוח האשראי">💳 תשלומים</span>'
+      ? `<span class="type-badge type-transfer" title="עסקת תשלומים שזוהתה מדוח האשראי">${uiIcon('card', 12)} תשלומים</span>`
       : ''
     // Installment plans appear as recurring once they hit the 3-occurrence
     // threshold. Surface "where in the plan we are" and the final billing
@@ -974,7 +974,7 @@ function renderRecurring() {
           const fm = r.installmentFinalMonth || ''
           const fmDisp = fm ? (fm.slice(5) + '/' + fm.slice(0,4)) : ''
           const title = `תשלומים — נכון לתשלום ${r.installmentCurrent} מתוך ${r.installmentTotal}${fmDisp?` · מסתיים ${fmDisp}`:''}`
-          return `<span class="type-badge type-transfer" title="${title}" style="margin-inline-start:.3rem">💳 ${r.installmentCurrent}/${r.installmentTotal}${fmDisp?` · עד ${fmDisp}`:''}</span>`
+          return `<span class="type-badge type-transfer" title="${title}" style="margin-inline-start:.3rem">${uiIcon('card', 12)} ${r.installmentCurrent}/${r.installmentTotal}${fmDisp?` · עד ${fmDisp}`:''}</span>`
         })()
       : ''
     // Smoothed (monthly-equivalent) is the primary number; show the
@@ -984,7 +984,7 @@ function renderRecurring() {
       ? `<div style="font-size:.7rem;color:var(--text-muted);margin-top:.15rem">${r.avgAmount>0?'+':''}${formatCurrency(r.avgAmount)} ל${r.cadenceLabel}</div>`
       : ''
     const overrideNote = r.amountOverride
-      ? `<div style="font-size:.7rem;color:var(--accent);margin-top:.15rem">📌 סכום מייצג${r.amountOverride.mode==='pick'?' (תשלום נבחר)':' (ידני)'}</div>`
+      ? `<div style="font-size:.7rem;color:var(--accent);margin-top:.15rem">${uiIcon('pin', 11)} סכום מייצג${r.amountOverride.mode==='pick'?' (תשלום נבחר)':' (ידני)'}</div>`
       : ''
     // Manual entries get a tailored secondary action (unmerge / clear flag).
     const manualAction = r.source === 'manual-group'
@@ -1181,7 +1181,7 @@ function _renderDrillModal() {
             </td>
             <td style="text-align:center;min-width:5.5rem">
               ${(amountOverride && amountOverride.mode==='pick' && amountOverride.txId===t.id)
-                ? '<span style="color:var(--accent);font-size:.78rem;font-weight:600">📌 מייצג</span>'
+                ? `<span style="color:var(--accent);font-size:.78rem;font-weight:600">${uiIcon('pin', 11)} מייצג</span>`
                 : `<button class="btn-ghost" style="font-size:.72rem;padding:.25rem .5rem" onclick="pickRecurringRepresentative('${_drillKey}','${t.id}')" title="קבע תשלום זה כסכום המייצג">בחר כמייצג</button>`}
             </td>
           </tr>`
@@ -1272,7 +1272,7 @@ function _renderDrillModal() {
       <span style="font-weight:600;font-size:.9rem">תדירות</span>
       <select onchange="setRecurringCadenceOverride('${_drillKey}', this.value)" style="font-size:.85rem;padding:.3rem .5rem">${cadenceOpts}</select>
       ${curEntry.cadenceOverride
-        ? `<span style="color:var(--accent);font-size:.78rem">✎ ידני</span><button class="btn-ghost" style="font-size:.78rem;padding:.25rem .6rem" onclick="clearRecurringCadenceOverride('${_drillKey}')">חזור לאוטומטי</button>`
+        ? `<span style="color:var(--accent);font-size:.78rem">${uiIcon('pencil', 11)} ידני</span><button class="btn-ghost" style="font-size:.78rem;padding:.25rem .6rem" onclick="clearRecurringCadenceOverride('${_drillKey}')">חזור לאוטומטי</button>`
         : '<span style="color:var(--text-muted);font-size:.78rem">זוהה אוטומטית — ניתן לשנות</span>'}
     </div>
     ${criteriaSection}
@@ -1285,7 +1285,7 @@ function _renderDrillModal() {
         <summary style="cursor:pointer;font-weight:600;font-size:.9rem;display:flex;justify-content:space-between;align-items:center">
           <span>סכום מייצג</span>
           ${ovActive
-            ? `<span style="color:var(--accent);font-size:.8rem">📌 קבוע: ${formatCurrency(monthlyEq)}${curEntry.cadenceDays!==30?' לחודש':''}</span>`
+            ? `<span style="color:var(--accent);font-size:.8rem">${uiIcon('pin', 11)} קבוע: ${formatCurrency(monthlyEq)}${curEntry.cadenceDays!==30?' לחודש':''}</span>`
             : '<span style="color:var(--text-muted);font-size:.8rem">ממוצע מוחלק</span>'}
         </summary>
         <p style="font-size:.78rem;color:var(--text-muted);margin:.5rem 0 .75rem">

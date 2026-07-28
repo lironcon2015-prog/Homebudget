@@ -34,10 +34,10 @@ function M_renderRecurring() {
     </div>
 
     <div class="m-typechips">
-      <button class="m-chip-btn ${_recFlowMode === 'expense' ? 'active' : ''}" onclick="setRecurringFlowMode('expense')">📉 הוצאות ${expenseItems.length}</button>
-      <button class="m-chip-btn ${_recFlowMode === 'income' ? 'active' : ''}" onclick="setRecurringFlowMode('income')">📈 הכנסות ${incomeItems.length}</button>
-      ${installmentCount > 0 ? `<button class="m-chip-btn ${_recInstallmentsOnly ? 'active' : ''}" onclick="toggleRecurringInstallmentsOnly()">💳 תשלומים</button>` : ''}
-      ${hiddenList.length > 0 ? `<button class="m-chip-btn ${_recShowHidden ? 'active' : ''}" onclick="toggleShowHiddenRecurring()">👁 מוסתרות ${hiddenList.length}</button>` : ''}
+      <button class="m-chip-btn ${_recFlowMode === 'expense' ? 'active' : ''}" onclick="setRecurringFlowMode('expense')">הוצאות ${expenseItems.length}</button>
+      <button class="m-chip-btn ${_recFlowMode === 'income' ? 'active' : ''}" onclick="setRecurringFlowMode('income')">הכנסות ${incomeItems.length}</button>
+      ${installmentCount > 0 ? `<button class="m-chip-btn ${_recInstallmentsOnly ? 'active' : ''}" onclick="toggleRecurringInstallmentsOnly()">תשלומים</button>` : ''}
+      ${hiddenList.length > 0 ? `<button class="m-chip-btn ${_recShowHidden ? 'active' : ''}" onclick="toggleShowHiddenRecurring()">מוסתרות ${hiddenList.length}</button>` : ''}
     </div>
 
     ${items.length === 0
@@ -61,13 +61,13 @@ function M_recRow(r, idx, isHidden) {
   const cls = r.smoothedMonthly > 0 ? 'pos' : 'neg'
   const sign = r.smoothedMonthly > 0 ? '+' : ''
   let badges = ''
-  if (r.source === 'manual-group') badges += '<span class="m-badge">📦</span>'
-  else if (r.source === 'manual-flag') badges += '<span class="m-badge">✋</span>'
-  if (r.installmentCurrent && r.installmentTotal) badges += `<span class="m-badge">💳 ${r.installmentCurrent}/${r.installmentTotal}</span>`
+  if (r.source === 'manual-group') badges += '<span class="m-badge" title="קבוצה ידנית">ידנית</span>'
+  else if (r.source === 'manual-flag') badges += '<span class="m-badge" title="סומן ידנית">ידנית</span>'
+  if (r.installmentCurrent && r.installmentTotal) badges += `<span class="m-badge">${uiIcon('card', 11)} ${r.installmentCurrent}/${r.installmentTotal}</span>`
   const smoothNote = r.cadenceDays !== 30
     ? ` · ${r.avgAmount > 0 ? '+' : ''}${formatCurrencyPlain(r.avgAmount)} ל${r.cadenceLabel}`
     : ''
-  const avatar = (typeof UK_vendorAvatar === 'function') ? UK_vendorAvatar(r.vendor, { size: 42 }) : '<div class="tx-avatar">🔁</div>'
+  const avatar = (typeof UK_vendorAvatar === 'function') ? UK_vendorAvatar(r.vendor, { size: 42 }) : `<div class="tx-avatar">${uiIcon('refresh', 18)}</div>`
   return `<div class="m-tx-row ${isHidden ? 'm-rec-hidden' : ''}" data-idx="${idx}" onclick="openRecurringDrillByIdx('${idx}')">
     ${avatar}
     <div class="m-tx-mid">
