@@ -534,7 +534,7 @@ function _propDocsCard() {
     <div class="propdoc-chips">
       ${docs.length ? `<button class="propdoc-chip ${_pdFilter === 'all' && !_pdPayFilter ? 'active' : ''}" onclick="propDocSetFilter('all')">הכל (${docs.length})</button>` : ''}
       ${getPropDocCats().filter(c => counts[c.id]).map(c =>
-        `<button class="propdoc-chip ${_pdFilter === c.id && !_pdPayFilter ? 'active' : ''}" onclick="propDocSetFilter('${c.id}')">${c.icon} ${escHtml(c.label)} (${counts[c.id]})</button>`).join('')}
+        `<button class="propdoc-chip ${_pdFilter === c.id && !_pdPayFilter ? 'active' : ''}" onclick="propDocSetFilter('${c.id}')">${_pdCatIcon(c, 13)} ${escHtml(c.label)} (${counts[c.id]})</button>`).join('')}
       ${payFilterRow ? `<button class="propdoc-chip active" onclick="propDocSetFilter('all')">${uiIcon('paperclip', 13)} ${_pdPaymentLabel(payFilterRow)} ✕</button>` : ''}
       <button class="propdoc-chip" onclick="propDocManageCats()" title="ניהול קטגוריות מסמכים">${uiIcon('gear', 13)} קטגוריות</button>
     </div>`

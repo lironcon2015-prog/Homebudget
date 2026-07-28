@@ -27,7 +27,7 @@ function M_renderTransactions() {
       <div class="m-search"><span>${uiIcon('search', 15)}</span>
         <input id="txSearch" placeholder="חיפוש ספק או תיאור…" oninput="M_txReset()">
       </div>
-      <button class="m-filter-btn" id="mTxFilterBtn" onclick="M_openTxFilters()">⚙︎</button>
+      <button class="m-filter-btn" id="mTxFilterBtn" onclick="M_openTxFilters()" aria-label="מסננים">${uiIcon('gear', 16)}</button>
     </div>
 
     <div class="m-typechips" id="mTxTypeChips">
@@ -98,7 +98,7 @@ function M_syncTypeChips() {
     + (document.getElementById('txInstallmentFilter')?.checked ? 1 : 0)
     + (document.getElementById('txStandingOrderFilter')?.checked ? 1 : 0)
   const btn = document.getElementById('mTxFilterBtn')
-  if (btn) { btn.classList.toggle('has-active', n > 0); btn.textContent = n > 0 ? `⚙︎ ${n}` : '⚙︎' }
+  if (btn) { btn.classList.toggle('has-active', n > 0); btn.innerHTML = uiIcon('gear', 16) + (n > 0 ? ` ${n}` : '') }
 }
 
 // Mobile redraw — replaces desktop _drawTxTable via the mobile guard.
