@@ -228,11 +228,17 @@ async function fetchIsraeliCandidates(rawId) {
   // markup); Funder /fund is reliable for mutual funds (buyPrice JSON).
   // Trying Bizportal first prevents a Funder ETF's bid/ask spread (if
   // it ever appears as buyPrice) from beating Bizportal's last price.
+  // The Bizportal/Funder pages above are fund-and-ETF pages; an ordinary TASE
+  // share (Bizportal files those under a per-sector path we can't guess) is
+  // not on any of them. Globes and TheMarker both address any security by its
+  // bare number, so they cover shares without needing the sector.
   const urls = [
     'https://www.bizportal.co.il/tradedfund/quote/generalview/' + rawId,
     'https://www.bizportal.co.il/mutualfund/quote/generalview/' + rawId,
     'https://www.funder.co.il/fund/' + rawId,
     'https://www.funder.co.il/etf/' + rawId,
+    'https://finance.themarker.com/stock/' + rawId,
+    'https://www.globes.co.il/portal/instrument.aspx?quote=TASE%3A' + rawId,
     'https://market.tase.co.il/he/market_data/security/' + padded + '/major_data',
   ];
   const tasks = urls.map(async (url) => {
@@ -275,6 +281,20 @@ function rememberSymbol(ticker, symbol) {
   try {
     const map = loadSymbolMap();
     map[key] = symbol;
+    localStorage.setItem(SYMBOL_MAP_KEY, JSON.stringify(map));
+  } catch {}
+}
+
+// Pin the symbol used to fetch a ticker's price, overriding auto-resolution.
+// This is the escape hatch for a holding no source spells the way the user
+// typed it: the ledger keeps its ticker (and every lot stays attached to it)
+// while quotes are fetched under the pinned symbol. Empty clears the pin.
+export function setResolvedSymbol(ticker, symbol) {
+  const key = ticker.toUpperCase();
+  const value = (symbol || '').trim().toUpperCase();
+  try {
+    const map = loadSymbolMap();
+    if (value && value !== key) map[key] = value; else delete map[key];
     localStorage.setItem(SYMBOL_MAP_KEY, JSON.stringify(map));
   } catch {}
 }
@@ -344,20 +364,12 @@ async function stooqQuote(ticker) {
   return null;
 }
 
-// Ordered list of Yahoo symbols to try for a typed ticker, cheapest first.
-async function yahooCandidates(ticker) {
-  const seen = new Set();
-  const out = [];
-  const push = (s) => { const u = (s || '').toUpperCase(); if (u && !seen.has(u)) { seen.add(u); out.push(s); } };
-  push(getResolvedSymbol(ticker));   // previously resolved — usually a direct hit
-  push(ticker);
-  return { known: out, push, seen };
-}
-
 // Resolve + price a non-numeric ticker. Returns { price, currency, symbol,
 // source } or null.
 async function getForeignQuote(ticker) {
-  const { known, push, seen } = await yahooCandidates(ticker);
+  const seen = new Set([ticker.toUpperCase()]);
+  const known = [ticker];
+  const push = (s) => { const u = (s || '').toUpperCase(); if (u && !seen.has(u)) seen.add(u); };
   const deadline = Date.now() + RESOLVE_BUDGET_MS;
   const outOfTime = () => Date.now() > deadline;
 
@@ -403,29 +415,40 @@ async function getForeignQuote(ticker) {
   return null;
 }
 
+// Price a numeric TASE security id. Returns { price, currency, symbol,
+// source } or null.
+async function getIsraeliQuote(rawId) {
+  const results = await fetchIsraeliCandidates(rawId);
+  for (const { url, price } of results) {
+    if (price != null) return { price, currency: 'ILS-Agorot', symbol: rawId, source: url };
+  }
+  // Scraped pages can change markup or omit the security entirely; Yahoo
+  // carries many TASE listings under "<id>.TA" and answers with clean JSON.
+  const y = await yahooChart(`${rawId}.TA`, ['query1']);
+  if (y) return { price: y.price, currency: y.currency || 'ILS-Agorot', symbol: y.symbol, source: 'yahoo' };
+  return null;
+}
+
 // Full quote for one ticker: { price, currency, symbol, source } or null.
 export async function getQuoteDetail(ticker) {
-  const rawId = ticker.replace(/\.TA$/i, '');
+  // A pinned (or previously discovered) symbol stands in for the typed ticker,
+  // and may route it to a different source family entirely — e.g. the TASE
+  // share DLAS is quoted by its security number 1196211, not by any symbol
+  // Yahoo knows. Routing therefore happens on the resolved symbol.
+  const pinned = getResolvedSymbol(ticker);
+  const lookup = pinned || ticker;
+  const rawId = lookup.replace(/\.TA$/i, '');
   // Strip .TA before testing so "1150184.TA" routes to the Israeli sources too.
   const isNumericIsraeli = /^\d{6,7}$/.test(rawId);
 
-  if (isNumericIsraeli) {
-    const results = await fetchIsraeliCandidates(rawId);
-    for (const { url, price } of results) {
-      if (price != null) {
-        console.log(`[QuoteFetcher] OK: ${ticker} = ${price} via ${url}`);
-        return { price, currency: 'ILS-Agorot', symbol: rawId, source: url };
-      }
-    }
-    return null;
-  }
+  const hit = isNumericIsraeli ? await getIsraeliQuote(rawId) : await getForeignQuote(lookup);
 
-  const hit = await getForeignQuote(ticker);
   if (hit) {
-    rememberSymbol(ticker, hit.symbol);
+    // Never let an auto-discovered symbol overwrite one the user pinned.
+    if (!pinned) rememberSymbol(ticker, hit.symbol);
     console.log(`[QuoteFetcher] OK: ${ticker} = ${hit.price} via ${hit.source} (${hit.symbol})`);
   } else {
-    console.warn(`[QuoteFetcher] no price found for ${ticker}`);
+    console.warn(`[QuoteFetcher] no price found for ${ticker} (lookup: ${lookup})`);
   }
   return hit;
 }

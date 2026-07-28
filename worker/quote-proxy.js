@@ -23,6 +23,10 @@ const ALLOWED_HOSTS = new Set([
   // Fallback quote source for listings Yahoo doesn't carry.
   'stooq.com',
   'www.stooq.com',
+  // Address any TASE security by its bare number, including ordinary shares
+  // that the Bizportal/Funder fund pages don't cover.
+  'finance.themarker.com',
+  'www.globes.co.il',
 ]);
 
 const CORS_HEADERS = {

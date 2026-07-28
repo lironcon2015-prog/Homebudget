@@ -10,7 +10,7 @@ import {
   fmtIls,
 } from './view/Selectors.js';
 import { xirr } from './math/Xirr.js';
-import { fetchQuotes, getWorkerUrl, setWorkerUrl, testWorker } from './io/QuoteFetcher.js';
+import { fetchQuotes, getWorkerUrl, setWorkerUrl, testWorker, getResolvedSymbol, setResolvedSymbol } from './io/QuoteFetcher.js';
 
 const $  = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
@@ -342,6 +342,13 @@ export class UI {
                    class="bg-transparent text-white font-data-tabular w-24 sm:w-28 text-left outline-none focus:text-primary shrink-0" />
             <span class="text-xs text-on-surface-variant shrink-0 min-w-[2rem] inline-block text-left">${escapeHtml(q.currency === 'ILS-Agorot' ? 'אג\'' : (q.currency || 'USD'))}</span>
             <button data-rm-quote="${escapeHtml(q.ticker)}" class="text-on-surface-variant hover:text-primary text-xs shrink-0">הסר</button>
+            <div class="basis-full flex items-center gap-2">
+              <label class="text-xs text-on-surface-variant shrink-0" for="sym-${escapeHtml(q.ticker)}">סימול משיכה</label>
+              <input id="sym-${escapeHtml(q.ticker)}" type="text" dir="ltr" placeholder="${escapeHtml(q.ticker)}"
+                     value="${escapeHtml(getResolvedSymbol(q.ticker))}"
+                     data-sym-quote="${escapeHtml(q.ticker)}"
+                     class="bg-transparent text-on-surface-variant font-data-tabular text-xs w-36 text-left outline-none focus:text-primary border-b border-white/10 focus:border-primary/50" />
+            </div>
           </div>`).join('')
         : '<p class="text-sm text-on-surface-variant">לא נשמרו ציטוטים. ייווצרו אוטומטית בעת קנייה ראשונה.</p>';
 
@@ -357,6 +364,16 @@ export class UI {
             asOf: new Date().toISOString().slice(0, 10),
             source: 'manual',
           });
+        }));
+
+      // Pinning a fetch symbol only affects quote lookups — the ledger keeps
+      // the original ticker, so lots and transactions stay attached to it.
+      $$('[data-sym-quote]', quoteBox).forEach((inp) =>
+        inp.addEventListener('change', () => {
+          setResolvedSymbol(inp.dataset.symQuote, inp.value);
+          toast(inp.value.trim()
+            ? `${inp.dataset.symQuote} יימשך לפי ${inp.value.trim().toUpperCase()}`
+            : `בוטל סימול משיכה עבור ${inp.dataset.symQuote}`);
         }));
 
       $$('[data-rm-quote]', quoteBox).forEach((btn) =>
