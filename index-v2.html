@@ -72,19 +72,21 @@
     text-rendering: optimizeLegibility;
   }
 
+  /* Until the icon font arrives the browser lays out the ligature *text*
+     ("expand_more"), which is far wider than the glyph and wrecks every row it
+     sits in. Reserving a 1em box keeps layout stable; hiding the span until
+     the font is confirmed loaded means that text never paints at all, so
+     there's no flash of clipped words on a cold load. */
   .material-symbols-outlined {
     font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
     user-select: none;
-    /* Until the icon font arrives the browser lays out the ligature *text*
-       ("expand_more"), which is far wider than the glyph and wrecks every row
-       it sits in. Pinning the icon to its 1em box keeps layout stable whether
-       the font is slow, cached, or blocked outright. */
     display: inline-block;
     width: 1em;
-    overflow: hidden;
-    white-space: nowrap;
     line-height: 1;
+    white-space: nowrap;
+    visibility: hidden;
   }
+  html.icons-ready .material-symbols-outlined { visibility: visible; }
   .material-symbols-outlined.fill { font-variation-settings: 'FILL' 1, 'wght' 400; }
 
   /* Latin tickers and numerals must never reorder inside RTL text. */
@@ -117,6 +119,20 @@
 <body class="font-sans min-h-screen antialiased" dir="rtl">
   <!-- Everything below is injected by src/ui-v2.js (mock data only). -->
   <div id="v2-root"></div>
+
+  <script>
+    // Reveal icons only once the font is genuinely available, so a blocked or
+    // slow icon font leaves a blank 1em box rather than raw "expand_more"
+    // text. fonts.load() resolves with the faces it actually matched — unlike
+    // fonts.check(), which tests a space glyph this font doesn't carry and so
+    // reports false even on success. A rejection (network failure) simply
+    // leaves the icons hidden.
+    document.fonts.load('24px "Material Symbols Outlined"')
+      .then((faces) => {
+        if (faces.length) document.documentElement.classList.add('icons-ready');
+      })
+      .catch(() => {});
+  </script>
 
   <script type="module">
     // Cache-bust while iterating on the design — but only over http(s).
