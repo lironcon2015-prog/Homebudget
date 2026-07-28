@@ -24,7 +24,7 @@ const CAT_ICON_META = {
   cart:        { he: 'עגלת קניות',  kw: 'cart grocery סופר מזון',   svg: '<circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/>' },
   utensils:    { he: 'מסעדה',       kw: 'utensils food restaurant', svg: '<path d="M3 2v7c0 1.1.9 2 2 2a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/>' },
   coffee:      { he: 'קפה',         kw: 'coffee cafe קפה',          svg: '<path d="M10 2v2M14 2v2M16 8a1 1 0 0 1 1 1v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1h14a4 4 0 1 1 0 8h-1"/>' },
-  pizza:       { he: 'פיצה',        kw: 'pizza fastfood',           svg: '<path d="M15 11h.01M11 15h.01M16 16h.01M2 16l20 6-6-20A20 20 0 0 0 2 16"/><path d="M5.71 17.11a17 17 0 0 1 11.4-11.4"/>' },
+  pizza:       { he: 'פיצה',        kw: 'pizza fastfood',           svg: '<path d="M2 16l20 6-6-20A20 20 0 0 0 2 16"/><path d="M5.71 17.11a17 17 0 0 1 11.4-11.4"/>' },
   apple:       { he: 'פרי/בריא',    kw: 'apple fruit healthy',      svg: '<path d="M12 6.5V3a1 1 0 0 1 1-1"/><path d="M18.63 8.13C19.5 9 20 10.13 20 11.5c0 3-2 6-4 8-1 1-2 1.5-4 1.5s-3-.5-4-1.5c-2-2-4-5-4-8C4 8.46 6 6.5 8.5 6.5c1.5 0 2.5.5 3.5 1 1-.5 2-1 3.5-1"/>' },
 
   // --- תחבורה ---
@@ -44,7 +44,7 @@ const CAT_ICON_META = {
   // --- בריאות וכושר ---
   health:      { he: 'בריאות',      kw: 'heart pulse health בריאות',svg: '<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/><path d="M3.22 12H9.5l.5-1 2 4.5 2-7 1.5 3.5h5.27"/>' },
   pill:        { he: 'תרופות',      kw: 'pill medicine תרופה',      svg: '<path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/>' },
-  hospital:    { he: 'רפואה',       kw: 'hospital cross medical רפואה',svg: '<path d="M11 2a2 2 0 0 0-2 2v5H4a2 2 0 0 0-2 2v2c0 1.1.9 2 2 2h5v5c0 1.1.9 2 2 2h2a2 2 0 0 0 2-2v-5h5a2 2 0 0 0 2-2v-2a2 2 0 0 0-2-2h-5V4a2 2 0 0 0-2-2h-2z"/>' },
+  stethoscope: { he: 'רפואה',       kw: 'stethoscope doctor medical רפואה קופת חולים',svg: '<path d="M5 4v5a5 5 0 0 0 10 0V4"/><circle cx="5" cy="2.5" r="1.3"/><circle cx="15" cy="2.5" r="1.3"/><path d="M10 14v1.5a4.5 4.5 0 0 0 9 0v-1.7"/><circle cx="19" cy="11.5" r="2.3"/>' },
   dumbbell:    { he: 'כושר',        kw: 'gym fitness dumbbell כושר', svg: '<path d="M14.4 14.4 9.6 9.6"/><path d="m21.5 21.5-1.4-1.4"/><path d="M3.9 3.9 2.5 2.5"/><path d="M6.4 12.77 3.57 9.94a2 2 0 0 1 0-2.83l1.06-1.06a2 2 0 0 1 2.83 0l2.83 2.83"/><path d="m17.6 11.23 2.83 2.83a2 2 0 0 1 0 2.83l-1.06 1.06a2 2 0 0 1-2.83 0L13.7 17.66"/>' },
 
   // --- כספים ---
@@ -128,7 +128,7 @@ const CAT_ICON_GROUPS = [
   { label: 'מזון',          ids: ['cart','utensils','coffee','pizza','apple'] },
   { label: 'תחבורה',        ids: ['car','fuel','bus','plane','bike'] },
   { label: 'קניות',         ids: ['bag','package','shirt','gift','tag'] },
-  { label: 'בריאות וכושר',  ids: ['health','pill','hospital','dumbbell'] },
+  { label: 'בריאות וכושר',  ids: ['health','pill','stethoscope','dumbbell'] },
   { label: 'כספים',         ids: ['wallet','banknote','vault','trendingup','landmark','card','coins','percent','receipt','briefcase'] },
   { label: 'פנאי',          ids: ['gamepad','film','music','book','umbrella','star'] },
   { label: 'כללי',          ids: ['graduation','baby','paw','shield','scissors','calendar','refresh','file'] },
@@ -136,7 +136,7 @@ const CAT_ICON_GROUPS = [
 
 // Renamed glyphs. Stored category icons ('ic:<id>') live in user data, so an
 // id can never simply disappear — it resolves here instead.
-const CAT_ICON_ALIAS = { piggy: 'vault' }
+const CAT_ICON_ALIAS = { piggy: 'vault', hospital: 'stethoscope' }
 
 function _catIconSvg(id, size = 18) {
   const m = CAT_ICON_META[id] || CAT_ICON_META[CAT_ICON_ALIAS[id]]
@@ -232,7 +232,7 @@ function filterIconPicker(inputId, term) {
 // their current emoji. Anything unmapped keeps its emoji and still renders.
 const _SYS_CAT_ICON = {
   cat_food: 'cart', cat_rest: 'utensils', cat_transport: 'car', cat_fuel: 'fuel',
-  cat_rent: 'home', cat_bills: 'lightbulb', cat_health: 'hospital', cat_clothing: 'shirt',
+  cat_rent: 'home', cat_bills: 'lightbulb', cat_health: 'stethoscope', cat_clothing: 'shirt',
   cat_leisure: 'gamepad', cat_insurance: 'shield', cat_bank: 'landmark', cat_online: 'package',
   cat_invest_out: 'vault', cat_other_exp: 'file', cat_salary: 'briefcase', cat_extra: 'banknote',
   cat_taxback: 'receipt', cat_invest: 'trendingup', cat_other_inc: 'file', cat_transfer: 'refresh',
@@ -243,7 +243,7 @@ const _EMOJI_CAT_ICON = {
   '🔥': 'flame', '📶': 'wifi', '📱': 'smartphone', '☎️': 'phone', '📞': 'phone',
   '🍔': 'utensils', '🍕': 'pizza', '☕': 'coffee', '🍎': 'apple', '🚌': 'bus',
   '✈️': 'plane', '🚲': 'bike', '🛍️': 'bag', '📦': 'package', '👕': 'shirt',
-  '🎁': 'gift', '🏷️': 'tag', '❤️': 'health', '💊': 'pill', '🏥': 'hospital',
+  '🎁': 'gift', '🏷️': 'tag', '❤️': 'health', '💊': 'pill', '🏥': 'stethoscope',
   '💪': 'dumbbell', '🏋️': 'dumbbell', '👛': 'wallet', '💵': 'banknote', '💴': 'banknote',
   '💰': 'vault', '🐷': 'vault', '📈': 'trendingup', '🏦': 'landmark', '💳': 'card',
   '🪙': 'coins', '🧾': 'receipt', '💼': 'briefcase', '🎮': 'gamepad', '🎬': 'film',
@@ -269,8 +269,12 @@ function migrateCategoryIconsToSvg_v1() {
 
 // Rewrites renamed ids in stored categories so the icon picker still shows the
 // current selection (rendering already works through CAT_ICON_ALIAS).
+//
+// The flag stores the alias table's signature rather than '1': a glyph can be
+// renamed again later, and a plain done-flag would skip those users forever.
 function migrateRenamedCatIcons_v1() {
-  if (localStorage.getItem('migration_cat_icon_rename_v1') === '1') return
+  const sig = Object.keys(CAT_ICON_ALIAS).sort().join(',')
+  if (localStorage.getItem('migration_cat_icon_rename_v1') === sig) return
   if (typeof getCategories !== 'function') return
   const cats = getCategories()
   let changed = false
@@ -279,5 +283,5 @@ function migrateRenamedCatIcons_v1() {
     if (id && CAT_ICON_ALIAS[id]) { c.icon = 'ic:' + CAT_ICON_ALIAS[id]; changed = true }
   }
   if (changed) DB.set('finCategories', cats)
-  localStorage.setItem('migration_cat_icon_rename_v1', '1')
+  localStorage.setItem('migration_cat_icon_rename_v1', sig)
 }

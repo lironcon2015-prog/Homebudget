@@ -1,4 +1,4 @@
-const APP_VERSION = '1.44.2'
+const APP_VERSION = '1.44.3'
 
 // ===== STORAGE =====
 // Hot keys are cached as parsed objects: getTransactions() etc. used to
@@ -155,7 +155,7 @@ const DEFAULT_CATEGORIES = [
   { id: 'cat_fuel',      name: 'דלק',               type: 'expense', color: '#84cc16', icon: 'ic:fuel', system: true },
   { id: 'cat_rent',      name: 'דיור ושכירות',      type: 'expense', color: '#06b6d4', icon: 'ic:home', system: true },
   { id: 'cat_bills',     name: 'חשבונות וחשמל',    type: 'expense', color: '#3b82f6', icon: 'ic:lightbulb', system: true },
-  { id: 'cat_health',    name: 'בריאות ורפואה',     type: 'expense', color: '#a855f7', icon: 'ic:hospital', system: true },
+  { id: 'cat_health',    name: 'בריאות ורפואה',     type: 'expense', color: '#a855f7', icon: 'ic:stethoscope', system: true },
   { id: 'cat_clothing',  name: 'ביגוד והנעלה',      type: 'expense', color: '#ec4899', icon: 'ic:shirt', system: true },
   { id: 'cat_leisure',   name: 'בידור ופנאי',       type: 'expense', color: '#14b8a6', icon: 'ic:gamepad', system: true },
   { id: 'cat_insurance', name: 'ביטוח',              type: 'expense', color: '#6366f1', icon: 'ic:shield', system: true },
