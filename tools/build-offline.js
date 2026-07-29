@@ -1,6 +1,6 @@
 // tools/build-offline.js
-// Produces dist/JuniorInvest-Offline.html — a single self-contained file
-// that runs the entire JuniorInvest SPA from disk via file://, with no
+// Produces dist/KidsPortfolio-Offline.html — a single self-contained file
+// that runs the entire Kids Portfolio SPA from disk via file://, with no
 // install, no server, and NO external CDN dependency.
 //
 // Pipeline:
@@ -142,7 +142,7 @@ async function main() {
 
   const outDir = path.join(ROOT, 'dist');
   fs.mkdirSync(outDir, { recursive: true });
-  const outPath = path.join(outDir, 'JuniorInvest-Offline.html');
+  const outPath = path.join(outDir, 'KidsPortfolio-Offline.html');
   fs.writeFileSync(outPath, html);
 
   const sizeKb = (Buffer.byteLength(html) / 1024).toFixed(1);

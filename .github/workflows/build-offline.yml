@@ -37,7 +37,7 @@ jobs:
 
       - run: npm ci
 
-      - name: Build dist/JuniorInvest-Offline.html
+      - name: Build dist/KidsPortfolio-Offline.html
         run: node tools/build-offline.js
 
       - name: Commit if changed
@@ -45,12 +45,12 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if git diff --quiet -- dist/JuniorInvest-Offline.html; then
+          if git diff --quiet -- dist/KidsPortfolio-Offline.html; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
             echo "no changes"
             exit 0
           fi
-          git add dist/JuniorInvest-Offline.html
+          git add dist/KidsPortfolio-Offline.html
           git commit -m "ci: rebuild offline bundle ($(jq -r .version version.json))"
           git push
           echo "changed=true" >> "$GITHUB_OUTPUT"
@@ -61,9 +61,9 @@ jobs:
           tag_name: offline-latest
           name: Offline build (latest)
           body: |
-            Single-file offline build of JuniorInvest. Download
-            `JuniorInvest-Offline.html` below and double-click it — no install,
+            Single-file offline build of Kids Portfolio. Download
+            `KidsPortfolio-Offline.html` below and double-click it — no install,
             no server, no CDN dependency. Rebuilt automatically on every push
             to `main`.
-          files: dist/JuniorInvest-Offline.html
+          files: dist/KidsPortfolio-Offline.html
           make_latest: true

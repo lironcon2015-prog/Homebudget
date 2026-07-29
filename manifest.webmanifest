@@ -1,6 +1,6 @@
 {
-  "name": "הון ג'וניור",
-  "short_name": "הון ג'וניור",
+  "name": "Kids Portfolio",
+  "short_name": "Kids Portfolio",
   "description": "תיק השקעות לילדים בחשבון אחד עם הקצאה לפי אחוזים",
   "start_url": "./",
   "scope": "./",

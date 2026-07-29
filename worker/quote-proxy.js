@@ -1,10 +1,10 @@
-// Cloudflare Worker — same-origin CORS proxy for JuniorInvest quote sources.
+// Cloudflare Worker — same-origin CORS proxy for Kids Portfolio quote sources.
 //
 // Deploy:
 //   1. Cloudflare dashboard → Workers & Pages → Create → Worker
-//   2. Name: juniorinvest-quotes  (or whatever you like)
+//   2. Name: kids-portfolio-quotes  (or whatever you like)
 //   3. Paste this whole file as the worker code → Deploy
-//   4. Copy the worker URL (e.g. https://juniorinvest-quotes.<account>.workers.dev)
+//   4. Copy the worker URL (e.g. https://kids-portfolio-quotes.<account>.workers.dev)
 //   5. In the app: הגדרות → "כתובת Worker לשערים" → paste the URL → Save
 //
 // Usage from the client:
@@ -61,7 +61,7 @@ export default {
       const upstream = await fetch(target, {
         cf: { cacheTtl: 60, cacheEverything: true },
         headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; JuniorInvestBot/1.0)',
+          'User-Agent': 'Mozilla/5.0 (compatible; KidsPortfolioBot/1.0)',
           'Accept': 'application/json, text/html, */*',
         },
       });

@@ -1,4 +1,4 @@
-# JuniorInvest — Architecture & System Principles
+# Kids Portfolio — Architecture & System Principles
 
 A Vanilla JS Single Page Application that tracks a multi-kid stock portfolio held inside a single parent brokerage account. The parent's own slice ("Ghost Number") is tracked in the back-office only — strictly so dividend math works correctly — and is **never** displayed.
 

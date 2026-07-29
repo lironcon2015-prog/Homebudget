@@ -1,4 +1,4 @@
-# JuniorInvest — Project Instructions for Claude Code
+# Kids Portfolio — Project Instructions for Claude Code
 
 ## Token discipline (MANDATORY — every session, without being asked)
 
@@ -76,7 +76,7 @@ All new work goes on `claude/juniorinvest-architecture-plan-2uPS2` (or a new bra
 
 ## Repository purpose
 
-**JuniorInvest** — Vanilla JS SPA, Hebrew RTL, dark Tailwind theme.  
+**Kids Portfolio** — Vanilla JS SPA, Hebrew RTL, dark Tailwind theme.  
 A multi-kid stock portfolio tracker: parent buys shares in one brokerage account; the app splits ownership across N kids by configurable % allocation.  Parent ghost shares are tracked internally for dividend math only and **must never appear in any UI output**.
 
 ## Key constraints

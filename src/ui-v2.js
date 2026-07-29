@@ -1,4 +1,4 @@
-// JuniorInvest — UI v2.
+// Kids Portfolio — UI v2.
 //
 // Same engine as ui.js: reads through Selectors, writes through StateManager,
 // never touches the ledger directly. Parent ghost shares are stripped by the
@@ -1200,7 +1200,7 @@ export class UIv2 {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `juniorinvest-${today()}.json`;
+    a.download = `kids-portfolio-${today()}.json`;
     a.click();
     URL.revokeObjectURL(url);
   }
