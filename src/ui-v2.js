@@ -11,6 +11,7 @@ import {
   dashboardViewModel, holdingsViewModel, ledgerViewModel, tickersViewModel,
 } from './view/Selectors.js';
 import { fetchQuotes, getWorkerUrl, setWorkerUrl, testWorker } from './io/QuoteFetcher.js';
+import { xirr } from './math/Xirr.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -99,6 +100,9 @@ export class UIv2 {
   constructor(sm) {
     this.sm = sm;
     this.tab = 'dashboard';
+    // Drill-down from a dashboard kid card. Non-null means the kid screen is
+    // showing; the dashboard tab stays lit because that is where it came from.
+    this.kidId = null;
     this.expanded = null;
     this.refreshing = false;
     this.pullStart = null;
@@ -149,6 +153,7 @@ export class UIv2 {
       holdings:  () => this._holdings(state, derived),
       ledger:    () => this._ledger(state),
       settings:  () => this._settings(state, derived),
+      kid:       () => this._kidPortfolio(state, derived),
     };
 
     $('#v2-root').innerHTML = `
@@ -239,7 +244,8 @@ export class UIv2 {
     const barPct = Math.max(8, Math.min(95, 40 + (kid.profitPct || 0) * 2));
 
     return `
-      <div class="glass-card pressable flex flex-col gap-4 rounded-2xl p-5">
+      <div class="glass-card pressable flex flex-col gap-4 rounded-2xl p-5"
+           data-kid="${escapeHtml(kid.id)}" role="button" tabindex="0">
         <div class="card-glow" style="background: ${cardGlow(c)};"></div>
 
         <!-- Identity on the start side, numbers on the end side — the same
@@ -254,9 +260,12 @@ export class UIv2 {
               <p class="mt-0.5 text-xs text-on-surface-variant">מזומן ${ltr(ils(kid.cashIls))}</p>
             </div>
           </div>
-          <div class="shrink-0 text-left">
-            <div class="text-xl font-black tracking-tight text-white">${ltr(ils(kid.portfolioValueIls))}</div>
-            <div class="mt-0.5 text-sm font-bold ${up ? 'text-secondary' : 'text-red-400'}">${ltr(signedPoints(kid.profitPct))}</div>
+          <div class="flex shrink-0 items-center gap-2">
+            <div class="text-left">
+              <div class="text-xl font-black tracking-tight text-white">${ltr(ils(kid.portfolioValueIls))}</div>
+              <div class="mt-0.5 text-sm font-bold ${up ? 'text-secondary' : 'text-red-400'}">${ltr(signedPoints(kid.profitPct))}</div>
+            </div>
+            ${icon('chevron_left', `${c.accent} text-[20px]`)}
           </div>
         </div>
 
@@ -268,6 +277,132 @@ export class UIv2 {
         <div class="kid-progress-track">
           <div class="kid-progress-fill" style="width:${barPct}%; background:${c.bar};"></div>
         </div>
+      </div>`;
+  }
+
+  // ---- Kid portfolio (drill-down) -----------------------------------------
+
+  _kidPortfolio(state, derived) {
+    const kid = state.kids[this.kidId];
+    if (!kid) {
+      // The kid was removed while the screen was open.
+      this.tab = 'dashboard';
+      this.kidId = null;
+      return this._dashboard(state, derived);
+    }
+
+    const fxRate = state.settings.lastFxRate;
+    const value = derived.portfolioValueByKid[this.kidId] || 0;
+    const cash = derived.cashByKid[this.kidId] || 0;
+    const profit = derived.profitByKid?.[this.kidId] || { total: 0, unrealized: 0, realized: 0 };
+    const kidXirr = typeof derived.xirrByKid?.[this.kidId] === 'number' ? derived.xirrByKid[this.kidId] : null;
+    const up = isUp(profit.total);
+    const now = new Date();
+
+    const back = `
+      <header class="flex items-center gap-3 px-5 pb-1 pt-8">
+        <button type="button" id="kid-back" aria-label="חזרה" class="pressable shrink-0 text-on-surface-variant active:text-white">
+          ${icon('chevron_right', 'text-[26px]')}
+        </button>
+        <div class="min-w-0 flex-1">
+          <h1 class="truncate text-2xl font-bold tracking-tight text-white">${escapeHtml(kid.name)}</h1>
+          <p class="mt-1.5 text-sm text-on-surface-variant">התיק האישי</p>
+        </div>
+      </header>`;
+
+    const summary = `
+      <section class="px-5 pt-4">
+        <div class="glass-card rounded-2xl p-5">
+          <div class="card-glow" style="background: ${cardGlow(KID_PALETTE[0])};"></div>
+          <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant">שווי התיק</p>
+          <h2 class="mt-3 text-4xl font-black tracking-tight text-white drop-shadow-[0_2px_15px_rgba(255,255,255,0.22)]">
+            ${ltr(ils(value))}
+          </h2>
+          <div class="mt-4 flex flex-wrap items-center gap-2">
+            ${pill(up ? 'secondary' : 'red', signedIls(profit.total))}
+            ${kidXirr != null ? pill('primary', `שנתית ${ratioAsPct(kidXirr)}`) : ''}
+          </div>
+          <div class="mt-5 space-y-2 border-t border-white/10 pt-3">
+            ${this._kidStat('רווח לא ממומש', profit.unrealized)}
+            ${this._kidStat('רווח ממומש', profit.realized)}
+            ${this._kidStat('מזומן', cash, false)}
+          </div>
+        </div>
+      </section>`;
+
+    // Per-lot figures for this kid alone. holdingsViewModel aggregates lots
+    // across all kids, so this has to come off the raw lots.
+    const lots = (derived.lots || []).filter((l) => (l.remaining.kids[this.kidId] || 0) > 0);
+
+    const lotCards = lots.map((lot) => {
+      const shares = lot.remaining.kids[this.kidId];
+      const q = state.quotes[lot.ticker];
+      const price = q?.price ?? q?.priceUsd ?? null;
+      const qCurrency = q?.currency ?? 'USD';
+      const nowRate = qCurrency === 'ILS-Agorot' ? 0.01 : fxRate;
+      const buyRate = lot.currency === 'ILS-Agorot' ? 0.01 : lot.fxAtBuy;
+      const cost = shares * lot.price * buyRate;
+      const val = price != null ? shares * price * nowRate : null;
+      const lotProfit = val != null ? val - cost : null;
+      const pct = price != null ? (price - lot.price) / lot.price : null;
+
+      let lotXirr = null;
+      if (val != null && cost !== 0) {
+        // A same-day lot has no elapsed time to annualise over.
+        if (String(lot.openDate).slice(0, 10) !== now.toISOString().slice(0, 10)) {
+          lotXirr = xirr([{ date: lot.openDate, amount: -cost }, { date: now, amount: val }])?.value ?? null;
+        }
+      }
+
+      const tone = lotProfit == null ? 'text-on-surface-variant' : isUp(lotProfit) ? 'text-secondary' : 'text-red-400';
+      const sym = { USD: '$', EUR: '€', GBP: '£', 'ILS-Agorot': '' };
+      const money = (p, c) => (p == null ? '—' : `${c in sym ? sym[c] : (c || '')}${numFmt.format(p)}`);
+
+      return `
+        <div class="glass-card rounded-2xl p-5">
+          <div class="flex items-center justify-between gap-3">
+            <div class="min-w-0">
+              <div class="text-base font-bold text-white">${ltr(escapeHtml(lot.ticker))}</div>
+              <div class="mt-0.5 truncate text-xs text-on-surface-variant">${escapeHtml(formatDateHe(lot.openDate))}</div>
+            </div>
+            <div class="shrink-0 text-left">
+              <div class="text-base font-bold text-white">${ltr(val != null ? ils(val) : '—')}</div>
+              <div class="mt-0.5 text-sm font-bold ${tone}">${ltr(signedRatio(pct))}</div>
+            </div>
+          </div>
+          <div class="mt-4 border-t border-white/10 pt-2">
+            ${this._lotRow('מניות', numFmt.format(shares))}
+            ${this._lotRow('מחיר קנייה', money(lot.price, lot.currency))}
+            ${this._lotRow('מחיר נוכחי', money(price, qCurrency))}
+            ${this._lotRow('רווח', signedIls(lotProfit), tone)}
+            ${this._lotRow('תשואה שנתית', lotXirr != null ? ratioAsPct(lotXirr) : '—')}
+          </div>
+        </div>`;
+    }).join('');
+
+    return `
+      ${back}
+      ${summary}
+      <section class="px-5 pt-6">
+        ${this._sectionTitle('אחזקות פתוחות')}
+        <div class="space-y-4">${lots.length ? lotCards : this._empty('אין אחזקות פתוחות')}</div>
+      </section>`;
+  }
+
+  _kidStat(label, amount, tone = true) {
+    const cls = !tone ? 'text-white' : isUp(amount) ? 'text-secondary' : 'text-red-400';
+    return `
+      <div class="flex items-center justify-between text-sm">
+        <span class="text-gray-400">${escapeHtml(label)}</span>
+        <span class="font-semibold ${cls}">${ltr(tone ? signedIls(amount) : ils(amount))}</span>
+      </div>`;
+  }
+
+  _lotRow(label, value, tone = 'text-white') {
+    return `
+      <div class="flex items-center justify-between border-b border-gray-800 py-2 text-sm last:border-b-0">
+        <span class="text-gray-400">${escapeHtml(label)}</span>
+        <span class="font-semibold ${tone}">${ltr(value)}</span>
       </div>`;
   }
 
@@ -495,7 +630,7 @@ export class UIv2 {
 
   _nav() {
     const items = TABS.map((t) => {
-      const active = this.tab === t.id;
+      const active = (this.tab === 'kid' ? 'dashboard' : this.tab) === t.id;
       return `
         <button type="button" data-tab="${t.id}" aria-current="${active ? 'page' : 'false'}"
                 class="tab-item flex flex-1 flex-col items-center gap-1 rounded-full px-1 py-2 ${active ? 'text-primary' : 'text-outline'}">
@@ -779,7 +914,20 @@ export class UIv2 {
   _bind() {
     document.addEventListener('click', (e) => {
       const tab = e.target.closest('[data-tab]');
-      if (tab) { this.tab = tab.dataset.tab; this.render(); window.scrollTo({ top: 0 }); return; }
+      if (tab) { this.tab = tab.dataset.tab; this.kidId = null; this.render(); window.scrollTo({ top: 0 }); return; }
+
+      if (e.target.closest('#kid-back')) {
+        this.tab = 'dashboard'; this.kidId = null; this.render(); window.scrollTo({ top: 0 }); return;
+      }
+
+      const kidCard = e.target.closest('[data-kid]');
+      if (kidCard) {
+        this.kidId = kidCard.dataset.kid;
+        this.tab = 'kid';
+        this.render();
+        window.scrollTo({ top: 0 });
+        return;
+      }
 
       const toggle = e.target.closest('[data-toggle]');
       if (toggle) { const t = toggle.dataset.toggle; this.expanded = this.expanded === t ? null : t; this.render(); return; }

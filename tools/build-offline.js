@@ -29,8 +29,8 @@ const ROOT = path.resolve(__dirname, '..');
 
 const TEXT_FONTS_URL =
   'https://fonts.googleapis.com/css2?' +
-  'family=Assistant:wght@400;500;600;700' +
-  '&family=Hanken+Grotesk:wght@400;500;600;700' +
+  'family=Assistant:wght@400;500;600;700;800' +
+  '&family=Hanken+Grotesk:wght@400;500;600;700;800;900' +
   '&display=swap';
 
 // Material Symbols supports a `&icon_names=` parameter that returns a
@@ -39,7 +39,7 @@ const TEXT_FONTS_URL =
 // fall back to anything — it simply never paints in the offline build.
 const ICON_NAMES = [
   'account_balance', 'account_balance_wallet', 'add', 'add_shopping_cart',
-  'chevron_left', 'close', 'dashboard', 'delete', 'download', 'edit',
+  'chevron_left', 'chevron_right', 'close', 'dashboard', 'delete', 'download', 'edit',
   'expand_more', 'history', 'person', 'receipt_long', 'savings', 'sell',
   'settings', 'sync', 'upload',
 ];
@@ -104,9 +104,8 @@ async function main() {
   // Strip the runtime bootstrap; the bundle is injected inline below. Leaving
   // the module import in place would 404 over file:// and its catch handler
   // would then paint an error over the app the bundle had already booted.
-  html = html.replace(/<!--\s*Cache-busting bootstrap[\s\S]*?-->\s*/g, '');
   html = html.replace(/<script>\s*\/\/\s*Tear down any service worker[\s\S]*?<\/script>\s*/g, '');
-  html = html.replace(/<script type="module">[\s\S]*?app-v2\.js[\s\S]*?<\/script>\s*/g, '');
+  html = html.replace(/<script>\s*\/\/\s*Cache-busting bootstrap[\s\S]*?<\/script>\s*/g, '');
 
   // Drop PWA manifest + favicons (we're file:// now; brand icon is inlined separately).
   html = html.replace(/<link rel="manifest"[^>]*>\s*/g, '');
