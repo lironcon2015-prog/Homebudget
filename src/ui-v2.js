@@ -176,28 +176,27 @@ function kidCard(kid, i) {
     <div class="glass-card pressable flex flex-col gap-4 rounded-2xl p-5">
       <div class="card-glow" style="background: ${kidGlow(c)};"></div>
 
-      <div class="flex items-start justify-between">
-        <div class="flex items-center gap-3">
-          <div class="grid h-11 w-11 place-items-center rounded-full border border-white/10 bg-surface-container">
+      <!-- Identity on the start side, numbers on the end side — the same
+           grammar every holdings and ledger row uses. -->
+      <div class="flex items-center justify-between gap-3">
+        <div class="flex min-w-0 items-center gap-3">
+          <div class="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/10 bg-surface-container">
             ${icon('person', `${c.accent} text-[21px]`)}
           </div>
-          <div>
-            <h3 class="text-lg font-bold text-white">${kid.name}</h3>
-            <p class="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.15em] text-outline">${ltr(`${kid.allocationPct}%`)} מהתיק</p>
+          <div class="min-w-0">
+            <h3 class="text-base font-bold text-white">${kid.name}</h3>
+            <p class="mt-0.5 text-xs text-on-surface-variant">${ltr(`${kid.allocationPct}%`)} מהתיק</p>
           </div>
         </div>
-        ${icon('chevron_left', `${c.accent} text-[20px]`)}
+        <div class="shrink-0 text-left">
+          <div class="text-xl font-black tracking-tight text-white">${ltr(ils(kid.valueIls))}</div>
+          <div class="mt-0.5 text-sm font-bold ${up ? 'text-secondary' : 'text-red-400'}">${ltr(signedPct(kid.profitPct))}</div>
+        </div>
       </div>
 
-      <div class="flex flex-col items-center gap-2 text-center">
-        <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant">יתרה</p>
-        <h4 class="text-3xl font-black tracking-tight text-white drop-shadow-[0_2px_10px_rgba(255,255,255,0.15)]">
-          ${ltr(ils(kid.valueIls))}
-        </h4>
-        <div class="mt-1 flex flex-wrap items-center justify-center gap-2">
-          ${pill(up ? 'secondary' : 'red', `${signedIls(kid.profitIls)} (${signedPct(kid.profitPct)})`)}
-          ${pill('primary', `שנתית ${numFmt.format(kid.xirrPct)}%`)}
-        </div>
+      <div class="flex flex-wrap items-center gap-2">
+        ${pill(up ? 'secondary' : 'red', signedIls(kid.profitIls))}
+        ${pill('primary', `שנתית ${numFmt.format(kid.xirrPct)}%`)}
       </div>
 
       <div class="kid-progress-track">
@@ -215,36 +214,37 @@ function renderDashboard() {
   const p = MOCK.portfolio;
   const up = isUp(p.profitIls);
 
-  const hero = `
-    <section class="relative flex justify-center px-5 pb-2 pt-8">
-      <div class="hero-orb-bg">
-        <div class="orb-violet"></div>
-        <div class="orb-emerald"></div>
-      </div>
+  // Same glass surface, radius and padding as every other card in the app —
+  // the total is emphasised by type weight, not by a bespoke floating card.
+  const summary = `
+    <section class="px-5 pt-4">
+      <div class="glass-card rounded-2xl p-5">
+        <div class="card-glow" style="background: ${kidGlow(KID_PALETTE[0])};"></div>
 
-      <div class="hero-card w-full">
-        <p class="mb-4 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.2em] text-tertiary drop-shadow-md">
-          <span class="h-2 w-2 rounded-full bg-tertiary shadow-[0_0_15px_#f9bd22] animate-pulse"></span>
+        <p class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-tertiary">
+          <span class="h-1.5 w-1.5 rounded-full bg-tertiary shadow-[0_0_12px_#f9bd22] animate-pulse"></span>
           שווי תיק כולל (ילדים)
         </p>
 
-        <h2 class="mb-1 text-4xl font-black tracking-tight text-white drop-shadow-[0_2px_15px_rgba(255,255,255,0.25)]">
+        <h2 class="mt-3 text-4xl font-black tracking-tight text-white drop-shadow-[0_2px_15px_rgba(255,255,255,0.22)]">
           ${ltr(ils(p.totalIls))}
         </h2>
 
-        <div class="mt-5 flex flex-wrap items-center justify-center gap-2">
+        <div class="mt-4 flex flex-wrap items-center gap-2">
           ${pill(up ? 'secondary' : 'red', `${signedIls(p.profitIls)} (${signedPct(p.profitPct)})`)}
           ${pill('primary', `שנתית ${numFmt.format(p.xirrPct)}%`)}
         </div>
 
-        <p class="mt-5 text-[11px] tracking-wide text-outline">
-          עודכן ${p.asOf} · USD/ILS ${ltr(numFmt.format(p.fxRate))}
-        </p>
+        <div class="mt-5 flex items-center justify-between border-t border-white/10 pt-3">
+          <span class="text-[10px] font-bold uppercase tracking-[0.15em] text-on-surface-variant">USD/ILS</span>
+          <span class="text-sm font-semibold text-white">${ltr(numFmt.format(p.fxRate))}</span>
+        </div>
       </div>
     </section>`;
 
   return `
-    ${hero}
+    ${screenHeader('תיק ההשקעות', `עודכן ${p.asOf}`)}
+    ${summary}
     <section class="px-5 pt-6">
       ${sectionTitle('הילדים')}
       <div class="space-y-4">${MOCK.kids.map(kidCard).join('')}</div>
@@ -424,38 +424,42 @@ const VIEWS = {
   settings: renderSettings,
 };
 
+// Floating iOS-style capsule, detached from the screen edges. The active tab
+// carries its own filled pill, so selection survives being read at a glance
+// without relying on colour alone.
 function renderNav() {
   const items = TABS.map((t) => {
     const active = view.tab === t.id;
     return `
       <button type="button" data-tab="${t.id}"
               aria-current="${active ? 'page' : 'false'}"
-              class="flex flex-1 flex-col items-center gap-1 py-2 transition-colors ${
-                active ? 'text-primary drop-shadow-[0_0_8px_rgba(206,189,255,0.7)]' : 'text-outline'}">
-        ${icon(t.icon, `text-[22px] ${active ? 'fill' : ''}`)}
-        <span class="text-[11px] ${active ? 'font-bold' : 'font-medium'}">${t.label}</span>
+              class="tab-item flex flex-1 flex-col items-center gap-1 rounded-full px-1 py-2 ${
+                active ? 'text-primary' : 'text-outline'}">
+        ${icon(t.icon, `text-[21px] ${active ? 'fill' : ''}`)}
+        <span class="text-[10px] ${active ? 'font-bold' : 'font-medium'}">${t.label}</span>
       </button>`;
   }).join('');
 
   return `
-    <nav class="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t-[0.5px] border-white/10 bg-background/70 backdrop-blur-xl">
-      <div class="mx-auto flex max-w-lg items-stretch px-2 pt-1">${items}</div>
+    <nav class="pointer-events-none fixed inset-x-0 bottom-0 z-40 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+      <div class="tabbar pointer-events-auto mx-auto flex max-w-md items-stretch gap-1 rounded-full p-1.5">${items}</div>
     </nav>`;
 }
 
 // Bottom-left mirrors the conventional bottom-right FAB under RTL.
 const renderFab = () => `
   <button type="button" id="v2-fab" aria-label="תנועה חדשה"
-          class="fab-neon fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] left-5 z-50 grid h-14 w-14 place-items-center rounded-2xl transition-all">
+          class="fab-neon fixed bottom-[calc(6.75rem+env(safe-area-inset-bottom))] left-5 z-50 grid h-14 w-14 place-items-center rounded-2xl transition-all">
     ${icon('add', 'text-[26px] fill')}
   </button>`;
 
 function render() {
   const root = document.getElementById('v2-root');
   root.innerHTML = `
-    <!-- Bottom padding clears the nav *and* the FAB, so the last row of a
-         list is never parked underneath the button at the end of a scroll. -->
-    <div class="mx-auto min-h-screen max-w-lg pb-[calc(10rem+env(safe-area-inset-bottom))]">
+    <div class="ambient-orb"><div class="orb-violet"></div><div class="orb-emerald"></div></div>
+    <!-- Bottom padding clears the floating bar *and* the FAB, so the last row
+         of a list is never parked underneath either at the end of a scroll. -->
+    <div class="relative z-10 mx-auto min-h-screen max-w-lg pb-[calc(11rem+env(safe-area-inset-bottom))]">
       <main id="v2-main">${VIEWS[view.tab]()}</main>
     </div>
     ${renderFab()}
