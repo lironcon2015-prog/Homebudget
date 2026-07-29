@@ -19,6 +19,30 @@ requirements rather than chatter:
 - **Keep code comments that explain non-obvious *why*.** Brevity applies to
   chat output, not to the codebase.
 
+## One design language, everywhere (MANDATORY)
+
+Consistency outranks local cleverness. Every screen must read as the same app:
+a new or edited screen adopts the existing patterns rather than inventing its
+own, even when something bespoke would look better in isolation.
+
+Before adding or changing a screen, look at the screens that already exist and
+reuse:
+
+- **Page frame** — the same header (title + subtitle), the same section
+  headings, the same page padding and card spacing.
+- **Card grammar** — identity on the start side, numbers on the end side.
+  Lists of records are collapsed cards that expand into a detail accordion;
+  they do not render fully expanded, and they do not become tables.
+- **Shared components** — the glass card surface, the glowing pills, the
+  tinted icon bubbles, the detail row. Extend the shared helper instead of
+  writing a near-copy; two near-identical helpers will drift.
+- **Semantics** — gains emerald, losses red, income the only coloured amount
+  in the ledger, `<bdi dir="ltr">` around every Latin or numeric run.
+
+If a screen genuinely needs a new pattern, apply it across the other screens
+in the same change so the app stays uniform — never leave one screen speaking
+a different dialect.
+
 ## Mockups: ship a live HTML page, into the chat
 
 When a task calls for a mockup or design preview:

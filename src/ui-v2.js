@@ -335,6 +335,7 @@ export class UIv2 {
     const lots = (derived.lots || []).filter((l) => (l.remaining.kids[this.kidId] || 0) > 0);
 
     const lotCards = lots.map((lot) => {
+      const open = this.expanded === lot.lotId;
       const shares = lot.remaining.kids[this.kidId];
       const q = state.quotes[lot.ticker];
       const price = q?.price ?? q?.priceUsd ?? null;
@@ -356,28 +357,41 @@ export class UIv2 {
 
       const tone = lotProfit == null ? 'text-on-surface-variant' : isUp(lotProfit) ? 'text-secondary' : 'text-red-400';
       const sym = { USD: '$', EUR: '€', GBP: '£', 'ILS-Agorot': '' };
-      const money = (p, c) => (p == null ? '—' : `${c in sym ? sym[c] : (c || '')}${numFmt.format(p)}`);
+      const money = (v, c) => (v == null ? '—' : `${c in sym ? sym[c] : (c || '')}${numFmt.format(v)}`);
 
-      return `
-        <div class="glass-card rounded-2xl p-5">
-          <div class="flex items-center justify-between gap-3">
-            <div class="min-w-0">
-              <div class="text-base font-bold text-white">${ltr(escapeHtml(lot.ticker))}</div>
-              <div class="mt-0.5 truncate text-xs text-on-surface-variant">${escapeHtml(formatDateHe(lot.openDate))}</div>
-            </div>
-            <div class="shrink-0 text-left">
+      // Same collapsed/expanded grammar as a holdings card: identity and date
+      // on the start side, value and return on the end side, detail behind the
+      // accordion.
+      const summaryBtn = `
+        <button type="button" data-toggle="${escapeHtml(lot.lotId)}" aria-expanded="${open}"
+                class="pressable flex w-full items-center justify-between gap-4 p-5 text-right">
+          <div class="min-w-0">
+            <div class="text-base font-bold text-white">${ltr(escapeHtml(lot.ticker))}</div>
+            <div class="mt-0.5 truncate text-xs text-on-surface-variant">${escapeHtml(formatDateHe(lot.openDate))}</div>
+          </div>
+          <div class="flex shrink-0 items-center gap-3">
+            <div class="text-left">
               <div class="text-base font-bold text-white">${ltr(val != null ? ils(val) : '—')}</div>
               <div class="mt-0.5 text-sm font-bold ${tone}">${ltr(signedRatio(pct))}</div>
             </div>
+            ${icon('expand_more', `chevron text-outline text-[20px] ${open ? 'open' : ''}`)}
           </div>
-          <div class="mt-4 border-t border-white/10 pt-2">
-            ${this._lotRow('מניות', numFmt.format(shares))}
-            ${this._lotRow('מחיר קנייה', money(lot.price, lot.currency))}
-            ${this._lotRow('מחיר נוכחי', money(price, qCurrency))}
-            ${this._lotRow('רווח', signedIls(lotProfit), tone)}
-            ${this._lotRow('תשואה שנתית', lotXirr != null ? ratioAsPct(lotXirr) : '—')}
+        </button>`;
+
+      const details = `
+        <div class="accordion ${open ? 'open' : ''}">
+          <div>
+            <div class="border-t border-white/10 px-5 pb-5 pt-3">
+              ${this._detailRow('מניות', numFmt.format(shares))}
+              ${this._detailRow('מחיר קנייה', money(lot.price, lot.currency))}
+              ${this._detailRow('מחיר נוכחי', money(price, qCurrency))}
+              ${this._detailRow('רווח/הפסד', signedIls(lotProfit), tone)}
+              ${this._detailRow('תשואה שנתית', lotXirr != null ? ratioAsPct(lotXirr) : '—')}
+            </div>
           </div>
         </div>`;
+
+      return `<div class="glass-card rounded-2xl">${summaryBtn}${details}</div>`;
     }).join('');
 
     return `
@@ -398,7 +412,8 @@ export class UIv2 {
       </div>`;
   }
 
-  _lotRow(label, value, tone = 'text-white') {
+  // Shared by the holdings and kid-portfolio accordions so the two can't drift.
+  _detailRow(label, value, tone = 'text-white') {
     return `
       <div class="flex items-center justify-between border-b border-gray-800 py-2 text-sm last:border-b-0">
         <span class="text-gray-400">${escapeHtml(label)}</span>
@@ -446,11 +461,7 @@ export class UIv2 {
         </div>
       </button>`;
 
-    const row = (label, value, valueTone = 'text-white') => `
-      <div class="flex items-center justify-between border-b border-gray-800 py-2 text-sm last:border-b-0">
-        <span class="text-gray-400">${escapeHtml(label)}</span>
-        <span class="font-semibold ${valueTone}">${ltr(value)}</span>
-      </div>`;
+    const row = (label, value, valueTone) => this._detailRow(label, value, valueTone);
 
     const split = r.perKid.map((k) => {
       const kidValue = r.price != null
@@ -914,16 +925,21 @@ export class UIv2 {
   _bind() {
     document.addEventListener('click', (e) => {
       const tab = e.target.closest('[data-tab]');
-      if (tab) { this.tab = tab.dataset.tab; this.kidId = null; this.render(); window.scrollTo({ top: 0 }); return; }
+      if (tab) {
+        this.tab = tab.dataset.tab; this.kidId = null; this.expanded = null;
+        this.render(); window.scrollTo({ top: 0 }); return;
+      }
 
       if (e.target.closest('#kid-back')) {
-        this.tab = 'dashboard'; this.kidId = null; this.render(); window.scrollTo({ top: 0 }); return;
+        this.tab = 'dashboard'; this.kidId = null; this.expanded = null;
+        this.render(); window.scrollTo({ top: 0 }); return;
       }
 
       const kidCard = e.target.closest('[data-kid]');
       if (kidCard) {
         this.kidId = kidCard.dataset.kid;
         this.tab = 'kid';
+        this.expanded = null;   // every card starts collapsed
         this.render();
         window.scrollTo({ top: 0 });
         return;
