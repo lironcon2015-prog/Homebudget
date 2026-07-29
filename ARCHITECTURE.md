@@ -24,6 +24,7 @@ A Vanilla JS Single Page Application that tracks a multi-kid stock portfolio hel
 | math | `Xirr.js` | Newton-Raphson XIRR with bisection fallback in `[-0.99, +10.0]`. Returns `{value, reason}`. |
 | ledger | `FifoEngine.js` | `consumeFifo(lots, ticker, sharesSold)` — depletes per-kid shares from oldest lots, returns `consumedByKid`. |
 | ledger | `DividendEngine.js` | `distributeDividend(lots, ticker, netIlsTotal)` — per-share rate × kid shares; parent slice discarded. |
+| ledger | `GemelEngine.js` | `deriveGemel(state, todayKey)` — קופת גמל balances from a standing order + a statement anchor. No ledger rows, no quotes. |
 | ledger | `LedgerEngine.js` | Pure reducer `deriveState(state, today)` → derived snapshot. |
 | state | `LocalStoragePersistence.js` | JSON round-trip into `localStorage`. |
 | state | `StateManager.js` | Owns persisted state, validates each tx by trial-derivation, emits change events. |
@@ -52,6 +53,22 @@ UI → `Selectors` → `LedgerEngine`/`Xirr` → `FifoEngine`/`DividendEngine`/`
   "quotes": {
     "AAPL": { "ticker": "AAPL", "company": "Apple Inc.", "priceUsd": 189.23, "asOf": "2026-05-09", "source": "manual" }
   },
+  "gemelFunds": [
+    { "id": "gemel_a1b2c3",
+      "name": "קופת גמל להשקעה — מסלול מדדי",
+      "fundNumber": "12345", "manager": "שם מנהל הקופה",
+      "monthlyAmount": 500,                    // standing order, ILS
+      "firstDepositDate": "2024-01-25",         // also fixes the day of month
+      "annualFeePct": 0.67,
+      "allocationHistory": [                    // forward-only; past deposits keep their split
+        { "from": "2024-01-25", "allocation": { "k_aviv_a1b2": 33.34, "k_noa_b3c4": 33.33 } }
+      ],
+      "overrides": [                            // months that deviated; amount 0 = skipped
+        { "date": "2026-02-25", "amount": 0, "note": "לא ירד" }
+      ],
+      "anchor": { "balance": 25000, "asOf": "2026-03-31" }   // from the quarterly statement
+    }
+  ],
   "ledger": [
     { "id": "tx_0001", "type": "DEPOSIT", "date": "2026-01-15", "kidId": "k_aviv_a1b2", "amountIls": 1000, "note": "" },
     { "id": "tx_0002", "type": "BUY",     "date": "2026-02-01",
@@ -83,6 +100,53 @@ UI → `Selectors` → `LedgerEngine`/`Xirr` → `FifoEngine`/`DividendEngine`/`
   "xirrByKid":           { "k_aviv_a1b2": { "value": 0.142 } }
 }
 ```
+
+---
+
+## Gemel Funds (קופת גמל להשקעה)
+
+A gemel fund has no ticker, no units and no quoted price — only a shekel balance
+the manager reports. Modelling it as a synthetic security would mean inventing a
+unit count for every deposit and pricing it off an index model that drifts
+silently. Instead it is described by facts and derived arithmetically:
+
+| Quantity | Source | Exact? |
+|---|---|---|
+| Principal | Σ deposits, generated from the standing order + overrides | Yes — every amount and date is known |
+| Balance | `anchor.balance` + deposits after `anchor.asOf` at face value | Up to `anchor.asOf`; the tail carries no return |
+| Gain | `balance − principal` | As exact as the balance |
+| XIRR | deposit flows + today's balance as the terminal flow | Yes |
+
+`tailFrom` / `tailDeposits` are surfaced so the UI can state plainly which
+window is unmeasured. Refreshing the anchor from a new statement resets the
+error to zero — no calibration, no external data feed.
+
+**Deposits are not ledger rows.** One standing order describes dozens of
+identical transfers; `overrides` covers the months that deviated (`amount: 0`
+for a skipped month, a different amount for an unusual one, a date outside the
+schedule for a one-off). This keeps the ledger screen readable, at the cost of
+schedule edits rewriting history — acceptable because the schedule is config
+the user owns.
+
+**Allocation is forward-only.** `allocationHistory` entries take effect from
+their `from` date; a deposit is split by whatever was in force when it was made.
+Gain is then distributed by Modified-Dietz weighting (each deposit earns in
+proportion to how long it has been invested), which collapses to exactly the
+allocation when the split never changed, and avoids retroactively reassigning
+past gains when it did.
+
+Every split runs through `proratePreservingTotal`, but it is applied to the
+**running total** rather than to each deposit on its own. Prorating a single
+deposit is fair once and biased forever: equal weights break ties in a stable
+order, so with an amount that does not divide evenly (₪500 across 3 kids) the
+same kid takes the leftover agora every month. Splitting the cumulative sum and
+taking the difference bounds each kid's deviation at one agora no matter how
+many years of deposits accumulate. The run restarts whenever the allocation
+changes, so amounts locked in under the previous split stay put.
+
+Funds fold into `deriveState` before the profit maths: deposits into
+`principalByKid`, balance into `portfolioValueByKid`, gain into the
+**unrealized** bucket (nothing is sold), and deposit flows into each kid's XIRR.
 
 ---
 

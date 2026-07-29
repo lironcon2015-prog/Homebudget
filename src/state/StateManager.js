@@ -22,8 +22,13 @@ function defaultState() {
       [k2]: { id: k2, name: 'ילד/ה 2', createdAt: today },
     },
     quotes: {},
+    gemelFunds: [],
     ledger: [],
   };
+}
+
+function gemelId() {
+  return 'gemel_' + Math.random().toString(36).slice(2, 8);
 }
 
 export class StateManager {
@@ -32,6 +37,8 @@ export class StateManager {
     this.bus = new EventBus();
     const loaded = persistence.load();
     this.state = loaded || defaultState();
+    // Portfolios saved before gemel support have no such key.
+    if (!Array.isArray(this.state.gemelFunds)) this.state.gemelFunds = [];
     if (!loaded) persistence.save(this.state);
     this._idGen = createIdGen(this.state.ledger);
     this._derived = null;
@@ -91,6 +98,10 @@ export class StateManager {
       tx.kidId === kidId || (tx.allocation && kidId in tx.allocation)
     );
     if (used) throw new Error('לא ניתן למחוק ילד/ה עם היסטוריית פעולות');
+    const inGemel = (this.state.gemelFunds || []).some((f) =>
+      (f.allocationHistory || []).some((e) => kidId in (e.allocation || {}))
+    );
+    if (inGemel) throw new Error('לא ניתן למחוק ילד/ה המשויך/ת לקופת גמל');
     delete this.state.kids[kidId];
     this._commit();
   }
@@ -117,6 +128,111 @@ export class StateManager {
       delete this.state.quotes[ticker];
       this._commit();
     }
+  }
+
+  // ---- Gemel funds ----------------------------------------------------
+  // Deposits are a standing order rather than ledger rows: one entry describes
+  // dozens of identical monthly transfers, and the exceptions list covers the
+  // months that deviate. Everything else is derived in GemelEngine.
+
+  _fund(id) {
+    const f = (this.state.gemelFunds || []).find((x) => x.id === id);
+    if (!f) throw new Error('Unknown gemel fund');
+    return f;
+  }
+
+  addGemelFund({ name, fundNumber = '', manager = '', monthlyAmount, firstDepositDate, allocation, annualFeePct = null, anchor = null }) {
+    if (!name) throw new Error('לקופה נדרש שם');
+    if (!(Number(monthlyAmount) > 0)) throw new Error('סכום ההפקדה חייב להיות גדול מאפס');
+    if (!firstDepositDate) throw new Error('נדרש תאריך הפקדה ראשונה');
+    const id = gemelId();
+    this.state.gemelFunds.push({
+      id,
+      name,
+      fundNumber,
+      manager,
+      monthlyAmount: Number(monthlyAmount),
+      firstDepositDate: String(firstDepositDate).slice(0, 10),
+      annualFeePct: annualFeePct == null ? null : Number(annualFeePct),
+      allocationHistory: [{ from: String(firstDepositDate).slice(0, 10), allocation: { ...allocation } }],
+      overrides: [],
+      anchor: anchor ? { balance: Number(anchor.balance), asOf: String(anchor.asOf).slice(0, 10) } : null,
+      createdAt: new Date().toISOString().slice(0, 10),
+    });
+    this._commit();
+    return id;
+  }
+
+  updateGemelFund(id, patch) {
+    const f = this._fund(id);
+    for (const key of ['name', 'fundNumber', 'manager']) {
+      if (key in patch) f[key] = patch[key];
+    }
+    if ('monthlyAmount' in patch) f.monthlyAmount = Number(patch.monthlyAmount);
+    if ('firstDepositDate' in patch) f.firstDepositDate = String(patch.firstDepositDate).slice(0, 10);
+    if ('annualFeePct' in patch) f.annualFeePct = patch.annualFeePct == null ? null : Number(patch.annualFeePct);
+    this._commit();
+  }
+
+  removeGemelFund(id) {
+    this.state.gemelFunds = (this.state.gemelFunds || []).filter((f) => f.id !== id);
+    this._commit();
+  }
+
+  // asOf is the statement date the balance is true for — the derivation trusts
+  // it up to that day and only adds face-value deposits after it.
+  setGemelAnchor(id, { balance, asOf }) {
+    const f = this._fund(id);
+    if (balance == null || asOf == null) f.anchor = null;
+    else f.anchor = { balance: Number(balance), asOf: String(asOf).slice(0, 10) };
+    this._commit();
+  }
+
+  /**
+   * Set the split effective from `from` (default today). Past deposits keep the
+   * allocation that was in force when they were made — applying a new split
+   * retroactively would rewrite who owns previously earned gains.
+   */
+  setGemelAllocation(id, allocation, from = null) {
+    const f = this._fund(id);
+    const sum = Object.values(allocation).reduce((a, b) => a + Number(b), 0);
+    if (Math.abs(sum - 100) > 1e-3) throw new Error(`הפיצול חייב להסתכם ב-100% (התקבל ${sum})`);
+    for (const kidId in allocation) {
+      if (!this.state.kids[kidId]) throw new Error(`ילד/ה לא מוכר/ת: ${kidId}`);
+    }
+    const key = String(from || new Date().toISOString().slice(0, 10)).slice(0, 10);
+    const hist = f.allocationHistory || (f.allocationHistory = []);
+    const existing = hist.find((e) => e.from === key);
+    if (existing) existing.allocation = { ...allocation };
+    else hist.push({ from: key, allocation: { ...allocation } });
+    hist.sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0));
+    this._commit();
+  }
+
+  removeGemelAllocation(id, from) {
+    const f = this._fund(id);
+    const hist = f.allocationHistory || [];
+    if (hist.length <= 1) throw new Error('חייב להישאר פיצול אחד לפחות');
+    f.allocationHistory = hist.filter((e) => e.from !== from);
+    this._commit();
+  }
+
+  // amount 0 marks a month the standing order did not go through.
+  setGemelOverride(id, { date, amount, note = '' }) {
+    const f = this._fund(id);
+    const key = String(date).slice(0, 10);
+    const list = f.overrides || (f.overrides = []);
+    const existing = list.find((o) => o.date === key);
+    if (existing) { existing.amount = Number(amount); existing.note = note; }
+    else list.push({ date: key, amount: Number(amount), note });
+    list.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+    this._commit();
+  }
+
+  removeGemelOverride(id, date) {
+    const f = this._fund(id);
+    f.overrides = (f.overrides || []).filter((o) => o.date !== date);
+    this._commit();
   }
 
   // ---- Ledger ---------------------------------------------------------
@@ -211,6 +327,7 @@ export class StateManager {
     const parsed = typeof json === 'string' ? JSON.parse(json) : json;
     if (!parsed || parsed.schemaVersion !== 1) throw new Error('Bad schema');
     deriveState(parsed); // validate
+    if (!Array.isArray(parsed.gemelFunds)) parsed.gemelFunds = [];
     this.state = parsed;
     this._idGen = createIdGen(this.state.ledger);
     this._commit();

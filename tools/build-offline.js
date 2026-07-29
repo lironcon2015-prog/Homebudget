@@ -40,8 +40,8 @@ const TEXT_FONTS_URL =
 const ICON_NAMES = [
   'account_balance', 'account_balance_wallet', 'add', 'add_shopping_cart',
   'chevron_left', 'chevron_right', 'close', 'dashboard', 'delete', 'download', 'edit',
-  'expand_more', 'history', 'person', 'receipt_long', 'savings', 'sell',
-  'settings', 'sync', 'upload',
+  'expand_more', 'history', 'info', 'person', 'receipt_long', 'savings', 'sell',
+  'settings', 'sync', 'upload', 'warning',
 ];
 const ICONS_FONT_URL =
   'https://fonts.googleapis.com/css2?' +

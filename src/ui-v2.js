@@ -12,6 +12,7 @@ import {
 } from './view/Selectors.js';
 import { fetchQuotes, getWorkerUrl, setWorkerUrl, testWorker } from './io/QuoteFetcher.js';
 import { xirr } from './math/Xirr.js';
+import { currentAllocation } from './ledger/GemelEngine.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -298,6 +299,7 @@ export class UIv2 {
     const cash = derived.cashByKid[this.kidId] || 0;
     const profit = derived.profitByKid?.[this.kidId] || { total: 0, unrealized: 0, realized: 0 };
     const kidXirr = typeof derived.xirrByKid?.[this.kidId] === 'number' ? derived.xirrByKid[this.kidId] : null;
+    const gemelBalance = derived.gemel?.balanceByKid?.[this.kidId] || 0;
     const up = isUp(profit.total);
     const now = new Date();
 
@@ -327,6 +329,7 @@ export class UIv2 {
           <div class="mt-5 space-y-2 border-t border-white/10 pt-3">
             ${this._kidStat('רווח לא ממומש', profit.unrealized)}
             ${this._kidStat('רווח ממומש', profit.realized)}
+            ${gemelBalance ? this._kidStat('קופות גמל', gemelBalance, false) : ''}
             ${this._kidStat('מזומן', cash, false)}
           </div>
         </div>
@@ -402,7 +405,8 @@ export class UIv2 {
       <section class="px-5 pt-6">
         ${this._sectionTitle('אחזקות פתוחות')}
         <div class="space-y-4">${lots.length ? lotCards : this._empty('אין אחזקות פתוחות')}</div>
-      </section>`;
+      </section>
+      ${this._gemelSection(state, derived, this.kidId)}`;
   }
 
   _kidStat(label, amount, tone = true) {
@@ -427,17 +431,27 @@ export class UIv2 {
 
   _holdings(state, derived) {
     const vm = holdingsViewModel(state, derived);
+    const gemel = this._gemelSection(state, derived);
+    const fundCount = derived.gemel?.funds?.length || 0;
+
     if (!vm.rows.length) {
-      return `${this._header('החזקות')}
-        <section class="px-5 pt-4">${this._empty('אין אחזקות עדיין', 'הוסף קנייה עם הכפתור הצף')}</section>`;
+      const empty = `<section class="px-5 pt-4">${this._empty('אין אחזקות עדיין', 'הוסף קנייה עם הכפתור הצף')}</section>`;
+      return `${this._header('החזקות', fundCount ? `${fundCount} קופות גמל` : '')}
+        ${gemel ? '' : empty}${gemel}`;
     }
 
     const cost = this._costByTicker();
     const cards = vm.rows.map((r) => this._holdingCard(r, cost[r.ticker])).join('');
+    const parts = [`${vm.rows.length} ניירות`];
+    if (fundCount) parts.push(`${fundCount} קופות גמל`);
 
     return `
-      ${this._header('החזקות', `${vm.rows.length} ניירות · הקש על כרטיס לפירוט`)}
-      <section class="space-y-4 px-5 pt-4">${cards}</section>`;
+      ${this._header('החזקות', `${parts.join(' · ')} · הקש על כרטיס לפירוט`)}
+      <section class="px-5 pt-4">
+        ${gemel ? this._sectionTitle('ניירות ערך') : ''}
+        <div class="space-y-4">${cards}</div>
+      </section>
+      ${gemel}`;
   }
 
   _holdingCard(r, cost) {
@@ -502,6 +516,119 @@ export class UIv2 {
       </div>`;
 
     return `<div class="glass-card rounded-2xl">${summary}${details}</div>`;
+  }
+
+  // ---- Gemel funds --------------------------------------------------------
+
+  /**
+   * Same collapsed/expanded grammar as a holdings card. `kidId` narrows every
+   * figure to that kid's slice for the personal-portfolio screen; null shows
+   * the whole fund plus the split between the kids.
+   */
+  _gemelCard(fund, f, state, kidId = null) {
+    const key = 'gemel:' + f.id + (kidId ? ':' + kidId : '');
+    const open = this.expanded === key;
+
+    const balance = kidId ? (f.balanceByKid[kidId] || 0) : f.balance;
+    const deposited = kidId ? (f.depositedByKid[kidId] || 0) : f.totalDeposited;
+    const gain = kidId ? (f.gainByKid[kidId] || 0) : f.gain;
+    const pct = deposited > 0 ? gain / deposited : null;
+    const tone = gain === 0 ? 'text-on-surface-variant' : isUp(gain) ? 'text-secondary' : 'text-red-400';
+
+    const subtitle = kidId
+      ? `${f.deposits.length} הפקדות`
+      : (fund?.fundNumber ? `קופה ${fund.fundNumber} · ${f.deposits.length} הפקדות` : `${f.deposits.length} הפקדות`);
+
+    const summary = `
+      <button type="button" data-toggle="${escapeHtml(key)}" aria-expanded="${open}"
+              class="pressable flex w-full items-center justify-between gap-4 p-5 text-right">
+        <div class="min-w-0">
+          <div class="truncate text-base font-bold text-white">${escapeHtml(f.name)}</div>
+          <div class="mt-0.5 truncate text-xs text-on-surface-variant">${escapeHtml(subtitle)}</div>
+        </div>
+        <div class="flex shrink-0 items-center gap-3">
+          <div class="text-left">
+            <div class="text-base font-bold text-white">${ltr(ils(balance))}</div>
+            <div class="mt-0.5 text-sm font-bold ${tone}">${ltr(signedRatio(pct))}</div>
+          </div>
+          ${icon('expand_more', `chevron text-outline text-[20px] ${open ? 'open' : ''}`)}
+        </div>
+      </button>`;
+
+    const last = f.deposits.length ? f.deposits.at(-1) : null;
+
+    // The tail is the honest part of this screen: everything up to the anchor
+    // date is the fund's own reported balance, and deposits after it are
+    // counted at face value because no return is published for that window.
+    const tailNote = f.tailFrom
+      ? `<p class="mt-4 rounded-xl border border-tertiary/20 bg-tertiary/5 px-3 py-2.5 text-xs leading-relaxed text-tertiary">
+           ${icon('info', 'align-middle text-[15px]')}
+           היתרה מדויקת ל-${escapeHtml(formatDateHe(f.tailFrom))}. ${ltr(ils(f.tailDeposits))} שהופקדו מאז נספרים ללא תשואה.
+         </p>`
+      : (f.warnings.some((w) => w.code === 'no-anchor')
+        ? `<p class="mt-4 rounded-xl border border-red-400/20 bg-red-400/5 px-3 py-2.5 text-xs leading-relaxed text-red-400">
+             ${icon('warning', 'align-middle text-[15px]')} לא הוזנה יתרה — מוצגת הקרן בלבד. עדכן יתרה בהגדרות.
+           </p>`
+        : '');
+
+    const split = kidId ? '' : `
+      <p class="pb-1 pt-5 text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant">חלוקה בין הילדים</p>
+      ${Object.keys(state.kids).map((id) => {
+        const kb = f.balanceByKid[id] || 0;
+        const share = f.balance > 0 ? (kb / f.balance) * 100 : 0;
+        return `
+          <div class="flex items-center justify-between border-b border-gray-800 py-2 text-sm last:border-b-0">
+            <span class="text-gray-400">${escapeHtml(state.kids[id].name)}
+              <span class="text-xs text-outline">${ltr(`${numFmt.format(share)}%`)}</span></span>
+            <span class="flex items-baseline gap-2">
+              <span class="font-semibold text-white">${ltr(ils(kb))}</span>
+              <span class="text-xs ${(f.gainByKid[id] || 0) < 0 ? 'text-red-400' : 'text-secondary'}">${ltr(signedIls(f.gainByKid[id] || 0))}</span>
+            </span>
+          </div>`;
+      }).join('')}`;
+
+    const editBtn = kidId ? '' : `
+      <button type="button" data-edit-gemel="${escapeHtml(f.id)}"
+              class="pressable mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-primary/25 bg-primary/10 py-2.5 text-sm font-semibold text-primary">
+        ${icon('edit', 'text-[17px]')} עריכת קופה
+      </button>`;
+
+    const details = `
+      <div class="accordion ${open ? 'open' : ''}">
+        <div>
+          <div class="border-t border-white/10 px-5 pb-5 pt-3">
+            ${this._detailRow('סך הפקדות', ils(deposited))}
+            ${this._detailRow('יתרה', ils(balance))}
+            ${this._detailRow('רווח/הפסד', signedIls(gain), tone)}
+            ${this._detailRow('תשואה', pct != null ? signedRatio(pct) : '—', tone)}
+            ${this._detailRow('הפקדה חודשית', fund ? ils(fund.monthlyAmount) : '—')}
+            ${this._detailRow('הפקדה אחרונה', last ? formatDateHe(last.date) : '—')}
+            ${f.anchorAsOf ? this._detailRow('יתרה נכונה ל-', formatDateHe(f.anchorAsOf)) : ''}
+            ${split}
+            ${tailNote}
+            ${editBtn}
+          </div>
+        </div>
+      </div>`;
+
+    return `<div class="glass-card rounded-2xl">${summary}${details}</div>`;
+  }
+
+  _gemelSection(state, derived, kidId = null) {
+    const funds = derived.gemel?.funds || [];
+    const shown = kidId
+      ? funds.filter((f) => (f.balanceByKid[kidId] || 0) !== 0 || (f.depositedByKid[kidId] || 0) !== 0)
+      : funds;
+    if (!shown.length) return '';
+
+    const byId = Object.fromEntries((state.gemelFunds || []).map((x) => [x.id, x]));
+    const cards = shown.map((f) => this._gemelCard(byId[f.id], f, state, kidId)).join('');
+
+    return `
+      <section class="px-5 pt-6">
+        ${this._sectionTitle('קופות גמל')}
+        <div class="space-y-4">${cards}</div>
+      </section>`;
   }
 
   // ---- Ledger -------------------------------------------------------------
@@ -578,6 +705,23 @@ export class UIv2 {
       </div>`).join('<div class="mx-5 border-t border-white/5"></div>')
       : '<p class="px-5 py-4 text-sm text-on-surface-variant">אין ציטוטים עדיין</p>';
 
+    const gemelDerived = Object.fromEntries((derived.gemel?.funds || []).map((f) => [f.id, f]));
+    const gemelRows = (state.gemelFunds || []).length ? (state.gemelFunds || []).map((f) => {
+      const d = gemelDerived[f.id];
+      const stale = d?.tailFrom ? `עודכן ${formatDateHe(d.tailFrom)}` : 'ללא יתרה';
+      return `
+      <div class="flex items-center gap-3 px-5 py-3">
+        <div class="min-w-0 flex-1">
+          <div class="truncate text-sm font-semibold text-white">${escapeHtml(f.name)}</div>
+          <div class="truncate text-xs text-outline">${escapeHtml(stale)}</div>
+        </div>
+        <span class="shrink-0 text-xs text-on-surface-variant">${ltr(ils(d?.balance || 0))}</span>
+        <button type="button" data-edit-gemel="${escapeHtml(f.id)}" class="pressable shrink-0 text-outline active:text-primary">${icon('edit', 'text-[17px]')}</button>
+        <button type="button" data-remove-gemel="${escapeHtml(f.id)}" class="pressable shrink-0 text-outline active:text-red-400">${icon('delete', 'text-[17px]')}</button>
+      </div>`;
+    }).join('<div class="mx-5 border-t border-white/5"></div>')
+      : '<p class="px-5 py-4 text-sm text-on-surface-variant">אין קופות גמל</p>';
+
     const field = (label, inner) => `
       <div class="px-5 py-3">
         <label class="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.15em] text-on-surface-variant">${escapeHtml(label)}</label>
@@ -614,6 +758,18 @@ export class UIv2 {
                 <button type="button" id="btn-test-ticker" class="pressable shrink-0 rounded-xl bg-primary/20 px-4 text-sm font-semibold text-primary">בדוק</button>
               </div>
               <pre id="test-result" class="mt-2 hidden whitespace-pre-wrap break-all font-data text-[11px] text-on-surface-variant"></pre>`)}
+          </div>
+        </div>
+
+        <div>
+          ${this._sectionTitle('קופות גמל')}
+          <div class="glass-card rounded-2xl">
+            ${gemelRows}
+            <div class="border-t border-white/5 px-5 py-3">
+              <button type="button" id="btn-add-gemel" class="pressable flex items-center gap-2 text-sm font-semibold text-primary">
+                ${icon('add', 'text-[18px]')} הוסף קופה
+              </button>
+            </div>
           </div>
         </div>
 
@@ -971,6 +1127,237 @@ export class UIv2 {
     });
   }
 
+  /**
+   * Add or edit a gemel fund. `fundId` null opens the add form.
+   *
+   * The form is the whole configuration: the standing order that generates the
+   * deposits, the balance anchor from the latest statement, the split, and the
+   * exceptions for months the standing order deviated from.
+   */
+  _openGemelSheet(fundId = null) {
+    this.sheetOpen = true;
+    const state = this.sm.getState();
+    const fund = fundId ? (state.gemelFunds || []).find((f) => f.id === fundId) : null;
+    if (fundId && !fund) return;
+
+    const kids = Object.values(state.kids);
+    if (!kids.length) { this.sheetOpen = false; return toast('הוסף ילדים לפני יצירת קופה', 5000); }
+
+    const alloc = fund ? currentAllocation(fund) : {};
+    // An even split has to re-sum to exactly 100 or the form rejects its own
+    // default: 100/3 rounded to 33.33 three times is 99.99. The remainder goes
+    // to the first kid, same largest-remainder idea used for the money.
+    const evenSplit = (() => {
+      const n = kids.length;
+      const base = Math.floor((100 / n) * 100) / 100;
+      const parts = new Array(n).fill(base);
+      parts[0] = Number((100 - base * (n - 1)).toFixed(2));
+      return parts;
+    })();
+    const histLen = fund ? (fund.allocationHistory || []).length : 0;
+
+    const inputCls = 'w-full rounded-xl border border-primary/20 bg-white/[0.03] px-3 py-2.5 text-sm text-white outline-none focus:border-primary/60';
+    const labelCls = 'mb-1.5 block text-[10px] font-bold uppercase tracking-[0.15em] text-on-surface-variant';
+    const hintCls = 'mt-1.5 text-xs leading-relaxed text-outline';
+
+    const allocFields = kids.map((k, i) => `
+      <div class="flex items-center gap-3 py-1.5">
+        <span class="min-w-0 flex-1 truncate text-sm text-white">${escapeHtml(k.name)}</span>
+        <input name="alloc:${escapeHtml(k.id)}" type="number" step="any" min="0" max="100" dir="ltr"
+               value="${alloc[k.id] != null ? Number(Number(alloc[k.id]).toFixed(4)) : evenSplit[i]}"
+               class="w-24 shrink-0 rounded-xl border border-primary/20 bg-white/[0.03] px-3 py-2 text-left font-data tnum text-sm text-white outline-none focus:border-primary/60" />
+        <span class="shrink-0 text-sm text-on-surface-variant">%</span>
+      </div>`).join('');
+
+    const overrideRows = (fund?.overrides || []).length ? (fund.overrides).map((o) => `
+      <div class="flex items-center gap-3 border-b border-white/5 py-2 text-sm last:border-b-0">
+        <span class="flex-1 text-gray-400">${escapeHtml(formatDateHe(o.date))}</span>
+        <span class="font-semibold ${o.amount === 0 ? 'text-red-400' : 'text-white'}">
+          ${o.amount === 0 ? 'לא הופקד' : ltr(ils(o.amount))}
+        </span>
+        <button type="button" data-del-gemel-ov="${escapeHtml(o.date)}" class="pressable shrink-0 text-outline active:text-red-400">${icon('close', 'text-[16px]')}</button>
+      </div>`).join('')
+      : '<p class="py-2 text-xs text-outline">אין חריגים — כל החודשים לפי הוראת הקבע.</p>';
+
+    $('#v2-overlay').innerHTML = `
+      <div id="sheet-backdrop" class="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm"></div>
+      <div class="sheet fixed inset-x-0 bottom-0 z-[71] mx-auto max-h-[88vh] max-w-lg overflow-y-auto rounded-t-3xl"
+           dir="rtl" role="dialog" aria-modal="true" aria-label="קופת גמל">
+        <div class="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-white/10 bg-surface-container/95 px-5 py-4 backdrop-blur-xl">
+          <h2 class="text-base font-bold text-white">${fund ? 'עריכת קופה' : 'קופת גמל חדשה'}</h2>
+          <button type="button" id="sheet-close" aria-label="סגור" class="pressable text-outline active:text-white">${icon('close', 'text-[22px]')}</button>
+        </div>
+
+        <form id="gemel-form" class="space-y-5 px-5 pb-8 pt-5">
+          <div>
+            <label class="${labelCls}">שם הקופה</label>
+            <input name="name" type="text" required value="${escapeHtml(fund?.name || '')}"
+                   placeholder="קופת גמל להשקעה" class="${inputCls}" />
+          </div>
+
+          <div>
+            <label class="${labelCls}">מספר קופה</label>
+            <input name="fundNumber" type="text" dir="ltr" value="${escapeHtml(fund?.fundNumber || '')}"
+                   placeholder="12345" class="${inputCls} font-data tnum" />
+            <p class="${hintCls}">מזהה המסלול בגמל-נט. לתיעוד בלבד.</p>
+          </div>
+
+          <div class="border-t border-white/10 pt-5">
+            <label class="${labelCls}">הוראת קבע</label>
+            <div class="flex gap-2">
+              <input name="monthlyAmount" type="number" step="any" min="0" required dir="ltr"
+                     value="${fund?.monthlyAmount ?? ''}" placeholder="500"
+                     class="${inputCls} font-data tnum flex-1" />
+              <span class="grid shrink-0 place-items-center text-sm text-on-surface-variant">₪ לחודש</span>
+            </div>
+            <p class="${hintCls}">הסכום הקבוע שמופקד כל חודש.</p>
+          </div>
+
+          <div>
+            <label class="${labelCls}">תאריך הפקדה ראשונה</label>
+            <input name="firstDepositDate" type="date" required dir="ltr"
+                   value="${escapeHtml(fund?.firstDepositDate || '')}" class="${inputCls} font-data" />
+            <p class="${hintCls}">היום בחודש נקבע לפי התאריך הזה, וכל ההפקדות הבאות נגזרות ממנו. זה מה שהופך את הקרן למדויקת.</p>
+          </div>
+
+          <div class="border-t border-white/10 pt-5">
+            <label class="${labelCls}">יתרה מהדוח</label>
+            <div class="flex gap-2">
+              <input name="anchorBalance" type="number" step="any" min="0" dir="ltr"
+                     value="${fund?.anchor?.balance ?? ''}" placeholder="25000"
+                     class="${inputCls} font-data tnum flex-1" />
+              <input name="anchorAsOf" type="date" dir="ltr"
+                     value="${escapeHtml(fund?.anchor?.asOf || '')}"
+                     class="${inputCls} font-data tnum flex-1" />
+            </div>
+            <p class="${hintCls}">
+              היתרה והתאריך שהיא נכונה לו. עד התאריך הזה השווי הוא בדיוק מה שהקופה דיווחה;
+              הפקדות שאחריו נספרות ללא תשואה, ולכן כדאי לרענן כל רבעון.
+            </p>
+          </div>
+
+          <div class="border-t border-white/10 pt-5">
+            <label class="${labelCls}">פיצול בין הילדים</label>
+            ${allocFields}
+            <p id="alloc-sum" class="${hintCls}"></p>
+            ${fund ? `
+              <label class="mt-3 flex items-start gap-2 text-sm text-on-surface-variant">
+                <input name="allocForward" type="checkbox" ${histLen > 1 ? 'checked' : ''} class="mt-0.5 h-4 w-4 shrink-0 rounded border-primary/30 bg-white/5" />
+                <span>החל מהיום והלאה בלבד
+                  <span class="block text-xs text-outline">סמן כששינית את החלוקה. השאר ריק כדי לתקן טעות — אז הפיצול חל למפרע על כל ההפקדות.</span>
+                </span>
+              </label>` : ''}
+          </div>
+
+          ${fund ? `
+          <div class="border-t border-white/10 pt-5">
+            <label class="${labelCls}">חודשים חריגים</label>
+            <div class="mb-3">${overrideRows}</div>
+            <div class="flex gap-2">
+              <input name="ovDate" type="date" dir="ltr" class="${inputCls} font-data tnum flex-1" />
+              <input name="ovAmount" type="number" step="any" min="0" dir="ltr" placeholder="0"
+                     class="${inputCls} font-data tnum w-28 shrink-0" />
+              <button type="button" id="btn-add-ov" class="pressable shrink-0 rounded-xl bg-primary/20 px-4 text-sm font-semibold text-primary">הוסף</button>
+            </div>
+            <p class="${hintCls}">חודש שבו הופקד סכום אחר, או 0 לחודש שבו לא הופקד כלום. גם הפקדה חד-פעמית בתאריך אחר נרשמת כאן.</p>
+          </div>` : ''}
+
+          <button type="submit" class="fab-neon w-full rounded-xl py-3 text-sm font-bold">${fund ? 'עדכן' : 'צור קופה'}</button>
+        </form>
+      </div>`;
+
+    document.body.style.overflow = 'hidden';
+    const overlay = $('#v2-overlay');
+    const form = $('#gemel-form', overlay);
+    $('#sheet-close', overlay).addEventListener('click', () => this._closeSheet());
+    $('#sheet-backdrop', overlay).addEventListener('click', () => this._closeSheet());
+
+    const readAlloc = () => {
+      const out = {};
+      for (const k of kids) {
+        const el = form.elements.namedItem('alloc:' + k.id);
+        const v = parseFloat(el.value);
+        out[k.id] = isNaN(v) ? 0 : v;
+      }
+      return out;
+    };
+
+    // Live total, because a split that does not reach 100 is rejected on submit
+    // and the reason is otherwise invisible until then.
+    const showSum = () => {
+      const sum = Object.values(readAlloc()).reduce((a, b) => a + b, 0);
+      const el = $('#alloc-sum', overlay);
+      const ok = Math.abs(sum - 100) < 1e-3;
+      el.textContent = `סה״כ ${numFmt.format(sum)}%` + (ok ? '' : ' — חייב להסתכם ב-100%');
+      el.className = ok ? hintCls : 'mt-1.5 text-xs leading-relaxed text-red-400';
+    };
+    for (const k of kids) form.elements.namedItem('alloc:' + k.id).addEventListener('input', showSum);
+    showSum();
+
+    const addOv = $('#btn-add-ov', overlay);
+    if (addOv) {
+      addOv.addEventListener('click', () => {
+        const date = form.elements.namedItem('ovDate').value;
+        const raw = form.elements.namedItem('ovAmount').value;
+        if (!date) return toast('בחר תאריך לחריג', 5000);
+        const amount = raw === '' ? 0 : parseFloat(raw);
+        if (isNaN(amount) || amount < 0) return toast('סכום לא תקין', 5000);
+        try {
+          this.sm.setGemelOverride(fundId, { date, amount });
+          this._openGemelSheet(fundId);   // re-render so the new row shows
+        } catch (err) { toast(err.message, 6000); }
+      });
+    }
+
+    // Bound to the sheet, not the overlay: the sheet is rebuilt on every open,
+    // so listeners cannot pile up across repeated re-renders.
+    $('.sheet', overlay).addEventListener('click', (e) => {
+      const del = e.target.closest('[data-del-gemel-ov]');
+      if (!del) return;
+      try {
+        this.sm.removeGemelOverride(fundId, del.dataset.delGemelOv);
+        this._openGemelSheet(fundId);
+      } catch (err) { toast(err.message, 6000); }
+    });
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const f = e.target;
+      const name = (f.elements.namedItem('name').value || '').trim();
+      const fundNumber = (f.elements.namedItem('fundNumber').value || '').trim();
+      const monthlyAmount = parseFloat(f.elements.namedItem('monthlyAmount').value);
+      const firstDepositDate = f.elements.namedItem('firstDepositDate').value;
+      const balRaw = f.elements.namedItem('anchorBalance').value;
+      const asOf = f.elements.namedItem('anchorAsOf').value;
+      const allocation = readAlloc();
+
+      if (!name) return toast('נדרש שם לקופה', 5000);
+      if (!(monthlyAmount > 0)) return toast('סכום ההפקדה חייב להיות גדול מאפס', 5000);
+      if (!firstDepositDate) return toast('נדרש תאריך הפקדה ראשונה', 5000);
+      const sum = Object.values(allocation).reduce((a, b) => a + b, 0);
+      if (Math.abs(sum - 100) > 1e-3) return toast(`הפיצול מסתכם ב-${numFmt.format(sum)}% במקום 100%`, 6000);
+      if ((balRaw === '') !== (asOf === '')) return toast('יתרה ותאריך היתרה — או שניהם או אף אחד', 6000);
+      if (asOf && asOf < firstDepositDate) return toast('תאריך היתרה קודם להפקדה הראשונה', 6000);
+
+      const anchor = balRaw === '' ? null : { balance: parseFloat(balRaw), asOf };
+
+      try {
+        if (fund) {
+          this.sm.updateGemelFund(fund.id, { name, fundNumber, monthlyAmount, firstDepositDate });
+          this.sm.setGemelAnchor(fund.id, anchor || { balance: null, asOf: null });
+          const forward = f.elements.namedItem('allocForward')?.checked;
+          this.sm.setGemelAllocation(fund.id, allocation, forward ? null : firstDepositDate);
+        } else {
+          this.sm.addGemelFund({ name, fundNumber, monthlyAmount, firstDepositDate, allocation, anchor });
+        }
+        this._closeSheet();
+        toast(fund ? 'הקופה עודכנה' : 'הקופה נוספה');
+      } catch (err) {
+        toast(err.message, 7000);
+      }
+    });
+  }
+
   // Crop constants. CROP is the circle being cropped to; OUT is what gets
   // stored. 320px JPEG keeps a kid's photo at tens of KB, so photos ride along
   // inside the JSON backup without threatening the localStorage quota.
@@ -1311,6 +1698,21 @@ export class UIv2 {
 
       const editSec = e.target.closest('[data-edit-security]');
       if (editSec) { this._openSecuritySheet(editSec.dataset.editSecurity); return; }
+
+      if (e.target.closest('#btn-add-gemel')) { this._openGemelSheet(null); return; }
+
+      const editGemel = e.target.closest('[data-edit-gemel]');
+      if (editGemel) { this._openGemelSheet(editGemel.dataset.editGemel); return; }
+
+      const delGemel = e.target.closest('[data-remove-gemel]');
+      if (delGemel) {
+        const f = (this.sm.getState().gemelFunds || []).find((x) => x.id === delGemel.dataset.removeGemel);
+        if (f && confirm(`למחוק את "${f.name}"? הנתונים לא ניתנים לשחזור.`)) {
+          this.sm.removeGemelFund(f.id);
+          toast('הקופה נמחקה');
+        }
+        return;
+      }
 
       const delTx = e.target.closest('[data-del-tx]');
       if (delTx) {

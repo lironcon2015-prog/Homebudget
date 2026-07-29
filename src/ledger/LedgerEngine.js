@@ -5,6 +5,7 @@
 import { EPS, sumValues, proratePreservingTotal, round8 } from '../util/MathUtils.js';
 import { consumeFifo } from './FifoEngine.js';
 import { distributeDividend } from './DividendEngine.js';
+import { deriveGemel } from './GemelEngine.js';
 import { xirr } from '../math/Xirr.js';
 
 export const TX = Object.freeze({
@@ -39,6 +40,7 @@ function emptyDerived(kids) {
     sharesByKidByTicker,
     parentSharesByTicker: {},
     lots: [],
+    gemel: null,
     portfolioValueByKid: {},
     principalByKid: {},
     profitByKid: {},
@@ -180,6 +182,19 @@ export function deriveState(state, today = new Date()) {
     h(d, tx);
   }
 
+  // Gemel funds contribute principal and value but never pass through the
+  // ledger: their deposits are derived from a standing order, so they are
+  // folded in here rather than by a tx handler.
+  const gemel = deriveGemel(state, dateKey(today));
+  d.gemel = gemel;
+  d.warnings.push(...gemel.warnings);
+  for (const kidId in state.kids || {}) {
+    const dep = gemel.depositedByKid[kidId] || 0;
+    if (dep === 0) continue;
+    d.principalByKid[kidId] = (d.principalByKid[kidId] || 0) + dep;
+    d.totalKidsPrincipal += dep;
+  }
+
   // Live portfolio value (cash + market) per kid in ILS
   const fxRate = state.settings?.lastFxRate ?? 1;
   const quotes = state.quotes || {};
@@ -196,11 +211,14 @@ export function deriveState(state, today = new Date()) {
         pv += tickers[ticker] * qPrice * rate;
       }
     }
+    pv += gemel.balanceByKid[kidId] || 0;
     d.portfolioValueByKid[kidId] = pv;
 
     // Profit breakdown per kid
     const principal = d.principalByKid[kidId] || 0;
-    let unrealizedProfit = 0;
+    // Gemel gain is a paper gain — nothing is sold — so it belongs to the
+    // unrealized bucket; leaving it out would push it into `realized` below.
+    let unrealizedProfit = gemel.gainByKid[kidId] || 0;
     for (const lot of d.lots) {
       const kidShares = lot.remaining.kids[kidId] || 0;
       if (kidShares <= 0) continue;
@@ -250,6 +268,10 @@ export function deriveState(state, today = new Date()) {
           totalFlows.push({ ...f });
         }
       }
+    }
+    for (const f of gemel.flowsByKid[kidId] || []) {
+      flows.push({ ...f });
+      totalFlows.push({ ...f });
     }
     const pv = d.portfolioValueByKid[kidId];
     if (pv > 0) flows.push({ date: today, amount: pv });
