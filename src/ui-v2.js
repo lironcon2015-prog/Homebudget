@@ -490,6 +490,11 @@ export class UIv2 {
 
             <p class="pb-1 pt-5 text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant">חלוקה בין הילדים</p>
             ${split}
+
+            <button type="button" data-edit-security="${escapeHtml(r.ticker)}"
+                    class="pressable mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-primary/25 bg-primary/10 py-2.5 text-sm font-semibold text-primary">
+              ${icon('edit', 'text-[17px]')} עריכת נייר
+            </button>
           </div>
         </div>
       </div>`;
@@ -509,7 +514,7 @@ export class UIv2 {
     const rows = vm.rows.map((t) => {
       const k = LEDGER_KIND[t.type] || LEDGER_KIND.BUY;
       return `
-        <div class="flex items-center gap-4 px-5 py-4">
+        <div class="pressable flex items-center gap-4 px-5 py-4" data-edit-tx="${escapeHtml(t.id)}" role="button" tabindex="0">
           <div class="grid h-11 w-11 shrink-0 place-items-center rounded-full border ${k.bubble}">
             ${icon(k.icon, 'text-[20px]')}
           </div>
@@ -749,8 +754,12 @@ export class UIv2 {
 
   // ---- Transaction sheet --------------------------------------------------
 
-  _openSheet(type = 'BUY') {
+  // tx set means editing an existing transaction rather than recording a new
+  // one. The type is then fixed: the four kinds take different fields, so
+  // switching type mid-edit would leave the record half-populated.
+  _openSheet(type = 'BUY', tx = null) {
     this.sheetOpen = true;
+    this.editingTx = tx;
     const state = this.sm.getState();
     const kids = Object.values(state.kids);
     const tickers = tickersViewModel(state, this.sm.getDerived());
@@ -769,17 +778,21 @@ export class UIv2 {
         ${inner}
       </div>`;
 
-    const dateFld = fld('תאריך', `<input name="date" type="date" value="${today()}" required class="${inputCls} font-data" />`);
-    const tickerFld = fld('סימול', `<input name="ticker" list="v2-tickers" dir="ltr" required class="${inputCls} font-data uppercase" />
+    const val = (k, dflt = '') => escapeHtml(tx?.[k] ?? dflt);
+
+    const dateFld = fld('תאריך', `<input name="date" type="date" value="${tx ? val('date') : today()}" required class="${inputCls} font-data" />`);
+    const tickerFld = fld('סימול', `<input name="ticker" list="v2-tickers" dir="ltr" value="${val('ticker')}" required class="${inputCls} font-data uppercase" />
       <datalist id="v2-tickers">${tickers.map((t) => `<option value="${escapeHtml(t.ticker)}">${escapeHtml(t.company)}</option>`).join('')}</datalist>`);
 
     // Even split by default; the engine requires the allocation to total 100.
     const evenPct = kids.length ? +(100 / kids.length).toFixed(2) : 0;
+    const allocOf = (k, i) => tx?.allocation?.[k.id]
+      ?? (i === kids.length - 1 ? +(100 - evenPct * (kids.length - 1)).toFixed(2) : evenPct);
     const allocFlds = kids.map((k, i) => `
       <div class="flex items-center gap-2">
         <span class="min-w-0 flex-1 truncate text-sm text-white">${escapeHtml(k.name)}</span>
         <input data-alloc-kid="${escapeHtml(k.id)}" type="number" step="0.01" min="0" max="100" dir="ltr"
-               value="${i === kids.length - 1 ? +(100 - evenPct * (kids.length - 1)).toFixed(2) : evenPct}"
+               value="${allocOf(k, i)}"
                class="w-24 rounded-xl border border-primary/20 bg-white/[0.03] px-2 py-1.5 text-left font-data tnum text-sm text-white outline-none focus:border-primary/60" />
         <span class="text-xs text-outline">%</span>
       </div>`).join('');
@@ -787,26 +800,25 @@ export class UIv2 {
     const bodies = {
       DEPOSIT: `
         ${dateFld}
-        ${fld('ילד/ה', `<select name="kidId" required class="${inputCls}">${kids.map((k) => `<option value="${escapeHtml(k.id)}">${escapeHtml(k.name)}</option>`).join('')}</select>`)}
-        ${fld('סכום (₪)', `<input name="amountIls" type="number" step="0.01" min="0.01" dir="ltr" required class="${inputCls} font-data tnum" />`)}
-        ${fld('הערה', `<input name="note" type="text" class="${inputCls}" />`)}`,
+        ${fld('ילד/ה', `<select name="kidId" required class="${inputCls}">${kids.map((k) => `<option value="${escapeHtml(k.id)}"${tx?.kidId === k.id ? ' selected' : ''}>${escapeHtml(k.name)}</option>`).join('')}</select>`)}
+        ${fld('סכום (₪)', `<input name="amountIls" type="number" step="0.01" min="0.01" dir="ltr" required class="${inputCls} font-data tnum" value="${val('amountIls')}" />`)}
+        ${fld('הערה', `<input name="note" type="text" class="${inputCls}" value="${val('note')}" />`)}`,
 
       BUY: `
         ${dateFld}
         ${tickerFld}
-        ${fld('שם החברה', `<input name="company" type="text" class="${inputCls}" />`)}
+        ${fld('שם החברה', `<input name="company" type="text" class="${inputCls}" value="${val('company')}" />`)}
         <div class="grid grid-cols-2 gap-3">
-          ${fld('סה״כ מניות', `<input name="totalShares" type="number" step="any" min="0" dir="ltr" required class="${inputCls} font-data tnum" />`)}
-          ${fld('מהן לילדים', `<input name="kidsShares" type="number" step="any" min="0" dir="ltr" required class="${inputCls} font-data tnum" />`)}
+          ${fld('סה״כ מניות', `<input name="totalShares" type="number" step="any" min="0" dir="ltr" required class="${inputCls} font-data tnum" value="${val('totalShares')}" />`)}
+          ${fld('מהן לילדים', `<input name="kidsShares" type="number" step="any" min="0" dir="ltr" required class="${inputCls} font-data tnum" value="${val('kidsShares')}" />`)}
         </div>
         <div class="grid grid-cols-2 gap-3">
-          ${fld('מחיר', `<input name="price" type="number" step="any" min="0" dir="ltr" required class="${inputCls} font-data tnum" />`)}
+          ${fld('מחיר', `<input name="price" type="number" step="any" min="0" dir="ltr" required class="${inputCls} font-data tnum" value="${val('price')}" />`)}
           ${fld('מטבע', `<select name="currency" class="${inputCls}">
-            <option value="USD">USD</option><option value="ILS-Agorot">אגורות</option>
-            <option value="EUR">EUR</option><option value="GBP">GBP</option></select>`)}
+            ${['USD', 'ILS-Agorot', 'EUR', 'GBP'].map((c) => `<option value="${c}"${(tx?.currency ?? 'USD') === c ? ' selected' : ''}>${c === 'ILS-Agorot' ? 'אגורות' : c}</option>`).join('')}</select>`)}
         </div>
-        <div id="fx-wrap">${fld('שער חליפין', `<input name="fxRate" type="number" step="any" min="0" dir="ltr" value="${state.settings.lastFxRate}" required class="${inputCls} font-data tnum" />`)}</div>
-        ${fld('עמלות (₪)', `<input name="feesIls" type="number" step="0.01" min="0" dir="ltr" value="0" class="${inputCls} font-data tnum" />`)}
+        <div id="fx-wrap">${fld('שער חליפין', `<input name="fxRate" type="number" step="any" min="0" dir="ltr" value="${tx?.fxRate ?? state.settings.lastFxRate}" required class="${inputCls} font-data tnum" />`)}</div>
+        ${fld('עמלות (₪)', `<input name="feesIls" type="number" step="0.01" min="0" dir="ltr" value="${tx?.feesIls ?? 0}" class="${inputCls} font-data tnum" />`)}
         <div>
           <p class="mb-2 text-[10px] font-bold uppercase tracking-[0.15em] text-on-surface-variant">חלוקה בין הילדים</p>
           <div class="space-y-2">${allocFlds || '<p class="text-sm text-on-surface-variant">הוסף ילדים בהגדרות תחילה</p>'}</div>
@@ -816,13 +828,13 @@ export class UIv2 {
       SELL: `
         ${dateFld}
         ${tickerFld}
-        ${fld('מניות שנמכרו', `<input name="sharesSold" type="number" step="any" min="0" dir="ltr" required class="${inputCls} font-data tnum" />`)}
-        ${fld('תמורה נטו (₪)', `<input name="netIls" type="number" step="0.01" min="0" dir="ltr" required class="${inputCls} font-data tnum" />`)}`,
+        ${fld('מניות שנמכרו', `<input name="sharesSold" type="number" step="any" min="0" dir="ltr" required class="${inputCls} font-data tnum" value="${val('sharesSold')}" />`)}
+        ${fld('תמורה נטו (₪)', `<input name="netIls" type="number" step="0.01" min="0" dir="ltr" required class="${inputCls} font-data tnum" value="${val('netIls')}" />`)}`,
 
       DIVIDEND: `
         ${dateFld}
         ${tickerFld}
-        ${fld('נטו לחשבון (₪)', `<input name="netIlsTotal" type="number" step="0.01" dir="ltr" required class="${inputCls} font-data tnum" />`)}`,
+        ${fld('נטו לחשבון (₪)', `<input name="netIlsTotal" type="number" step="0.01" dir="ltr" required class="${inputCls} font-data tnum" value="${val('netIlsTotal')}" />`)}`,
     };
 
     $('#v2-overlay').innerHTML = `
@@ -830,11 +842,11 @@ export class UIv2 {
       <div class="sheet fixed inset-x-0 bottom-0 z-[71] mx-auto max-h-[88vh] max-w-lg overflow-y-auto rounded-t-3xl"
            dir="rtl" role="dialog" aria-modal="true" aria-label="תנועה חדשה">
         <div class="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-white/10 bg-surface-container/95 px-5 py-4 backdrop-blur-xl">
-          <h2 class="text-base font-bold text-white">תנועה חדשה</h2>
+          <h2 class="text-base font-bold text-white">${tx ? 'עריכת תנועה' : 'תנועה חדשה'}</h2>
           <button type="button" id="sheet-close" aria-label="סגור" class="pressable text-outline active:text-white">${icon('close', 'text-[22px]')}</button>
         </div>
 
-        <div class="flex gap-1 px-5 pt-4">
+        <div class="flex gap-1 px-5 pt-4 ${tx ? 'hidden' : ''}">
           ${TYPES.map((t) => `
             <button type="button" data-tx-type="${t.id}"
                     class="flex-1 rounded-lg px-2 py-2 text-xs font-semibold transition-colors ${
@@ -843,12 +855,112 @@ export class UIv2 {
 
         <form id="tx-form" class="space-y-4 px-5 pb-8 pt-5">
           ${bodies[type]}
-          <button type="submit" class="fab-neon w-full rounded-xl py-3 text-sm font-bold">שמור</button>
+          <button type="submit" class="fab-neon w-full rounded-xl py-3 text-sm font-bold">${tx ? 'עדכן' : 'שמור'}</button>
         </form>
       </div>`;
 
     document.body.style.overflow = 'hidden';
-    this._bindSheet(type);
+    this._bindSheet(type, tx);
+  }
+
+  // Renaming a company and recording a split both touch every BUY of a ticker,
+  // which no single transaction edit can do.
+  _openSecuritySheet(ticker) {
+    this.sheetOpen = true;
+    const state = this.sm.getState();
+    const q = state.quotes[ticker];
+    const inputCls = 'w-full rounded-xl border border-primary/20 bg-white/[0.03] px-3 py-2.5 text-sm text-white outline-none focus:border-primary/60';
+
+    $('#v2-overlay').innerHTML = `
+      <div id="sheet-backdrop" class="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm"></div>
+      <div class="sheet fixed inset-x-0 bottom-0 z-[71] mx-auto max-h-[88vh] max-w-lg overflow-y-auto rounded-t-3xl"
+           dir="rtl" role="dialog" aria-modal="true" aria-label="עריכת נייר">
+        <div class="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-white/10 bg-surface-container/95 px-5 py-4 backdrop-blur-xl">
+          <h2 class="text-base font-bold text-white">עריכת ${escapeHtml(ticker)}</h2>
+          <button type="button" id="sheet-close" aria-label="סגור" class="pressable text-outline active:text-white">${icon('close', 'text-[22px]')}</button>
+        </div>
+
+        <form id="security-form" class="space-y-5 px-5 pb-8 pt-5">
+          <div>
+            <label class="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.15em] text-on-surface-variant">שם החברה</label>
+            <input name="company" type="text" value="${escapeHtml(q?.company || '')}" class="${inputCls}" />
+            <p class="mt-1.5 text-xs text-outline">מתעדכן גם בציטוט וגם בכל הקניות של הנייר.</p>
+          </div>
+
+          <div class="border-t border-white/10 pt-5">
+            <label class="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.15em] text-on-surface-variant">פיצול מניות</label>
+            <div class="flex items-center gap-2">
+              <input name="split" type="number" step="any" min="0" dir="ltr" placeholder="2" class="${inputCls} font-data tnum flex-1" />
+              <span class="shrink-0 text-sm text-on-surface-variant">‎:1</span>
+            </div>
+            <p class="mt-1.5 text-xs text-outline">
+              יחס הפיצול. 2 פירושו שכל מניה הפכה לשתיים: הכמות בכל קנייה תוכפל ומחיר הקנייה יחולק,
+              כך שבסיס העלות נשמר. השאר ריק אם אין פיצול.
+            </p>
+            <label class="mt-3 flex items-center gap-2 text-sm text-on-surface-variant">
+              <input name="adjustQuote" type="checkbox" checked class="h-4 w-4 rounded border-primary/30 bg-white/5" />
+              עדכן גם את השער הנוכחי
+            </label>
+            <p class="mt-1.5 text-xs text-outline">
+              בטל אם השער השמור כבר מעודכן אחרי הפיצול, אחרת הוא יחולק פעמיים.
+            </p>
+          </div>
+
+          <button type="submit" class="fab-neon w-full rounded-xl py-3 text-sm font-bold">עדכן</button>
+        </form>
+      </div>`;
+
+    document.body.style.overflow = 'hidden';
+    const overlay = $('#v2-overlay');
+    $('#sheet-close', overlay).addEventListener('click', () => this._closeSheet());
+    $('#sheet-backdrop', overlay).addEventListener('click', () => this._closeSheet());
+
+    $('#security-form', overlay).addEventListener('submit', (e) => {
+      e.preventDefault();
+      const f = e.target;
+      const company = (f.elements.namedItem('company').value || '').trim();
+      const splitRaw = f.elements.namedItem('split').value;
+      const ratio = splitRaw === '' ? null : parseFloat(splitRaw);
+      const adjustQuote = f.elements.namedItem('adjustQuote').checked;
+
+      if (ratio != null && (!(ratio > 0) || ratio === 1)) {
+        return toast('יחס פיצול חייב להיות מספר חיובי ששונה מ-1', 6000);
+      }
+
+      // patchTx commits one transaction at a time, so a failure partway would
+      // leave a ticker half-split. Snapshot first and roll back on error.
+      const snapshot = this.sm.exportJson();
+      try {
+        for (const tx of this.sm.getState().ledger) {
+          if (tx.type !== 'BUY' || tx.ticker !== ticker) continue;
+          const fields = {};
+          if (company) fields.company = company;
+          if (ratio != null) {
+            fields.totalShares = tx.totalShares * ratio;
+            fields.kidsShares = tx.kidsShares * ratio;
+            fields.price = (tx.price ?? tx.priceUsd) / ratio;
+          }
+          if (Object.keys(fields).length) this.sm.patchTx(tx.id, fields);
+        }
+
+        const price = q?.price ?? q?.priceUsd ?? null;
+        if (q && (company || (ratio != null && adjustQuote))) {
+          this.sm.upsertQuote({
+            ticker,
+            company: company || q.company,
+            price: ratio != null && adjustQuote && price != null ? price / ratio : price,
+            currency: q.currency,
+            asOf: q.asOf,
+            source: q.source,
+          });
+        }
+        this._closeSheet();
+        toast(ratio != null ? `${ticker}: פיצול ${ratio}:1 הוחל` : 'עודכן');
+      } catch (err) {
+        this.sm.importJson(snapshot);
+        toast(`העדכון בוטל: ${err.message}`, 7000);
+      }
+    });
   }
 
   _closeSheet() {
@@ -857,7 +969,7 @@ export class UIv2 {
     document.body.style.overflow = '';
   }
 
-  _bindSheet(type) {
+  _bindSheet(type, tx = null) {
     const overlay = $('#v2-overlay');
     $('#sheet-close', overlay).addEventListener('click', () => this._closeSheet());
     $('#sheet-backdrop', overlay).addEventListener('click', () => this._closeSheet());
@@ -895,25 +1007,38 @@ export class UIv2 {
       const f = e.target;
       const v = (n) => f.elements.namedItem(n)?.value;
       const num = (n) => parseFloat(v(n));
+      const fields = {};
+      if (type === 'DEPOSIT') {
+        Object.assign(fields, { date: v('date'), kidId: v('kidId'), amountIls: num('amountIls'), note: v('note') || '' });
+      } else if (type === 'BUY') {
+        const allocation = {};
+        $$('[data-alloc-kid]', overlay).forEach((i) => { allocation[i.dataset.allocKid] = parseFloat(i.value); });
+        Object.assign(fields, {
+          date: v('date'), ticker: v('ticker').trim().toUpperCase(), company: (v('company') || '').trim(),
+          totalShares: num('totalShares'), kidsShares: num('kidsShares'), allocation,
+          price: num('price'), currency: v('currency') || 'USD', fxRate: num('fxRate'),
+          feesIls: num('feesIls') || 0,
+        });
+      } else if (type === 'SELL') {
+        Object.assign(fields, { date: v('date'), ticker: v('ticker').trim().toUpperCase(), sharesSold: num('sharesSold'), netIls: num('netIls') });
+      } else {
+        Object.assign(fields, { date: v('date'), ticker: v('ticker').trim().toUpperCase(), netIlsTotal: num('netIlsTotal') });
+      }
+
       try {
-        if (type === 'DEPOSIT') {
-          this.sm.recordDeposit({ date: v('date'), kidId: v('kidId'), amountIls: num('amountIls'), note: v('note') || '' });
+        if (tx) {
+          this.sm.patchTx(tx.id, fields);
+        } else if (type === 'DEPOSIT') {
+          this.sm.recordDeposit(fields);
         } else if (type === 'BUY') {
-          const allocation = {};
-          $$('[data-alloc-kid]', overlay).forEach((i) => { allocation[i.dataset.allocKid] = parseFloat(i.value); });
-          this.sm.recordBuy({
-            date: v('date'), ticker: v('ticker').trim().toUpperCase(), company: (v('company') || '').trim(),
-            totalShares: num('totalShares'), kidsShares: num('kidsShares'), allocation,
-            price: num('price'), currency: v('currency') || 'USD', fxRate: num('fxRate'),
-            feesIls: num('feesIls') || 0,
-          });
+          this.sm.recordBuy(fields);
         } else if (type === 'SELL') {
-          this.sm.recordSell({ date: v('date'), ticker: v('ticker').trim().toUpperCase(), sharesSold: num('sharesSold'), netIls: num('netIls') });
+          this.sm.recordSell(fields);
         } else {
-          this.sm.recordDividend({ date: v('date'), ticker: v('ticker').trim().toUpperCase(), netIlsTotal: num('netIlsTotal') });
+          this.sm.recordDividend(fields);
         }
         this._closeSheet();
-        toast('נשמר');
+        toast(tx ? 'עודכן' : 'נשמר');
       } catch (err) {
         toast(err.message, 6000);
       }
@@ -950,12 +1075,22 @@ export class UIv2 {
 
       if (e.target.closest('#v2-fab')) { this._openSheet('BUY'); return; }
 
+      const editSec = e.target.closest('[data-edit-security]');
+      if (editSec) { this._openSecuritySheet(editSec.dataset.editSecurity); return; }
+
       const delTx = e.target.closest('[data-del-tx]');
       if (delTx) {
         if (confirm('למחוק את התנועה?')) {
           try { this.sm.removeTx(delTx.dataset.delTx); toast('נמחק'); }
           catch (err) { toast(err.message, 6000); }
         }
+        return;
+      }
+
+      const editTx = e.target.closest('[data-edit-tx]');
+      if (editTx) {
+        const tx = this.sm.getState().ledger.find((t) => t.id === editTx.dataset.editTx);
+        if (tx) this._openSheet(tx.type, tx);
         return;
       }
 
