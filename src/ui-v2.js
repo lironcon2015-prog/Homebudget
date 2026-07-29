@@ -252,8 +252,10 @@ export class UIv2 {
              grammar every holdings and ledger row uses. -->
         <div class="flex items-center justify-between gap-3">
           <div class="flex min-w-0 items-center gap-3">
-            <div class="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/10 bg-surface-container">
-              ${icon('person', `${c.accent} text-[21px]`)}
+            <div class="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full border border-white/10 bg-surface-container">
+              ${kid.avatar
+                ? `<img src="${escapeHtml(kid.avatar)}" alt="" class="h-full w-full object-cover" />`
+                : icon('person', `${c.accent} text-[21px]`)}
             </div>
             <div class="min-w-0">
               <h3 class="truncate text-base font-bold text-white">${escapeHtml(kid.name)}</h3>
@@ -549,6 +551,12 @@ export class UIv2 {
 
     const kidRows = kids.length ? kids.map((k) => `
       <div class="flex items-center gap-3 px-5 py-3">
+        <button type="button" data-avatar-kid="${escapeHtml(k.id)}" aria-label="תמונה של ${escapeHtml(k.name)}"
+                class="pressable grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full border border-white/10 bg-surface-container text-primary">
+          ${k.avatar
+            ? `<img src="${escapeHtml(k.avatar)}" alt="" class="h-full w-full object-cover" />`
+            : icon('person', 'text-[19px]')}
+        </button>
         <span class="min-w-0 flex-1 truncate text-sm text-white">${escapeHtml(k.name)}</span>
         <span class="shrink-0 text-xs text-on-surface-variant">${ltr(ils(derived.portfolioValueByKid[k.id] || 0))}</span>
         <button type="button" data-rename-kid="${escapeHtml(k.id)}" class="pressable shrink-0 text-outline active:text-primary">${icon('edit', 'text-[17px]')}</button>
@@ -963,6 +971,229 @@ export class UIv2 {
     });
   }
 
+  // Crop constants. CROP is the circle being cropped to; OUT is what gets
+  // stored. 320px JPEG keeps a kid's photo at tens of KB, so photos ride along
+  // inside the JSON backup without threatening the localStorage quota.
+  static CROP = 240;
+  static OUT = 320;
+  static QUALITY = 0.85;
+  // Zoom reaches 3x, so the circle can show as little as a third of the source.
+  // This many pixels on the short edge means the export never upscales, while a
+  // 12MP phone photo is discarded early.
+  static WORK_MIN = 1024;
+
+  _openAvatarSheet(kidId) {
+    const kid = this.sm.getState().kids[kidId];
+    if (!kid) return;
+    this.sheetOpen = true;
+
+    $('#v2-overlay').innerHTML = `
+      <div id="sheet-backdrop" class="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm"></div>
+      <div class="sheet fixed inset-x-0 bottom-0 z-[71] mx-auto max-h-[92vh] max-w-lg overflow-y-auto rounded-t-3xl"
+           dir="rtl" role="dialog" aria-modal="true" aria-label="תמונת פרופיל">
+        <div class="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-white/10 bg-surface-container/95 px-5 py-4 backdrop-blur-xl">
+          <h2 class="text-base font-bold text-white">תמונה — ${escapeHtml(kid.name)}</h2>
+          <button type="button" id="sheet-close" aria-label="סגור" class="pressable text-outline active:text-white">${icon('close', 'text-[22px]')}</button>
+        </div>
+
+        <div class="flex flex-col gap-5 px-5 pb-8 pt-5">
+          <div class="flex flex-col items-center gap-2.5">
+            <div id="crop-stage" class="crop-stage">
+              <canvas id="crop-canvas" width="280" height="280"></canvas>
+              <div class="crop-mask"></div>
+            </div>
+            <p id="crop-hint" class="text-xs text-outline">עדיין לא נבחרה תמונה</p>
+          </div>
+
+          <label class="flex items-center gap-3">
+            <span class="shrink-0 text-[10px] font-bold uppercase tracking-[0.15em] text-on-surface-variant">קירוב</span>
+            <input id="crop-zoom" type="range" min="1" max="3" step="0.01" value="1" class="flex-1" style="accent-color:#cebdff;" />
+          </label>
+
+          <div class="flex gap-2.5">
+            <button type="button" id="crop-pick"
+                    class="pressable flex-1 rounded-xl border border-primary/25 bg-primary/10 py-3 text-sm font-bold text-primary">בחר תמונה</button>
+            <button type="button" id="crop-save" disabled
+                    class="fab-neon flex-1 rounded-xl py-3 text-sm font-bold disabled:opacity-45">שמור</button>
+          </div>
+          ${kid.avatar ? `<button type="button" id="crop-remove"
+                    class="pressable w-full rounded-xl border border-red-400/30 bg-red-400/10 py-3 text-sm font-bold text-red-400">הסר תמונה</button>` : ''}
+          <input id="crop-file" type="file" accept="image/*" class="hidden" />
+        </div>
+      </div>`;
+
+    document.body.style.overflow = 'hidden';
+    this._bindCropper(kidId, kid.avatar || null);
+  }
+
+  _bindCropper(kidId, existing) {
+    const { CROP, OUT, QUALITY, WORK_MIN } = UIv2;
+    const overlay = $('#v2-overlay');
+    const stage = $('#crop-stage', overlay);
+    const canvas = $('#crop-canvas', overlay);
+    const ctx = canvas.getContext('2d');
+    const zoom = $('#crop-zoom', overlay);
+    const save = $('#crop-save', overlay);
+    const hint = $('#crop-hint', overlay);
+
+    let source = null;                  // working canvas, EXIF already applied
+    let nat = { w: 0, h: 0 };
+    let base = 1;
+    let view = { tx: 0, ty: 0, k: 1 };
+
+    // One routine for both the preview and the export, so what is on screen is
+    // exactly what gets saved.
+    const paint = (c, size, scale) => {
+      c.save();
+      c.fillStyle = '#151219';
+      c.fillRect(0, 0, size, size);
+      if (source) {
+        c.translate(size / 2, size / 2);
+        c.scale(scale, scale);
+        c.translate(view.tx, view.ty);
+        const sc = base * view.k;
+        c.scale(sc, sc);
+        c.imageSmoothingEnabled = true;
+        c.imageSmoothingQuality = 'high';
+        c.drawImage(source, -nat.w / 2, -nat.h / 2);
+      }
+      c.restore();
+    };
+    const repaint = () => paint(ctx, 280, 1);
+
+    const clamp = () => {
+      const sc = base * view.k;
+      const maxX = Math.max(0, (nat.w * sc) / 2 - CROP / 2);
+      const maxY = Math.max(0, (nat.h * sc) / 2 - CROP / 2);
+      view.tx = Math.min(maxX, Math.max(-maxX, view.tx));
+      view.ty = Math.min(maxY, Math.max(-maxY, view.ty));
+    };
+
+    // Halving repeatedly rather than one big drawImage: a single step from
+    // 4032px to 320px samples too sparsely and comes out soft and aliased.
+    const downscale = (src, w, h) => {
+      let cur = document.createElement('canvas');
+      cur.width = w; cur.height = h;
+      let cx = cur.getContext('2d');
+      cx.imageSmoothingEnabled = true; cx.imageSmoothingQuality = 'high';
+      cx.drawImage(src, 0, 0, w, h);
+      let cw = w, ch = h;
+      const step = (nw, nh) => {
+        const next = document.createElement('canvas');
+        next.width = nw; next.height = nh;
+        const nx = next.getContext('2d');
+        nx.imageSmoothingEnabled = true; nx.imageSmoothingQuality = 'high';
+        nx.drawImage(cur, 0, 0, nw, nh);
+        cur = next; cw = nw; ch = nh;
+      };
+      while (Math.min(cw, ch) > WORK_MIN * 2) step(Math.max(1, Math.round(cw / 2)), Math.max(1, Math.round(ch / 2)));
+      if (Math.min(cw, ch) > WORK_MIN) {
+        const f = WORK_MIN / Math.min(cw, ch);
+        step(Math.round(cw * f), Math.round(ch * f));
+      }
+      return { canvas: cur, w: cw, h: ch };
+    };
+
+    // createImageBitmap with imageOrientation applies the EXIF rotation once,
+    // so a portrait phone photo can't end up sideways or stretched by a later
+    // drawImage that ignores the tag.
+    const decode = async (blobOrUrl) => {
+      const blob = blobOrUrl instanceof Blob ? blobOrUrl : await (await fetch(blobOrUrl)).blob();
+      if (typeof createImageBitmap === 'function') {
+        try { return await createImageBitmap(blob, { imageOrientation: 'from-image' }); }
+        catch (e) { /* older Safari: fall through */ }
+      }
+      const url = URL.createObjectURL(blob);
+      try {
+        const im = new Image();
+        im.src = url;
+        await (im.decode ? im.decode() : new Promise((res, rej) => { im.onload = res; im.onerror = rej; }));
+        return im;
+      } finally { setTimeout(() => URL.revokeObjectURL(url), 0); }
+    };
+
+    const load = async (blobOrUrl) => {
+      try {
+        const bmp = await decode(blobOrUrl);
+        const work = downscale(bmp, bmp.width || bmp.naturalWidth, bmp.height || bmp.naturalHeight);
+        if (bmp.close) bmp.close();
+        source = work.canvas;
+        nat = { w: work.w, h: work.h };
+        base = CROP / Math.min(nat.w, nat.h);
+        view = { tx: 0, ty: 0, k: 1 };
+        zoom.value = '1';
+        repaint();
+        save.disabled = false;
+        hint.textContent = 'גרור להזזה · צבוט או השתמש במחוון לקירוב';
+      } catch (err) {
+        hint.textContent = 'לא הצלחתי לקרוא את התמונה';
+      }
+    };
+
+    repaint();
+    if (existing) load(existing);
+
+    $('#sheet-close', overlay).addEventListener('click', () => this._closeSheet());
+    $('#sheet-backdrop', overlay).addEventListener('click', () => this._closeSheet());
+    $('#crop-pick', overlay).addEventListener('click', () => $('#crop-file', overlay).click());
+    $('#crop-file', overlay).addEventListener('change', (e) => {
+      const f = e.target.files && e.target.files[0];
+      if (f) load(f);
+      e.target.value = '';
+    });
+    zoom.addEventListener('input', () => { view.k = parseFloat(zoom.value); clamp(); repaint(); });
+
+    $('#crop-remove', overlay)?.addEventListener('click', () => {
+      this.sm.setKidAvatar(kidId, null);
+      this._closeSheet();
+      toast('התמונה הוסרה');
+    });
+
+    save.addEventListener('click', () => {
+      if (!source) return;
+      const c = document.createElement('canvas');
+      c.width = c.height = OUT;
+      paint(c.getContext('2d'), OUT, OUT / CROP);
+      try {
+        this.sm.setKidAvatar(kidId, c.toDataURL('image/jpeg', QUALITY));
+        this._closeSheet();
+        toast('התמונה נשמרה');
+      } catch (err) {
+        // A quota failure must say so rather than look like nothing happened.
+        toast(`שמירת התמונה נכשלה: ${err.message}`, 7000);
+      }
+    });
+
+    // Pan, and pinch to zoom, from one pointer handler.
+    const pts = new Map();
+    let start = null;
+    stage.addEventListener('pointerdown', (e) => {
+      if (!source) return;
+      stage.setPointerCapture(e.pointerId);
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      start = null;
+    });
+    stage.addEventListener('pointermove', (e) => {
+      if (!pts.has(e.pointerId)) return;
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      const list = [...pts.values()];
+      if (list.length === 1) {
+        if (!start) start = { x: list[0].x, y: list[0].y, tx: view.tx, ty: view.ty };
+        view.tx = start.tx + (list[0].x - start.x);
+        view.ty = start.ty + (list[0].y - start.y);
+      } else {
+        const d = Math.hypot(list[0].x - list[1].x, list[0].y - list[1].y);
+        if (!start || !start.d) start = { d, k: view.k };
+        view.k = Math.min(3, Math.max(1, start.k * (d / start.d)));
+        zoom.value = String(view.k);
+      }
+      clamp(); repaint();
+    });
+    const up = (e) => { pts.delete(e.pointerId); start = null; };
+    stage.addEventListener('pointerup', up);
+    stage.addEventListener('pointercancel', up);
+  }
+
   _closeSheet() {
     this.sheetOpen = false;
     $('#v2-overlay').innerHTML = '';
@@ -1074,6 +1305,9 @@ export class UIv2 {
       if (toggle) { const t = toggle.dataset.toggle; this.expanded = this.expanded === t ? null : t; this.render(); return; }
 
       if (e.target.closest('#v2-fab')) { this._openSheet('BUY'); return; }
+
+      const avatarKid = e.target.closest('[data-avatar-kid]');
+      if (avatarKid) { this._openAvatarSheet(avatarKid.dataset.avatarKid); return; }
 
       const editSec = e.target.closest('[data-edit-security]');
       if (editSec) { this._openSecuritySheet(editSec.dataset.editSecurity); return; }

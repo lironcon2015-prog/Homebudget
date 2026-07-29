@@ -77,6 +77,15 @@ export class StateManager {
     this._commit();
   }
 
+  // dataUrl null clears the photo. Stored on the kid record rather than in a
+  // side channel, so it travels with export/import like everything else.
+  setKidAvatar(kidId, dataUrl) {
+    if (!this.state.kids[kidId]) throw new Error('Unknown kid');
+    if (dataUrl) this.state.kids[kidId].avatar = dataUrl;
+    else delete this.state.kids[kidId].avatar;
+    this._commit();
+  }
+
   removeKid(kidId) {
     const used = this.state.ledger.some((tx) =>
       tx.kidId === kidId || (tx.allocation && kidId in tx.allocation)

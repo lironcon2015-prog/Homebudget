@@ -14,7 +14,7 @@ export const fmtIls = (n) => (n == null || isNaN(n) ? '—' : ILS.format(n));
 export const fmtPct = (n) => (n == null || isNaN(n) ? '—' : PCT.format(n));
 export const fmtNum = (n) => (n == null || isNaN(n) ? '—' : NUM.format(n));
 
-const pickKidPublicFields = (kid) => ({ id: kid.id, name: kid.name });
+const pickKidPublicFields = (kid) => ({ id: kid.id, name: kid.name, avatar: kid.avatar || null });
 
 export function dashboardViewModel(state, derived) {
   const kids = Object.values(state.kids).map((k) => {

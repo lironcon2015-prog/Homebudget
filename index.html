@@ -247,6 +247,24 @@ try {
     pointer-events: none;
   }
 
+  /* Avatar cropper. The stage is a canvas drawn by the same routine that
+     writes the exported file, so the preview cannot disagree with the result. */
+  .crop-stage {
+    position: relative; width: 280px; height: 280px;
+    border-radius: 1rem; overflow: hidden; background: #0b0910;
+    touch-action: none; user-select: none; cursor: grab;
+  }
+  .crop-stage canvas { position: absolute; inset: 0; display: block; width: 280px; height: 280px; }
+  .crop-mask {
+    position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(circle at center, transparent 0 120px, rgba(0,0,0,.62) 121px);
+  }
+  .crop-mask::after {
+    content: ''; position: absolute; left: 50%; top: 50%;
+    width: 240px; height: 240px; margin: -120px 0 0 -120px;
+    border-radius: 9999px; border: 2px solid rgba(255,255,255,.55);
+  }
+
   .sheet {
     background: rgba(21, 18, 25, 0.96);
     backdrop-filter: blur(28px);
