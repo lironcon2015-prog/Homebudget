@@ -167,6 +167,45 @@ check('no tail when every month published', flat.tailFrom === null, String(flat.
 // No returns at all must behave exactly as before the feature existed.
 check('no returns falls back to face value', near(d1.balance, 25000 + 2000), String(d1.balance));
 
+console.log('\n-- an anchor dated to the start of a month double-counts it --');
+// The real failure: a statement as-of 31/03 entered as 01/03. March's return
+// then applies to a balance that already contains it. Both anchors are
+// legitimate inputs, so the engine cannot reject either — it must report which
+// months it applied so the UI can surface the difference.
+const marchReturns = [
+  { month: '2026-03', pct: -4 }, { month: '2026-04', pct: 1 },
+  { month: '2026-05', pct: 1 }, { month: '2026-06', pct: 1 },
+];
+// The March deposit is suppressed in both variants: a start-of-month anchor
+// also picks it up, and that inflow would otherwise mask the return being
+// counted twice.
+const noMarchDeposit = [{ date: '2026-03-25', amount: 0 }];
+const endOfMarch = deriveGemelFund(
+  { ...fund, annualFeePct: 0, returns: marchReturns, overrides: noMarchDeposit,
+    anchor: { balance: 25000, asOf: '2026-03-31' } },
+  kids, '2026-07-29');
+const startOfMarch = deriveGemelFund(
+  { ...fund, annualFeePct: 0, returns: marchReturns, overrides: noMarchDeposit,
+    anchor: { balance: 25000, asOf: '2026-03-01' } },
+  kids, '2026-07-29');
+check('month-end anchor skips its own month',
+  !endOfMarch.revaluedFrom?.startsWith('2026-03'), String(endOfMarch.revaluedFrom));
+check('start-of-month anchor applies that month',
+  startOfMarch.revaluedFrom === '2026-03', String(startOfMarch.revaluedFrom));
+check('the difference is the double-counted month',
+  startOfMarch.balance < endOfMarch.balance,
+  `${startOfMarch.balance} vs ${endOfMarch.balance}`);
+// -4% over the 30 days of March left after the 1st, then compounded by the
+// three later months. Comparing shekels rather than a ratio, because the
+// identical Apr-Jul deposits land in both variants and dilute the percentage.
+const doubleCounted = 25000 * (0.04 * 30 / 31) * 1.01 ** 3;
+check('gap equals the double-counted month, compounded forward',
+  Math.abs((endOfMarch.balance - startOfMarch.balance) - doubleCounted) < 0.5,
+  `${(endOfMarch.balance - startOfMarch.balance).toFixed(2)} vs ${doubleCounted.toFixed(2)}`);
+check('applied months are reported for the UI',
+  endOfMarch.revaluedFrom === '2026-04' && endOfMarch.revaluedMonths === 3,
+  `${endOfMarch.revaluedFrom} / ${endOfMarch.revaluedMonths}`);
+
 console.log('\n-- revaluation reconciles against a real statement --');
 // A statement shaped as: opening + deposits − loss − fees = closing. Feeding
 // the same shape back must reproduce the closing balance from the opening one,

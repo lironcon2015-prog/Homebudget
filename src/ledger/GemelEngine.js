@@ -145,7 +145,7 @@ export function revalue(fund, deposits, anchorBalance, anchorAsOf, todayKey) {
   const depositsAfter = deposits.filter((d) => d.date > anchorAsOf);
   let balance = anchorBalance;
   let tailFrom = null;
-  let appliedMonths = 0;
+  const applied = [];
 
   const anchorMonth = monthKey(anchorAsOf);
   const todayMonth = monthKey(todayKey);
@@ -172,7 +172,7 @@ export function revalue(fund, deposits, anchorBalance, anchorAsOf, todayKey) {
       continue;
     }
 
-    appliedMonths += 1;
+    applied.push(mKey);
     balance *= 1 + r * openingFraction;
     for (const d of inMonth) {
       const { y, m, d: day } = parseKey(d.date);
@@ -188,7 +188,18 @@ export function revalue(fund, deposits, anchorBalance, anchorAsOf, todayKey) {
     ? dateKey(new Date(Date.parse(tailFrom + 'T00:00:00Z') - dayMs))
     : todayKey;
 
-  return { balance: round2(balance), tailFrom, measuredThrough, appliedMonths };
+  return {
+    balance: round2(balance),
+    tailFrom,
+    measuredThrough,
+    appliedMonths: applied.length,
+    // Which months were actually applied on top of the anchor. An anchor dated
+    // to the start of its month instead of the end makes that month's return
+    // count twice — the statement already contains it — and the only visible
+    // symptom is a balance that is quietly wrong. Surfacing the list lets the
+    // UI show it before it costs anyone a reconciliation.
+    appliedMonthList: applied,
+  };
 }
 
 export function currentAllocation(fund) {
@@ -227,6 +238,7 @@ export function deriveGemelFund(fund, kids, todayKey) {
     measuredThrough: null,
     tailDeposits: 0,
     revaluedMonths: 0,
+    revaluedFrom: null,
     warnings,
   };
 
@@ -249,11 +261,13 @@ export function deriveGemelFund(fund, kids, todayKey) {
   let tailDeposits = 0;
   let measuredThrough = null;
   let revaluedMonths = 0;
+  let revaluedFrom = null;
 
   if (anchorAsOf && Number.isFinite(anchorBalance)) {
     const r = revalue(fund, deposits, anchorBalance, anchorAsOf, todayKey);
     balance = r.balance;
     revaluedMonths = r.appliedMonths;
+    revaluedFrom = r.appliedMonthList[0] || null;
     tailFrom = r.tailFrom && r.tailFrom < todayKey ? r.tailFrom : null;
     measuredThrough = tailFrom ? r.measuredThrough : todayKey;
     // Only the deposits inside the unmeasured window are carried at face value.
@@ -342,6 +356,7 @@ export function deriveGemelFund(fund, kids, todayKey) {
     measuredThrough,
     tailDeposits,
     revaluedMonths,
+    revaluedFrom,
     returnsCount: (fund.returns || []).length,
     warnings,
   };

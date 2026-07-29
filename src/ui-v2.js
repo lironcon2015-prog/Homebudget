@@ -606,6 +606,7 @@ export class UIv2 {
             ${this._detailRow('הפקדה חודשית', fund ? ils(fund.monthlyAmount) : '—')}
             ${this._detailRow('הפקדה אחרונה', last ? formatDateHe(last.date) : '—')}
             ${f.anchorAsOf ? this._detailRow('עוגן מהדוח', formatDateHe(f.anchorAsOf)) : ''}
+            ${f.revaluedFrom ? this._detailRow('משוערך מ-', f.revaluedFrom) : ''}
             ${f.measuredThrough ? this._detailRow('משוערך עד', formatDateHe(f.measuredThrough)) : ''}
             ${split}
             ${tailNote}
@@ -1245,6 +1246,7 @@ export class UIv2 {
                      value="${escapeHtml(fund?.anchor?.asOf || '')}"
                      class="${inputCls} font-data tnum min-w-0" />
             </div>
+            <p id="anchor-warn" class="mt-1.5 hidden text-xs leading-relaxed text-tertiary"></p>
             <p class="${hintCls}">
               היתרה והתאריך שהיא נכונה לו. עד התאריך הזה השווי הוא בדיוק מה שהקופה דיווחה;
               הפקדות שאחריו נספרות ללא תשואה, ולכן כדאי לרענן כל רבעון.
@@ -1336,6 +1338,28 @@ export class UIv2 {
     const form = $('#gemel-form', overlay);
     $('#sheet-close', overlay).addEventListener('click', () => this._closeSheet());
     $('#sheet-backdrop', overlay).addEventListener('click', () => this._closeSheet());
+
+    // A statement is almost always as-of a month or quarter end. Dating the
+    // anchor to the start of a month instead makes that month's return apply to
+    // a balance that already contains it — the loss or gain counts twice, and
+    // nothing about the resulting number looks wrong.
+    const anchorEl = form.elements.namedItem('anchorAsOf');
+    const checkAnchorDate = () => {
+      const el = $('#anchor-warn', overlay);
+      const v = anchorEl?.value;
+      if (!el) return;
+      if (!v) { el.classList.add('hidden'); return; }
+      const [y, m, d] = v.split('-').map(Number);
+      const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+      if (d === last) { el.classList.add('hidden'); return; }
+      const suggested = `${y}-${String(m).padStart(2, '0')}-${String(last).padStart(2, '0')}`;
+      el.classList.remove('hidden');
+      el.textContent = `⚠ ${v} אינו סוף חודש. רוב הדוחות נכונים לסוף התקופה —`
+        + ` אם הדוח הוא לסוף החודש בחר ${suggested}, אחרת תשואת החודש הזה תיספר פעמיים.`;
+    };
+    anchorEl?.addEventListener('input', checkAnchorDate);
+    anchorEl?.addEventListener('change', checkAnchorDate);
+    checkAnchorDate();
 
     const readAlloc = () => {
       const out = {};
