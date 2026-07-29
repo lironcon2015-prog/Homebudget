@@ -107,6 +107,21 @@ try {
 
   .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
 
+  /* black-translucent runs the webview edge to edge, so the iOS clock and
+     battery sit on top of the page. Content is inset below them, and a blurred
+     strip keeps whatever scrolls past legible behind the status text. Both
+     collapse to nothing where the inset is 0 (desktop, Android). */
+  .safe-top { padding-top: env(safe-area-inset-top); }
+  .status-scrim {
+    position: fixed; inset: 0 0 auto 0;
+    height: env(safe-area-inset-top);
+    z-index: 46;
+    background: rgba(15, 12, 19, 0.72);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    pointer-events: none;
+  }
+
   /* ---- Midnight Astral surfaces (ported from index.html) ---------------- */
 
   .glass-card {
@@ -217,7 +232,7 @@ try {
   /* Pull-to-refresh indicator (option 3). Sits above the content and is
      translated down as the drag progresses. */
   .pull-ind {
-    position: fixed; top: 0; left: 50%;
+    position: fixed; top: env(safe-area-inset-top); left: 50%;
     margin-left: -1.25rem;
     width: 2.5rem; height: 2.5rem;
     display: grid; place-items: center;

@@ -31,8 +31,14 @@ const ltr = (s, cls = '') => `<bdi dir="ltr" class="font-data tnum ${cls}">${s}<
 
 const ils = (n) => (n == null || isNaN(n) ? '—' : `₪ ${ilsFmt.format(Math.abs(n))}`);
 const signedIls = (n) => (n == null || isNaN(n) ? '—' : `${n < 0 ? '−' : '+'}${ils(n)}`);
-const signedPct = (n) => (n == null || isNaN(n) ? '—' : `${n < 0 ? '−' : '+'}${numFmt.format(Math.abs(n * 100))}%`);
-const pctPlain = (n) => (n == null || isNaN(n) ? '—' : `${numFmt.format(n * 100)}%`);
+
+// The engine mixes two conventions and they must not be confused: profitPct
+// and totalReturnPct arrive already multiplied out (profit / principal * 100),
+// while XIRR is a plain ratio. Passing a percentage through the ratio
+// formatter multiplies by 100 a second time.
+const signedPoints = (n) => (n == null || isNaN(n) ? '—' : `${n < 0 ? '−' : '+'}${numFmt.format(Math.abs(n))}%`);
+const signedRatio = (n) => (n == null || isNaN(n) ? '—' : signedPoints(n * 100));
+const ratioAsPct = (n) => (n == null || isNaN(n) ? '—' : `${numFmt.format(n * 100)}%`);
 
 const isUp = (n) => (n ?? 0) >= 0;
 const today = () => new Date().toISOString().slice(0, 10);
@@ -146,11 +152,12 @@ export class UIv2 {
     };
 
     $('#v2-root').innerHTML = `
+      <div class="status-scrim"></div>
       <div id="pull-ind" class="pull-ind">${icon('sync', `text-[20px] ${this.refreshing ? 'spinning' : ''}`)}</div>
       <div class="ambient-orb"><div class="orb-violet"></div><div class="orb-emerald"></div></div>
       <!-- Bottom padding clears the floating bar *and* the FAB, so the last row
            of a list is never parked underneath either at the end of a scroll. -->
-      <div class="relative z-10 mx-auto min-h-screen max-w-lg pb-[calc(11rem+env(safe-area-inset-bottom))]">
+      <div class="safe-top relative z-10 mx-auto min-h-screen max-w-lg pb-[calc(11rem+env(safe-area-inset-bottom))]">
         <main>${views[this.tab]()}</main>
       </div>
       ${this._fab()}
@@ -200,8 +207,8 @@ export class UIv2 {
           </h2>
 
           <div class="mt-4 flex flex-wrap items-center gap-2">
-            ${pill(up ? 'secondary' : 'red', `${signedIls(vm.totalProfit)} (${signedPct(vm.totalReturnPct)})`)}
-            ${vm.totalKidsXirr != null ? pill('primary', `שנתית ${pctPlain(vm.totalKidsXirr)}`) : ''}
+            ${pill(up ? 'secondary' : 'red', `${signedIls(vm.totalProfit)} (${signedPoints(vm.totalReturnPct)})`)}
+            ${vm.totalKidsXirr != null ? pill('primary', `שנתית ${ratioAsPct(vm.totalKidsXirr)}`) : ''}
           </div>
 
           <div class="mt-5 flex items-center justify-between border-t border-white/10 pt-3">
@@ -229,7 +236,7 @@ export class UIv2 {
     const up = isUp(kid.profit);
     // Centre the bar at 40% and let the return nudge it, so a flat kid still
     // reads as a bar rather than an empty track.
-    const barPct = Math.max(8, Math.min(95, 40 + (kid.profitPct || 0) * 200));
+    const barPct = Math.max(8, Math.min(95, 40 + (kid.profitPct || 0) * 2));
 
     return `
       <div class="glass-card pressable flex flex-col gap-4 rounded-2xl p-5">
@@ -249,13 +256,13 @@ export class UIv2 {
           </div>
           <div class="shrink-0 text-left">
             <div class="text-xl font-black tracking-tight text-white">${ltr(ils(kid.portfolioValueIls))}</div>
-            <div class="mt-0.5 text-sm font-bold ${up ? 'text-secondary' : 'text-red-400'}">${ltr(signedPct(kid.profitPct))}</div>
+            <div class="mt-0.5 text-sm font-bold ${up ? 'text-secondary' : 'text-red-400'}">${ltr(signedPoints(kid.profitPct))}</div>
           </div>
         </div>
 
         <div class="flex flex-wrap items-center gap-2">
           ${pill(up ? 'secondary' : 'red', signedIls(kid.profit))}
-          ${kid.xirr != null ? pill('primary', `שנתית ${pctPlain(kid.xirr)}`) : ''}
+          ${kid.xirr != null ? pill('primary', `שנתית ${ratioAsPct(kid.xirr)}`) : ''}
         </div>
 
         <div class="kid-progress-track">
@@ -298,7 +305,7 @@ export class UIv2 {
         <div class="flex shrink-0 items-center gap-3">
           <div class="text-left">
             <div class="text-base font-bold text-white">${ltr(r.valueIls != null ? ils(r.valueIls) : '—')}</div>
-            <div class="mt-0.5 text-sm font-bold ${tone}">${ltr(signedPct(profitPct))}</div>
+            <div class="mt-0.5 text-sm font-bold ${tone}">${ltr(signedRatio(profitPct))}</div>
           </div>
           ${icon('expand_more', `chevron text-outline text-[20px] ${open ? 'open' : ''}`)}
         </div>
