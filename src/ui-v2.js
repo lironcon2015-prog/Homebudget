@@ -109,6 +109,8 @@ export class UIv2 {
     this.refreshing = false;
     this.pullStart = null;
     this.sheetOpen = false;
+    // Which sleeve the kid screen's annualised return covers: all | securities | gemel.
+    this.xirrScope = 'all';
   }
 
   init() {
@@ -299,8 +301,14 @@ export class UIv2 {
     const value = derived.portfolioValueByKid[this.kidId] || 0;
     const cash = derived.cashByKid[this.kidId] || 0;
     const profit = derived.profitByKid?.[this.kidId] || { total: 0, unrealized: 0, realized: 0 };
-    const kidXirr = typeof derived.xirrByKid?.[this.kidId] === 'number' ? derived.xirrByKid[this.kidId] : null;
     const gemelBalance = derived.gemel?.balanceByKid?.[this.kidId] || 0;
+    const xirrAll = derived.xirrByKid?.[this.kidId] ?? null;
+    const xirrSecurities = derived.xirrSecuritiesByKid?.[this.kidId] ?? null;
+    const xirrGemel = derived.xirrGemelByKid?.[this.kidId] ?? null;
+    const scope = this.xirrScope || 'all';
+    const kidXirr = scope === 'securities' ? xirrSecurities : scope === 'gemel' ? xirrGemel : xirrAll;
+    // The switch is only meaningful once both sleeves exist.
+    const showScope = gemelBalance > 0;
     const up = isUp(profit.total);
     const now = new Date();
 
@@ -327,6 +335,14 @@ export class UIv2 {
             ${pill(up ? 'secondary' : 'red', signedIls(profit.total))}
             ${kidXirr != null ? pill('primary', `שנתית ${ratioAsPct(kidXirr)}`) : ''}
           </div>
+          ${showScope ? `
+            <div class="mt-3 flex gap-1 rounded-full border border-white/10 bg-white/5 p-1">
+              ${[['all', 'הכל'], ['securities', 'ניירות ערך'], ['gemel', 'קופות גמל']].map(([id, label]) => `
+                <button type="button" data-xirr-scope="${id}"
+                        class="flex-1 rounded-full py-1.5 text-[11px] font-semibold transition-colors ${
+                          scope === id ? 'bg-primary/20 text-primary' : 'text-outline'}">${label}</button>`).join('')}
+            </div>
+            <p class="mt-1.5 text-[11px] text-outline">התשואה השנתית מחושבת על האפיק שנבחר בלבד.</p>` : ''}
           <div class="mt-5 space-y-2 border-t border-white/10 pt-3">
             ${this._kidStat('רווח לא ממומש', profit.unrealized)}
             ${this._kidStat('רווח ממומש', profit.realized)}
@@ -603,6 +619,7 @@ export class UIv2 {
             ${this._detailRow('יתרה', ils(balance))}
             ${this._detailRow('רווח/הפסד', signedIls(gain), tone)}
             ${this._detailRow('תשואה', pct != null ? signedRatio(pct) : '—', tone)}
+            ${!kidId ? this._detailRow('תשואה שנתית', f.xirr != null ? ratioAsPct(f.xirr) : '—') : ''}
             ${this._detailRow('הפקדה חודשית', fund ? ils(fund.monthlyAmount) : '—')}
             ${this._detailRow('הפקדה אחרונה', last ? formatDateHe(last.date) : '—')}
             ${f.anchorAsOf ? this._detailRow('עוגן מהדוח', formatDateHe(f.anchorAsOf)) : ''}
@@ -1873,6 +1890,9 @@ export class UIv2 {
         window.scrollTo({ top: 0 });
         return;
       }
+
+      const scopeBtn = e.target.closest('[data-xirr-scope]');
+      if (scopeBtn) { this.xirrScope = scopeBtn.dataset.xirrScope; this.render(); return; }
 
       const toggle = e.target.closest('[data-toggle]');
       if (toggle) { const t = toggle.dataset.toggle; this.expanded = this.expanded === t ? null : t; this.render(); return; }

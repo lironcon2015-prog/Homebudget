@@ -24,7 +24,7 @@ const FIELDS = [
   { id: 'YIELD_TRAILING_3_YRS' }, { id: 'REPORTING_YEAR' },
 ];
 const row = (period, yield_, fee = 0.67) => ({
-  _id: 1, FUND_ID: 13344, FUND_NAME: 'קופה', MANAGING_CORPORATION: 'מנהל',
+  _id: 1, FUND_ID: 99999, FUND_NAME: 'קופה', MANAGING_CORPORATION: 'מנהל',
   REPORT_PERIOD: period, INCEPTION_DATE: 44166, DEPOSITS: 0.33,
   AVG_ANNUAL_MANAGEMENT_FEE: fee, MONTHLY_YIELD: yield_,
   YEAR_TO_DATE_YIELD: 1.1, YIELD_TRAILING_3_YRS: 9.9, REPORTING_YEAR: Math.floor(period / 100),
@@ -63,7 +63,7 @@ check('null rejected', normalizeMonth(null) === null);
 
 console.log('\n-- direct call is tried before any proxy --');
 const calls = installFetch();
-const ok = await fetchGemelReturns('13344');
+const ok = await fetchGemelReturns('99999');
 check('direct hit first', calls[0].startsWith('https://data.gov.il/'), calls[0]);
 check('no proxy used when direct works',
   !calls.some((c) => /codetabs|allorigins|corsproxy/.test(c)), calls.join('\n'));
@@ -93,13 +93,13 @@ globalThis.fetch = (url) => {
   if (target.includes('filters')) return jsonRes({ success: true, result: { records: ROWS } });
   return jsonRes({ success: true, result: { fields: FIELDS_NO_PERIOD, records: [ROWS[0]] } });
 };
-const noMonth = await fetchGemelReturns('13344');
+const noMonth = await fetchGemelReturns('99999');
 check('detection fails loudly instead of parsing nothing',
   noMonth.error?.includes('לא זוהו העמודות'), noMonth.error);
 
 console.log('\n-- proxy fallback when direct is blocked --');
 const calls2 = installFetch({ directFails: true });
-const viaProxy = await fetchGemelReturns('13344');
+const viaProxy = await fetchGemelReturns('99999');
 check('falls back to a proxy', calls2.some((c) => /codetabs|allorigins|corsproxy/.test(c)));
 check('still resolves through the proxy', viaProxy.returns?.length === 2,
   JSON.stringify(viaProxy.error || viaProxy.returns));
@@ -138,7 +138,7 @@ function installSplitFetch({ rejectSort = false } = {}) {
 }
 
 installSplitFetch();
-const merged = await fetchGemelReturns('13344');
+const merged = await fetchGemelReturns('99999');
 check('both resources contribute', merged.returns?.length === 5,
   JSON.stringify(merged.error || merged.returns?.map((r) => r.month)));
 check('reaches the newest month', merged.returns?.[0].month === '2026-03',
@@ -165,20 +165,20 @@ globalThis.fetch = (url) => {
   if (target.includes('filters')) return jsonRes({ success: true, result: { records: rows } });
   return jsonRes({ success: true, result: { fields: FIELDS, records: [rows[0]] } });
 };
-const overlap = await fetchGemelReturns('13344');
+const overlap = await fetchGemelReturns('99999');
 check('duplicate month kept once', overlap.returns?.length === 1, JSON.stringify(overlap.returns));
 check('first resource wins the tie', overlap.returns?.[0].pct === 5.5, JSON.stringify(overlap.returns));
 
 console.log('\n-- a rejected sort falls back to an unsorted query --');
 installSplitFetch({ rejectSort: true });
-const unsorted = await fetchGemelReturns('13344');
+const unsorted = await fetchGemelReturns('99999');
 check('sort was attempted', sortSeen.length > 0);
 check('still returns rows without sort', unsorted.returns?.length === 5,
   JSON.stringify(unsorted.error || unsorted.returns?.length));
 
 console.log('\n-- diagnostic explains a total failure --');
 globalThis.fetch = () => Promise.reject(Object.assign(new Error('Failed to fetch'), { name: 'TypeError' }));
-const report = await describeSource('13344');
+const report = await describeSource('99999');
 check('reports failure', report.startsWith('✗'), report);
 check('names the failing step', report.includes('package_show'), report);
 check('includes the attempt log', report.includes('ניסיונות'), report);
@@ -187,7 +187,7 @@ check('log distinguishes direct from proxy',
 
 console.log('\n-- diagnostic on success --');
 installFetch();
-const good = await describeSource('13344');
+const good = await describeSource('99999');
 check('reports success', good.startsWith('✓'), good);
 check('lists detected columns', good.includes('FUND_ID') && good.includes('MONTHLY_YIELD'), good);
 check('shows the month range', good.includes('2026-02') && good.includes('2026-03'), good);

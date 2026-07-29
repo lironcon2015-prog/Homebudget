@@ -20,12 +20,14 @@ function dateKey(d) {
   return String(d).slice(0, 10);
 }
 
+// Returns null when the rate is genuinely unknown — too few flows, no sign
+// change, or no convergence. Collapsing those to 0 would print a confident
+// "0.0%" that cannot be told apart from a flat portfolio.
 function safeXirr(flows) {
-  if (flows.length < 2) return 0;
+  if (flows.length < 2) return null;
   const first = dateKey(flows[0].date);
-  if (flows.every((f) => dateKey(f.date) === first)) return 0;
-  const result = xirr(flows);
-  return result.value == null ? 0 : result.value;
+  if (flows.every((f) => dateKey(f.date) === first)) return null;
+  return xirr(flows).value ?? null;
 }
 
 function emptyDerived(kids) {
@@ -47,7 +49,9 @@ function emptyDerived(kids) {
     totalKidsPrincipal: 0,
     totalKidsValue: 0,
     xirrByKid: {},
-    totalKidsXirr: 0,
+    xirrSecuritiesByKid: {},
+    xirrGemelByKid: {},
+    totalKidsXirr: null,
     warnings: [],
   };
 }
@@ -245,15 +249,19 @@ export function deriveState(state, today = new Date()) {
   d.totalProfit = d.totalKidsValue - d.totalKidsPrincipal;
   d.totalReturnPct = d.totalKidsPrincipal > 0 ? (d.totalProfit / d.totalKidsPrincipal) * 100 : 0;
 
-  // XIRR per kid: deposits + external BUYs as negative, today's PV as positive.
+  // XIRR per kid: contributions negative at their dates, today's value positive.
+  //
+  // Three rates are produced from the same flows. The combined one is the union
+  // of both sleeves — the correct money-weighted return of everything, and not
+  // an average of the two. The split ones exist because that combined number is
+  // otherwise impossible to attribute: with a gemel several times the size of
+  // the brokerage, it is almost entirely the gemel.
   const totalFlows = [];
   for (const kidId in state.kids || {}) {
-    const flows = [];
+    const securityFlows = [];
     for (const tx of sorted) {
       if (tx.type === TX.DEPOSIT && tx.kidId === kidId) {
-        const f = { date: tx.date, amount: -tx.amountIls };
-        flows.push(f);
-        totalFlows.push({ ...f });
+        securityFlows.push({ date: tx.date, amount: -tx.amountIls });
       } else if (tx.type === TX.BUY && tx.externalFunds === true) {
         const price = tx.price ?? tx.priceUsd;
         const txFxRate = tx.fxRate;
@@ -263,19 +271,30 @@ export function deriveState(state, today = new Date()) {
         if (shares > 0) {
           const feeShare = tx.kidsShares > 0 ? feesIls * (shares / tx.kidsShares) : 0;
           const cost = shares * price * txFxRate + feeShare;
-          const f = { date: tx.date, amount: -cost };
-          flows.push(f);
-          totalFlows.push({ ...f });
+          securityFlows.push({ date: tx.date, amount: -cost });
         }
       }
     }
-    for (const f of gemel.flowsByKid[kidId] || []) {
-      flows.push({ ...f });
-      totalFlows.push({ ...f });
-    }
-    const pv = d.portfolioValueByKid[kidId];
-    if (pv > 0) flows.push({ date: today, amount: pv });
-    d.xirrByKid[kidId] = safeXirr(flows);
+    const gemelFlows = (gemel.flowsByKid[kidId] || []).map((f) => ({ ...f }));
+    for (const f of [...securityFlows, ...gemelFlows]) totalFlows.push({ ...f });
+
+    const pv = d.portfolioValueByKid[kidId] || 0;
+    const gemelValue = gemel.balanceByKid[kidId] || 0;
+    // Cash lives in pv and belongs to the securities sleeve, so the split is by
+    // subtraction rather than by re-summing the holdings.
+    const securityValue = pv - gemelValue;
+
+    const combined = [...securityFlows, ...gemelFlows];
+    if (pv > 0) combined.push({ date: today, amount: pv });
+    d.xirrByKid[kidId] = safeXirr(combined);
+
+    const secOnly = [...securityFlows];
+    if (securityValue > 0) secOnly.push({ date: today, amount: securityValue });
+    d.xirrSecuritiesByKid[kidId] = safeXirr(secOnly);
+
+    const gemOnly = [...gemelFlows];
+    if (gemelValue > 0) gemOnly.push({ date: today, amount: gemelValue });
+    d.xirrGemelByKid[kidId] = safeXirr(gemOnly);
   }
   if (d.totalKidsValue > 0) totalFlows.push({ date: today, amount: d.totalKidsValue });
   d.totalKidsXirr = safeXirr(totalFlows);

@@ -18,6 +18,7 @@
 // `tailFrom` / `tailDeposits` so the UI can label that explicitly.
 
 import { round2, proratePreservingTotal, sumValues } from '../util/MathUtils.js';
+import { xirr } from '../math/Xirr.js';
 
 const dayMs = 86400000;
 
@@ -234,6 +235,7 @@ export function deriveGemelFund(fund, kids, todayKey) {
     balance: 0,
     gain: 0,
     returnPct: 0,
+    xirr: null,
     tailFrom: null,
     measuredThrough: null,
     tailDeposits: 0,
@@ -338,10 +340,18 @@ export function deriveGemelFund(fund, kids, todayKey) {
     balanceByKid[kidId] = round2((depositedByKid[kidId] || 0) + (gainByKid[kidId] || 0));
   }
 
+  // Money-weighted return of the fund on its own: every deposit at its date,
+  // today's balance as the terminal flow. Exact whenever the standing order is,
+  // since both legs are facts rather than estimates.
+  const fundFlows = deposits.map((x) => ({ date: x.date, amount: -x.amount }));
+  if (balance > 0) fundFlows.push({ date: todayKey, amount: balance });
+  const fundXirr = fundFlows.length >= 2 ? (xirr(fundFlows).value ?? null) : null;
+
   return {
     id: fund.id,
     name: fund.name,
     fundNumber: fund.fundNumber || null,
+    xirr: fundXirr,
     deposits,
     depositedByKid,
     balanceByKid,

@@ -222,5 +222,68 @@ const qd = deriveGemelFund(q, kids, '2026-03-31');
 check('two deposits in the quarter', qd.deposits.length === 2, String(qd.deposits.length));
 check('flat quarter = opening + deposits', near(qd.balance, 50000 + 1000, 0.02), String(qd.balance));
 
+console.log('\n-- XIRR: fund, sleeves, and the combined rate --');
+const xFund = {
+  ...fund, annualFeePct: 0,
+  returns: [{ month: '2026-04', pct: 1 }, { month: '2026-05', pct: 1 }, { month: '2026-06', pct: 1 }],
+};
+const xd = deriveGemelFund(xFund, kids, '2026-07-29');
+check('fund reports its own xirr', typeof xd.xirr === 'number', String(xd.xirr));
+check('fund xirr is a plausible rate', xd.xirr > -0.9 && xd.xirr < 3, String(xd.xirr));
+
+// A constant split makes every kid's flows a fixed multiple of the fund's, and
+// XIRR is scale-invariant — so each kid must see exactly the fund's rate.
+const xstate = {
+  schemaVersion: 1, settings: { lastFxRate: 3.6 }, kids, quotes: {},
+  gemelFunds: [xFund], ledger: [],
+};
+const xds = deriveState(xstate, new Date('2026-07-29T00:00:00Z'));
+check('kid gemel xirr equals the fund xirr under a constant split',
+  Math.abs(xds.xirrGemelByKid.a - xd.xirr) < 1e-6,
+  `${xds.xirrGemelByKid.a} vs ${xd.xirr}`);
+check('with no securities, combined equals gemel',
+  Math.abs(xds.xirrByKid.a - xds.xirrGemelByKid.a) < 1e-6,
+  `${xds.xirrByKid.a} vs ${xds.xirrGemelByKid.a}`);
+check('securities-only is null when there are none',
+  xds.xirrSecuritiesByKid.a === null, String(xds.xirrSecuritiesByKid.a));
+
+console.log('\n-- an unknown rate is null, never 0 --');
+// A single flow cannot define a rate. Reporting 0 would be indistinguishable
+// from a portfolio that genuinely went nowhere.
+const sameDay = deriveState({
+  schemaVersion: 1, settings: { lastFxRate: 3.6 }, kids, quotes: {},
+  gemelFunds: [], ledger: [
+    { id: 'tx_1', type: 'DEPOSIT', date: '2026-07-29', kidId: 'a', amountIls: 1000, createdAt: '2026-07-29T00:00:00Z' },
+  ],
+}, new Date('2026-07-29T00:00:00Z'));
+check('all-same-day flows give null, not 0', sameDay.xirrByKid.a === null, String(sameDay.xirrByKid.a));
+check('a kid with no activity gives null', sameDay.xirrByKid.b === null, String(sameDay.xirrByKid.b));
+check('total is null rather than 0', sameDay.totalKidsXirr === null, String(sameDay.totalKidsXirr));
+
+console.log('\n-- combined rate sits between the two sleeves --');
+// Securities bought once at a known cost, alongside the gemel. The blended
+// money-weighted rate cannot fall outside the range spanned by its parts.
+const mixed = deriveState({
+  schemaVersion: 1, settings: { lastFxRate: 4 }, kids,
+  quotes: { X: { ticker: 'X', price: 200, currency: 'USD', asOf: '2026-07-29' } },
+  gemelFunds: [xFund],
+  ledger: [{
+    id: 'tx_1', type: 'BUY', date: '2024-01-25', ticker: 'X', totalShares: 30, kidsShares: 30,
+    allocation: third, price: 100, currency: 'USD', fxRate: 4, feesIls: 0,
+    externalFunds: true, createdAt: '2024-01-25T00:00:00Z',
+  }],
+}, new Date('2026-07-29T00:00:00Z'));
+const { a: all } = mixed.xirrByKid;
+const sec = mixed.xirrSecuritiesByKid.a;
+const gem = mixed.xirrGemelByKid.a;
+check('all three rates computed',
+  [all, sec, gem].every((v) => typeof v === 'number'), JSON.stringify({ all, sec, gem }));
+check('securities and gemel differ', Math.abs(sec - gem) > 1e-4, `${sec} vs ${gem}`);
+check('combined lies between them',
+  all >= Math.min(sec, gem) - 1e-9 && all <= Math.max(sec, gem) + 1e-9,
+  `${all} not within [${Math.min(sec, gem)}, ${Math.max(sec, gem)}]`);
+check('combined is not simply the mean',
+  Math.abs(all - (sec + gem) / 2) > 1e-6, `${all} vs ${(sec + gem) / 2}`);
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);

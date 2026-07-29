@@ -231,13 +231,40 @@ Inputs: `date, ticker, netIlsTotal` (entire account incl. parent).
 
 ## XIRR (per kid)
 
-Cashflows: every kid DEPOSIT as a negative outflow, plus today's portfolio value (cash + Σ shares × priceUsd × fxRate) as a single positive terminal flow.
+Contributions are negative at their dates, today's value positive. Three rates
+come out of the same flows:
 
-Algorithm: Newton-Raphson on NPV with `guess = 0.1`, clamped away from −100%, fallback to bisection in `[-0.99, +10.0]`. Returns `{value: number}` on success or `{value: null, reason: 'insufficient_flows' | 'no_sign_change' | 'no_convergence'}`.
+| Rate | Flows | Terminal value |
+|---|---|---|
+| `xirrByKid` | DEPOSITs + external BUYs + gemel deposits | `portfolioValueByKid` |
+| `xirrSecuritiesByKid` | DEPOSITs + external BUYs | portfolio value **minus** gemel balance |
+| `xirrGemelByKid` | gemel deposits | gemel balance |
 
-The UI renders `null` results as `—` (never a misleading 0%).
+The combined rate is the money-weighted return of the union of both sleeves —
+**not** an average of the other two. It is bounded by them, but weighted by size
+*and* timing, so it will not sit at the midpoint. The split rates exist because
+the combined one is otherwise impossible to attribute: a gemel several times the
+size of the brokerage simply *is* the headline number.
 
----
+Cash is part of the securities sleeve, so the split is by subtraction from
+`portfolioValueByKid` rather than by re-summing holdings — uninvested cash then
+correctly drags the securities rate down.
+
+Under a constant allocation each kid's gemel flows are a fixed multiple of the
+fund's, and XIRR is scale-invariant, so every kid sees exactly the fund's own
+rate. `deriveGemelFund` reports that rate as `fund.xirr`.
+
+**An unknown rate is `null`, never `0`.** `safeXirr` returns null for too few
+flows, no sign change, and no convergence alike. Collapsing those to zero prints
+a confident "0.0%" that cannot be told apart from a portfolio that genuinely went
+nowhere — the same silent-wrong-number failure the anchor date once produced.
+Every UI call site guards on null and hides the pill.
+
+A data-entry hazard worth knowing: a `BUY` with `externalFunds: true` counts as
+fresh outside money **in addition to** any DEPOSIT. A purchase funded by money
+already deposited into the app must be `externalFunds: false`, or the
+contribution is counted twice and the rate comes out too low.
+
 
 ## Validation
 
