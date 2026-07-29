@@ -23,6 +23,9 @@ const ALLOWED_HOSTS = new Set([
   // Fallback quote source for listings Yahoo doesn't carry.
   'stooq.com',
   'www.stooq.com',
+  // גמל-נט monthly returns, published by the Ministry of Finance.
+  'data.gov.il',
+  'gemel.funder.co.il',
 ]);
 
 const CORS_HEADERS = {

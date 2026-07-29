@@ -156,6 +156,7 @@ export class StateManager {
       annualFeePct: annualFeePct == null ? null : Number(annualFeePct),
       allocationHistory: [{ from: String(firstDepositDate).slice(0, 10), allocation: { ...allocation } }],
       overrides: [],
+      returns: [],
       anchor: anchor ? { balance: Number(anchor.balance), asOf: String(anchor.asOf).slice(0, 10) } : null,
       createdAt: new Date().toISOString().slice(0, 10),
     });
@@ -214,6 +215,60 @@ export class StateManager {
     const hist = f.allocationHistory || [];
     if (hist.length <= 1) throw new Error('חייב להישאר פיצול אחד לפחות');
     f.allocationHistory = hist.filter((e) => e.from !== from);
+    this._commit();
+  }
+
+  /**
+   * Merge published monthly returns into a fund.
+   * Fetched rows never overwrite a manually entered month — a number the user
+   * typed off their own statement outranks anything scraped.
+   */
+  mergeGemelReturns(id, incoming, { source = 'gemelnet' } = {}) {
+    const f = this._fund(id);
+    const list = f.returns || (f.returns = []);
+    const byMonth = new Map(list.map((r) => [String(r.month).slice(0, 7), r]));
+    let added = 0;
+    let updated = 0;
+    for (const r of incoming || []) {
+      const month = String(r.month).slice(0, 7);
+      const pct = Number(r.pct);
+      if (!/^\d{4}-\d{2}$/.test(month) || !Number.isFinite(pct)) continue;
+      const existing = byMonth.get(month);
+      if (existing) {
+        if (existing.source === 'manual' || existing.pct === pct) continue;
+        existing.pct = pct;
+        existing.source = source;
+        existing.fetchedAt = new Date().toISOString().slice(0, 10);
+        updated += 1;
+      } else {
+        const row = { month, pct, source, fetchedAt: new Date().toISOString().slice(0, 10) };
+        list.push(row);
+        byMonth.set(month, row);
+        added += 1;
+      }
+    }
+    list.sort((a, b) => (a.month < b.month ? 1 : a.month > b.month ? -1 : 0));
+    this._commit();
+    return { added, updated, total: list.length };
+  }
+
+  setGemelReturn(id, { month, pct }) {
+    const f = this._fund(id);
+    const key = String(month).slice(0, 7);
+    if (!/^\d{4}-\d{2}$/.test(key)) throw new Error('חודש לא תקין — נדרש YYYY-MM');
+    const value = Number(pct);
+    if (!Number.isFinite(value)) throw new Error('תשואה לא תקינה');
+    const list = f.returns || (f.returns = []);
+    const existing = list.find((r) => r.month === key);
+    if (existing) { existing.pct = value; existing.source = 'manual'; }
+    else list.push({ month: key, pct: value, source: 'manual' });
+    list.sort((a, b) => (a.month < b.month ? 1 : a.month > b.month ? -1 : 0));
+    this._commit();
+  }
+
+  removeGemelReturn(id, month) {
+    const f = this._fund(id);
+    f.returns = (f.returns || []).filter((r) => r.month !== String(month).slice(0, 7));
     this._commit();
   }
 

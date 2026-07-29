@@ -42,7 +42,7 @@ function fetchWithTimeout(url, timeoutMs = TIMEOUT_MS) {
   return fetch(url, { signal: ctrl.signal }).finally(() => clearTimeout(id));
 }
 
-async function proxyFetch(targetUrl) {
+export async function proxyFetch(targetUrl) {
   const workerUrl = getWorkerUrl();
   const attempts = [];
   if (workerUrl) {

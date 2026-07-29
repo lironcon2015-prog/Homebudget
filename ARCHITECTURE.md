@@ -24,7 +24,8 @@ A Vanilla JS Single Page Application that tracks a multi-kid stock portfolio hel
 | math | `Xirr.js` | Newton-Raphson XIRR with bisection fallback in `[-0.99, +10.0]`. Returns `{value, reason}`. |
 | ledger | `FifoEngine.js` | `consumeFifo(lots, ticker, sharesSold)` — depletes per-kid shares from oldest lots, returns `consumedByKid`. |
 | ledger | `DividendEngine.js` | `distributeDividend(lots, ticker, netIlsTotal)` — per-share rate × kid shares; parent slice discarded. |
-| ledger | `GemelEngine.js` | `deriveGemel(state, todayKey)` — קופת גמל balances from a standing order + a statement anchor. No ledger rows, no quotes. |
+| ledger | `GemelEngine.js` | `deriveGemel(state, todayKey)` — קופת גמל balances from a standing order + a statement anchor, revalued forward with published monthly returns. |
+| io | `GemelFetcher.js` | Pulls monthly track returns from the גמל-נט CKAN dataset on data.gov.il. Discovers the column names instead of hard-coding them. |
 | ledger | `LedgerEngine.js` | Pure reducer `deriveState(state, today)` → derived snapshot. |
 | state | `LocalStoragePersistence.js` | JSON round-trip into `localStorage`. |
 | state | `StateManager.js` | Owns persisted state, validates each tx by trial-derivation, emits change events. |
@@ -66,7 +67,11 @@ UI → `Selectors` → `LedgerEngine`/`Xirr` → `FifoEngine`/`DividendEngine`/`
       "overrides": [                            // months that deviated; amount 0 = skipped
         { "date": "2026-02-25", "amount": 0, "note": "לא ירד" }
       ],
-      "anchor": { "balance": 25000, "asOf": "2026-03-31" }   // from the quarterly statement
+      "anchor": { "balance": 25000, "asOf": "2026-03-31" },  // from the quarterly statement
+      "returns": [                              // manual entries outrank fetched ones
+        { "month": "2026-04", "pct": 1.8, "source": "gemelnet", "fetchedAt": "2026-07-29" },
+        { "month": "2026-05", "pct": -0.4, "source": "manual" }
+      ]
     }
   ],
   "ledger": [
@@ -113,13 +118,39 @@ silently. Instead it is described by facts and derived arithmetically:
 | Quantity | Source | Exact? |
 |---|---|---|
 | Principal | Σ deposits, generated from the standing order + overrides | Yes — every amount and date is known |
-| Balance | `anchor.balance` + deposits after `anchor.asOf` at face value | Up to `anchor.asOf`; the tail carries no return |
+| Balance | `anchor.balance` rolled forward month by month with published returns | Through the last published month |
 | Gain | `balance − principal` | As exact as the balance |
 | XIRR | deposit flows + today's balance as the terminal flow | Yes |
 
-`tailFrom` / `tailDeposits` are surfaced so the UI can state plainly which
-window is unmeasured. Refreshing the anchor from a new statement resets the
-error to zero — no calibration, no external data feed.
+### Revaluation
+
+`revalue()` walks month by month from the anchor. The opening balance earns the
+whole month; each deposit earns the fraction of the month left after it landed.
+An anchor on the last day of its month contributes nothing to that month and so
+does not require a return for it.
+
+Published track returns are gross of the account-level management fee — the fee
+is charged against the account, not the track — so `annualFeePct / 12` is
+deducted from every month. That is a known constant, not an estimate.
+
+Months with no published return yet still receive their deposits but earn
+nothing. `tailFrom`, `measuredThrough` and `tailDeposits` are surfaced so the UI
+can state exactly which window is unmeasured; `measuredThrough` is computed in
+the engine so no screen has to do date arithmetic to phrase it correctly. That
+window is now weeks rather than a whole quarter, and a fresh anchor still resets
+the error to zero.
+
+### Fetching returns
+
+The גמל-נט dataset's Hebrew column names are not a stable published contract, so
+`GemelFetcher` discovers them: it reads each resource's own field list, matches
+columns by pattern, and only then queries. `describeSource()` renders that
+reasoning as text for the settings screen, so a failure reports which step
+failed and what columns it actually saw. A ratio-vs-percent mix-up — invisible in
+the UI, catastrophic in the maths — is caught by a magnitude check.
+
+Fetched months never overwrite a manually entered one: a number typed off a real
+statement outranks anything scraped.
 
 **Deposits are not ledger rows.** One standing order describes dozens of
 identical transfers; `overrides` covers the months that deviated (`amount: 0`

@@ -50,7 +50,8 @@ check('principal = 31*500', near(d1.totalDeposited, 31 * 500), String(d1.totalDe
 check('tail = 4 deposits', near(d1.tailDeposits, 4 * 500), String(d1.tailDeposits));
 check('balance = anchor + tail', near(d1.balance, 25000 + 2000), String(d1.balance));
 check('gain = balance - principal', near(d1.gain, d1.balance - d1.totalDeposited), String(d1.gain));
-check('tailFrom exposed', d1.tailFrom === '2026-03-31', String(d1.tailFrom));
+check('tail starts the month after the anchor', d1.tailFrom === '2026-04-01', String(d1.tailFrom));
+check('measured through the anchor date', d1.measuredThrough === '2026-03-31', String(d1.measuredThrough));
 
 console.log('\n-- constant allocation collapses to exact thirds --');
 const sumBal = d1.balanceByKid.a + d1.balanceByKid.b + d1.balanceByKid.c;
@@ -131,6 +132,56 @@ console.log('\n-- empty state still derives --');
 const ds0 = deriveState({ schemaVersion: 1, settings: {}, kids, quotes: {}, ledger: [] }, new Date('2026-07-29'));
 check('no gemelFunds key is safe', ds0.gemel.totalBalance === 0);
 check('totals zero', ds0.totalKidsValue === 0);
+
+console.log('\n-- revaluation from published returns --');
+const withReturns = {
+  ...fund,
+  annualFeePct: 0.6,
+  returns: [
+    { month: '2026-04', pct: 2 },
+    { month: '2026-05', pct: -1 },
+    { month: '2026-06', pct: 1.5 },
+  ],
+};
+const rv = deriveGemelFund(withReturns, kids, '2026-07-29');
+check('three months applied', rv.revaluedMonths === 3, String(rv.revaluedMonths));
+check('tail starts at first unpublished month', rv.tailFrom === '2026-07-01', String(rv.tailFrom));
+check('only July deposit left unmeasured', near(rv.tailDeposits, 500), String(rv.tailDeposits));
+check('revalued balance differs from face value', Math.abs(rv.balance - (25000 + 2000)) > 1,
+  `${rv.balance} vs ${25000 + 2000}`);
+check('per-kid balances still re-sum',
+  near(rv.balanceByKid.a + rv.balanceByKid.b + rv.balanceByKid.c, rv.balance));
+
+// Fee must actually bite: same returns, higher fee, lower balance.
+const pricier = deriveGemelFund({ ...withReturns, annualFeePct: 3 }, kids, '2026-07-29');
+check('higher fee lowers the balance', pricier.balance < rv.balance, `${pricier.balance} vs ${rv.balance}`);
+
+// A flat 0% month must leave the balance at face value.
+const flat = deriveGemelFund(
+  { ...fund, annualFeePct: 0, returns: [{ month: '2026-04', pct: 0 }, { month: '2026-05', pct: 0 },
+    { month: '2026-06', pct: 0 }, { month: '2026-07', pct: 0 }] },
+  kids, '2026-07-29');
+check('zero returns == face value', near(flat.balance, 25000 + 2000, 0.02), String(flat.balance));
+check('no tail when every month published', flat.tailFrom === null, String(flat.tailFrom));
+
+// No returns at all must behave exactly as before the feature existed.
+check('no returns falls back to face value', near(d1.balance, 25000 + 2000), String(d1.balance));
+
+console.log('\n-- revaluation reconciles against a real statement --');
+// A statement shaped as: opening + deposits − loss − fees = closing. Feeding
+// the same shape back must reproduce the closing balance from the opening one,
+// which is the property a revaluation has to preserve.
+const q = {
+  id: 'q', name: 'רבעון', monthlyAmount: 500, firstDepositDate: '2026-01-25',
+  allocationHistory: [{ from: '2026-01-25', allocation: third }],
+  overrides: [{ date: '2026-01-25', amount: 0 }],   // the quarter had 2 deposits, not 3
+  anchor: { balance: 50000, asOf: '2025-12-31' },
+  annualFeePct: 0,
+  returns: [{ month: '2026-01', pct: 0 }, { month: '2026-02', pct: 0 }, { month: '2026-03', pct: 0 }],
+};
+const qd = deriveGemelFund(q, kids, '2026-03-31');
+check('two deposits in the quarter', qd.deposits.length === 2, String(qd.deposits.length));
+check('flat quarter = opening + deposits', near(qd.balance, 50000 + 1000, 0.02), String(qd.balance));
 
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);

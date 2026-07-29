@@ -108,6 +108,89 @@ export function allocationOn(fund, key) {
   return chosen.allocation;
 }
 
+const monthKey = (key) => String(key).slice(0, 7);
+
+function addMonth(mKey) {
+  let [y, m] = mKey.split('-').map(Number);
+  m += 1;
+  if (m > 12) { m = 1; y += 1; }
+  return `${y}-${String(m).padStart(2, '0')}`;
+}
+
+/**
+ * The published monthly return for `mKey`, net of account-level management fees.
+ *
+ * A track's published return is the return of the *track*, while the fee is
+ * charged against the account — so the saver never actually earns the headline
+ * number. `annualFeePct` is a known constant, not an unknown, so it is simply
+ * deducted: a twelfth of it per month.
+ */
+export function netMonthlyReturn(fund, mKey) {
+  const entry = (fund.returns || []).find((r) => monthKey(r.month) === mKey);
+  if (!entry || !Number.isFinite(Number(entry.pct))) return null;
+  const fee = Number(fund.annualFeePct) || 0;
+  return (Number(entry.pct) - fee / 12) / 100;
+}
+
+/**
+ * Roll the anchor balance forward to today using the published monthly returns.
+ *
+ * Walks month by month: the opening balance earns the whole month, and each
+ * deposit earns the fraction of the month left after it landed. Months with no
+ * published return yet are still credited with their deposits but earn nothing,
+ * and the first such month is reported as `tailFrom` so the UI can say which
+ * window is unmeasured. That window is now weeks rather than a whole quarter.
+ */
+export function revalue(fund, deposits, anchorBalance, anchorAsOf, todayKey) {
+  const depositsAfter = deposits.filter((d) => d.date > anchorAsOf);
+  let balance = anchorBalance;
+  let tailFrom = null;
+  let appliedMonths = 0;
+
+  const anchorMonth = monthKey(anchorAsOf);
+  const todayMonth = monthKey(todayKey);
+  const { y: ay, m: am, d: ad } = parseKey(anchorAsOf);
+  const anchorDim = daysInMonth(ay, am);
+
+  for (let mKey = anchorMonth; mKey <= todayMonth; mKey = addMonth(mKey)) {
+    const r = netMonthlyReturn(fund, mKey);
+    const inMonth = depositsAfter.filter((d) => monthKey(d.date) === mKey);
+
+    // The anchor usually sits at a month end, but when it lands mid-month only
+    // the remainder of that month may be applied to the balance.
+    let openingFraction = 1;
+    if (mKey === anchorMonth) openingFraction = (anchorDim - ad) / anchorDim;
+
+    // An anchor on the last day of its month leaves nothing of that month to
+    // revalue, so it must not demand a return for it — otherwise a statement
+    // dated 31/03 would report the tail as starting in March forever.
+    if (openingFraction === 0 && inMonth.length === 0) continue;
+
+    if (r == null) {
+      if (!tailFrom) tailFrom = mKey === anchorMonth ? anchorAsOf : mKey + '-01';
+      for (const d of inMonth) balance += d.amount;
+      continue;
+    }
+
+    appliedMonths += 1;
+    balance *= 1 + r * openingFraction;
+    for (const d of inMonth) {
+      const { y, m, d: day } = parseKey(d.date);
+      const dim = daysInMonth(y, m);
+      balance += d.amount * (1 + r * ((dim - day) / dim));
+    }
+  }
+
+  // The last day the balance is backed by a published number. Derived here
+  // rather than in the view, so no screen has to do date arithmetic to phrase
+  // "accurate through …" correctly.
+  const measuredThrough = tailFrom
+    ? dateKey(new Date(Date.parse(tailFrom + 'T00:00:00Z') - dayMs))
+    : todayKey;
+
+  return { balance: round2(balance), tailFrom, measuredThrough, appliedMonths };
+}
+
 export function currentAllocation(fund) {
   const hist = fund.allocationHistory || [];
   if (hist.length === 0) return {};
@@ -141,7 +224,9 @@ export function deriveGemelFund(fund, kids, todayKey) {
     gain: 0,
     returnPct: 0,
     tailFrom: null,
+    measuredThrough: null,
     tailDeposits: 0,
+    revaluedMonths: 0,
     warnings,
   };
 
@@ -162,12 +247,19 @@ export function deriveGemelFund(fund, kids, todayKey) {
   let balance;
   let tailFrom = null;
   let tailDeposits = 0;
+  let measuredThrough = null;
+  let revaluedMonths = 0;
 
   if (anchorAsOf && Number.isFinite(anchorBalance)) {
-    const after = deposits.filter((x) => x.date > anchorAsOf);
-    tailDeposits = round2(after.reduce((s, x) => s + x.amount, 0));
-    balance = round2(anchorBalance + tailDeposits);
-    if (anchorAsOf < todayKey) tailFrom = anchorAsOf;
+    const r = revalue(fund, deposits, anchorBalance, anchorAsOf, todayKey);
+    balance = r.balance;
+    revaluedMonths = r.appliedMonths;
+    tailFrom = r.tailFrom && r.tailFrom < todayKey ? r.tailFrom : null;
+    measuredThrough = tailFrom ? r.measuredThrough : todayKey;
+    // Only the deposits inside the unmeasured window are carried at face value.
+    tailDeposits = tailFrom
+      ? round2(deposits.filter((x) => x.date > tailFrom).reduce((s, x) => s + x.amount, 0))
+      : 0;
   } else {
     balance = totalDeposited;
     warnings.push({ fundId: fund.id, code: 'no-anchor', message: 'לא הוזנה יתרה — מוצגת הקרן בלבד' });
@@ -247,7 +339,10 @@ export function deriveGemelFund(fund, kids, todayKey) {
     returnPct: totalDeposited > 0 ? (gain / totalDeposited) * 100 : 0,
     anchorAsOf,
     tailFrom,
+    measuredThrough,
     tailDeposits,
+    revaluedMonths,
+    returnsCount: (fund.returns || []).length,
     warnings,
   };
 }

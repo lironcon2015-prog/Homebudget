@@ -13,6 +13,7 @@ import {
 import { fetchQuotes, getWorkerUrl, setWorkerUrl, testWorker } from './io/QuoteFetcher.js';
 import { xirr } from './math/Xirr.js';
 import { currentAllocation } from './ledger/GemelEngine.js';
+import { fetchGemelReturns, describeSource } from './io/GemelFetcher.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -563,7 +564,8 @@ export class UIv2 {
     const tailNote = f.tailFrom
       ? `<p class="mt-4 rounded-xl border border-tertiary/20 bg-tertiary/5 px-3 py-2.5 text-xs leading-relaxed text-tertiary">
            ${icon('info', 'align-middle text-[15px]')}
-           היתרה מדויקת ל-${escapeHtml(formatDateHe(f.tailFrom))}. ${ltr(ils(f.tailDeposits))} שהופקדו מאז נספרים ללא תשואה.
+           היתרה משוערכת עד ${escapeHtml(formatDateHe(f.measuredThrough))}${f.revaluedMonths ? ` (${f.revaluedMonths} חודשי תשואה)` : ''}.
+           ${ltr(ils(f.tailDeposits))} שהופקדו מאז נספרים ללא תשואה.
          </p>`
       : (f.warnings.some((w) => w.code === 'no-anchor')
         ? `<p class="mt-4 rounded-xl border border-red-400/20 bg-red-400/5 px-3 py-2.5 text-xs leading-relaxed text-red-400">
@@ -603,7 +605,8 @@ export class UIv2 {
             ${this._detailRow('תשואה', pct != null ? signedRatio(pct) : '—', tone)}
             ${this._detailRow('הפקדה חודשית', fund ? ils(fund.monthlyAmount) : '—')}
             ${this._detailRow('הפקדה אחרונה', last ? formatDateHe(last.date) : '—')}
-            ${f.anchorAsOf ? this._detailRow('יתרה נכונה ל-', formatDateHe(f.anchorAsOf)) : ''}
+            ${f.anchorAsOf ? this._detailRow('עוגן מהדוח', formatDateHe(f.anchorAsOf)) : ''}
+            ${f.measuredThrough ? this._detailRow('משוערך עד', formatDateHe(f.measuredThrough)) : ''}
             ${split}
             ${tailNote}
             ${editBtn}
@@ -708,7 +711,9 @@ export class UIv2 {
     const gemelDerived = Object.fromEntries((derived.gemel?.funds || []).map((f) => [f.id, f]));
     const gemelRows = (state.gemelFunds || []).length ? (state.gemelFunds || []).map((f) => {
       const d = gemelDerived[f.id];
-      const stale = d?.tailFrom ? `עודכן ${formatDateHe(d.tailFrom)}` : 'ללא יתרה';
+      const stale = d?.measuredThrough
+        ? `משוערך עד ${formatDateHe(d.measuredThrough)} · ${d.returnsCount || 0} תשואות`
+        : 'ללא יתרה';
       return `
       <div class="flex items-center gap-3 px-5 py-3">
         <div class="min-w-0 flex-1">
@@ -1134,7 +1139,7 @@ export class UIv2 {
    * deposits, the balance anchor from the latest statement, the split, and the
    * exceptions for months the standing order deviated from.
    */
-  _openGemelSheet(fundId = null) {
+  _openGemelSheet(fundId = null, notice = '') {
     this.sheetOpen = true;
     const state = this.sm.getState();
     const fund = fundId ? (state.gemelFunds || []).find((f) => f.id === fundId) : null;
@@ -1168,6 +1173,16 @@ export class UIv2 {
                class="w-24 shrink-0 rounded-xl border border-primary/20 bg-white/[0.03] px-3 py-2 text-left font-data tnum text-sm text-white outline-none focus:border-primary/60" />
         <span class="shrink-0 text-sm text-on-surface-variant">%</span>
       </div>`).join('');
+
+    const returnRows = (fund?.returns || []).length ? `
+      <div class="max-h-48 overflow-y-auto">${(fund.returns).map((r) => `
+        <div class="flex items-center gap-3 border-b border-white/5 py-2 text-sm last:border-b-0">
+          <span class="flex-1 text-gray-400">${ltr(escapeHtml(r.month))}
+            ${r.source === 'manual' ? '<span class="text-[10px] text-outline">ידני</span>' : ''}</span>
+          <span class="font-semibold ${r.pct < 0 ? 'text-red-400' : 'text-secondary'}">${ltr(signedPoints(r.pct))}</span>
+          <button type="button" data-del-gemel-ret="${escapeHtml(r.month)}" class="pressable shrink-0 text-outline active:text-red-400">${icon('close', 'text-[16px]')}</button>
+        </div>`).join('')}</div>`
+      : '<p class="py-2 text-xs text-outline">אין תשואות — היתרה נספרת מהעוגן ללא שערוך.</p>';
 
     const overrideRows = (fund?.overrides || []).length ? (fund.overrides).map((o) => `
       <div class="flex items-center gap-3 border-b border-white/5 py-2 text-sm last:border-b-0">
@@ -1222,13 +1237,13 @@ export class UIv2 {
 
           <div class="border-t border-white/10 pt-5">
             <label class="${labelCls}">יתרה מהדוח</label>
-            <div class="flex gap-2">
+            <div class="grid grid-cols-2 gap-2">
               <input name="anchorBalance" type="number" step="any" min="0" dir="ltr"
                      value="${fund?.anchor?.balance ?? ''}" placeholder="25000"
-                     class="${inputCls} font-data tnum flex-1" />
+                     class="${inputCls} font-data tnum min-w-0" />
               <input name="anchorAsOf" type="date" dir="ltr"
                      value="${escapeHtml(fund?.anchor?.asOf || '')}"
-                     class="${inputCls} font-data tnum flex-1" />
+                     class="${inputCls} font-data tnum min-w-0" />
             </div>
             <p class="${hintCls}">
               היתרה והתאריך שהיא נכונה לו. עד התאריך הזה השווי הוא בדיוק מה שהקופה דיווחה;
@@ -1251,14 +1266,56 @@ export class UIv2 {
 
           ${fund ? `
           <div class="border-t border-white/10 pt-5">
+            <label class="${labelCls}">דמי ניהול מהצבירה</label>
+            <div class="flex gap-2">
+              <input name="annualFeePct" type="number" step="any" min="0" dir="ltr"
+                     value="${fund.annualFeePct ?? ''}" placeholder="0.67"
+                     class="${inputCls} font-data tnum flex-1" />
+              <span class="grid shrink-0 place-items-center text-sm text-on-surface-variant">% לשנה</span>
+            </div>
+            <p class="${hintCls}">
+              נגבים ברמת החשבון ולכן אינם כלולים בתשואת המסלול המפורסמת. זה קבוע ידוע, לא הערכה —
+              הוא מנוכה מכל חודש בשערוך.
+            </p>
+          </div>
+
+          <div class="border-t border-white/10 pt-5">
+            <label class="${labelCls}">תשואות חודשיות</label>
+            <div class="mb-3">${returnRows}</div>
+            <!-- Two columns plus a full-width button: a native month/date picker has
+                 a wide intrinsic minimum, so three controls on one line overflow a phone. -->
+            <div class="grid grid-cols-2 gap-2">
+              <input name="retMonth" type="month" dir="ltr" class="${inputCls} font-data tnum min-w-0" />
+              <input name="retPct" type="number" step="any" dir="ltr" placeholder="1.25"
+                     class="${inputCls} font-data tnum min-w-0" />
+            </div>
+            <button type="button" id="btn-add-ret"
+                    class="pressable mt-2 w-full rounded-xl bg-primary/20 py-2.5 text-sm font-semibold text-primary">הוסף חודש</button>
+            <div class="mt-3 flex gap-2">
+              <button type="button" id="btn-fetch-ret"
+                      class="pressable flex-1 rounded-xl border border-secondary/25 bg-secondary/10 py-2.5 text-sm font-semibold text-secondary">
+                ${icon('sync', 'align-middle text-[17px]')} משוך מגמל-נט
+              </button>
+              <button type="button" id="btn-test-ret"
+                      class="pressable shrink-0 rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-on-surface-variant">בדוק מקור</button>
+            </div>
+            <pre id="ret-result" class="mt-2 hidden max-h-56 overflow-auto whitespace-pre-wrap break-all font-data text-[11px] text-on-surface-variant"></pre>
+            <p class="${hintCls}">
+              השערוך מגלגל את היתרה מהעוגן קדימה לפי התשואה של כל חודש. חודש שטרם פורסם
+              נספר ללא תשואה ומסומן בכרטיס. ידני גובר תמיד על נמשך.
+            </p>
+          </div>
+
+          <div class="border-t border-white/10 pt-5">
             <label class="${labelCls}">חודשים חריגים</label>
             <div class="mb-3">${overrideRows}</div>
-            <div class="flex gap-2">
-              <input name="ovDate" type="date" dir="ltr" class="${inputCls} font-data tnum flex-1" />
+            <div class="grid grid-cols-2 gap-2">
+              <input name="ovDate" type="date" dir="ltr" class="${inputCls} font-data tnum min-w-0" />
               <input name="ovAmount" type="number" step="any" min="0" dir="ltr" placeholder="0"
-                     class="${inputCls} font-data tnum w-28 shrink-0" />
-              <button type="button" id="btn-add-ov" class="pressable shrink-0 rounded-xl bg-primary/20 px-4 text-sm font-semibold text-primary">הוסף</button>
+                     class="${inputCls} font-data tnum min-w-0" />
             </div>
+            <button type="button" id="btn-add-ov"
+                    class="pressable mt-2 w-full rounded-xl bg-primary/20 py-2.5 text-sm font-semibold text-primary">הוסף חריג</button>
             <p class="${hintCls}">חודש שבו הופקד סכום אחר, או 0 לחודש שבו לא הופקד כלום. גם הפקדה חד-פעמית בתאריך אחר נרשמת כאן.</p>
           </div>` : ''}
 
@@ -1309,15 +1366,87 @@ export class UIv2 {
       });
     }
 
+    const addRet = $('#btn-add-ret', overlay);
+    if (addRet) {
+      addRet.addEventListener('click', () => {
+        const month = form.elements.namedItem('retMonth').value;
+        const pct = parseFloat(form.elements.namedItem('retPct').value);
+        if (!month) return toast('בחר חודש', 5000);
+        if (isNaN(pct)) return toast('הזן תשואה באחוזים', 5000);
+        try {
+          this.sm.setGemelReturn(fundId, { month, pct });
+          this._openGemelSheet(fundId);
+        } catch (err) { toast(err.message, 6000); }
+      });
+    }
+
+    // The fetch and the diagnostic share one output pane. Neither can be
+    // verified from a development machine — this source is only reachable from
+    // a real browser — so both always report what they actually saw.
+    const showRet = (text) => {
+      const pane = $('#ret-result', overlay);
+      if (!pane) return;
+      pane.classList.remove('hidden');
+      pane.textContent = text;
+    };
+    // Pulling returns re-renders the sheet so the new rows appear, which would
+    // otherwise wipe the very report the user pressed the button to see.
+    if (notice) showRet(notice);
+
+    const fetchBtn = $('#btn-fetch-ret', overlay);
+    if (fetchBtn) {
+      fetchBtn.addEventListener('click', async () => {
+        const num = (form.elements.namedItem('fundNumber').value || '').trim();
+        if (!num) return toast('נדרש מספר קופה כדי למשוך תשואות', 6000);
+        fetchBtn.disabled = true;
+        showRet('מושך…');
+        try {
+          const res = await fetchGemelReturns(num);
+          if (res.error) { showRet(`✗ ${res.error}`); return; }
+          const { added, updated, total } = this.sm.mergeGemelReturns(fundId, res.returns);
+          const report = `✓ ${added} חדשים, ${updated} עודכנו, ${total} סה״כ`
+            + (res.meta?.scaleWarning ? `\n⚠ ${res.meta.scaleWarning}` : '');
+          toast(`נמשכו ${added + updated} חודשים`);
+          this._openGemelSheet(fundId, report);
+        } catch (err) {
+          showRet(`✗ ${err.message}`);
+        } finally { fetchBtn.disabled = false; }
+      });
+    }
+
+    const testBtn = $('#btn-test-ret', overlay);
+    if (testBtn) {
+      testBtn.addEventListener('click', async () => {
+        const num = (form.elements.namedItem('fundNumber').value || '').trim();
+        if (!num) return toast('נדרש מספר קופה', 5000);
+        testBtn.disabled = true;
+        showRet('בודק…');
+        try {
+          showRet(await describeSource(num));
+        } catch (err) {
+          showRet(`✗ ${err.message}`);
+        } finally { testBtn.disabled = false; }
+      });
+    }
+
     // Bound to the sheet, not the overlay: the sheet is rebuilt on every open,
     // so listeners cannot pile up across repeated re-renders.
     $('.sheet', overlay).addEventListener('click', (e) => {
-      const del = e.target.closest('[data-del-gemel-ov]');
-      if (!del) return;
-      try {
-        this.sm.removeGemelOverride(fundId, del.dataset.delGemelOv);
-        this._openGemelSheet(fundId);
-      } catch (err) { toast(err.message, 6000); }
+      const delOv = e.target.closest('[data-del-gemel-ov]');
+      if (delOv) {
+        try {
+          this.sm.removeGemelOverride(fundId, delOv.dataset.delGemelOv);
+          this._openGemelSheet(fundId);
+        } catch (err) { toast(err.message, 6000); }
+        return;
+      }
+      const delRet = e.target.closest('[data-del-gemel-ret]');
+      if (delRet) {
+        try {
+          this.sm.removeGemelReturn(fundId, delRet.dataset.delGemelRet);
+          this._openGemelSheet(fundId);
+        } catch (err) { toast(err.message, 6000); }
+      }
     });
 
     form.addEventListener('submit', (e) => {
@@ -1343,7 +1472,11 @@ export class UIv2 {
 
       try {
         if (fund) {
-          this.sm.updateGemelFund(fund.id, { name, fundNumber, monthlyAmount, firstDepositDate });
+          const feeRaw = f.elements.namedItem('annualFeePct')?.value;
+          this.sm.updateGemelFund(fund.id, {
+            name, fundNumber, monthlyAmount, firstDepositDate,
+            annualFeePct: feeRaw === '' || feeRaw == null ? null : parseFloat(feeRaw),
+          });
           this.sm.setGemelAnchor(fund.id, anchor || { balance: null, asOf: null });
           const forward = f.elements.namedItem('allocForward')?.checked;
           this.sm.setGemelAllocation(fund.id, allocation, forward ? null : firstDepositDate);
