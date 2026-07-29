@@ -17,12 +17,13 @@ const MOCK = {
     profitIls: 34908.12,
     profitPct: 19.1,
     xirrPct: 14.2,
+    fxRate: 3.62,
     asOf: '28 ביולי 2026',
   },
   // Parent ghost shares are internal to dividend math and never surface here.
   kids: [
-    { name: 'איתמר', allocationPct: 60, valueIls: 130453.48, profitIls: 20944.87, xirrPct: 14.6 },
-    { name: 'אורי',  allocationPct: 40, valueIls: 86968.99,  profitIls: 13963.25, xirrPct: 13.6 },
+    { name: 'איתמר', allocationPct: 60, valueIls: 130453.48, cashIls: 1240.10, profitIls: 20944.87, profitPct: 19.1, xirrPct: 14.6 },
+    { name: 'אורי',  allocationPct: 40, valueIls: 86968.99,  cashIls: 826.73,  profitIls: 13963.25, profitPct: 19.1, xirrPct: 13.6 },
   ],
   holdings: [
     {
@@ -69,8 +70,7 @@ const MOCK = {
     },
   ],
   // amountIls is the transaction's cash value, always positive — the kind
-  // carries the direction. Signing these would read as profit/loss, which a
-  // purchase is not.
+  // carries the direction.
   ledger: [
     { kind: 'BUY',      date: '14 ביולי 2026', ticker: 'VOO',     detail: '12 מניות · $504.68',    amountIls: 22_010.40 },
     { kind: 'DIVIDEND', date: '02 ביולי 2026', ticker: 'VOO',     detail: 'דיבידנד רבעוני',         amountIls: 412.88 },
@@ -82,7 +82,7 @@ const MOCK = {
 
 const TABS = [
   { id: 'dashboard', label: 'דשבורד',  icon: 'dashboard' },
-  { id: 'holdings',  label: 'החזקות',  icon: 'donut_small' },
+  { id: 'holdings',  label: 'החזקות',  icon: 'account_balance_wallet' },
   { id: 'ledger',    label: 'יומן',    icon: 'receipt_long' },
   { id: 'settings',  label: 'הגדרות',  icon: 'settings' },
 ];
@@ -94,18 +94,36 @@ const TABS = [
 const ilsFmt = new Intl.NumberFormat('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const numFmt = new Intl.NumberFormat('he-IL', { maximumFractionDigits: 2 });
 
-// Latin/numeric runs are isolated so RTL never reorders them.
-const ltr = (s, cls = '') => `<bdi dir="ltr" class="font-data-tabular ${cls}">${s}</bdi>`;
+// Latin/numeric runs are isolated so RTL never reorders them, and forced onto
+// the Hanken Grotesk stack so every numeral is tabular.
+const ltr = (s, cls = '') => `<bdi dir="ltr" class="font-data tnum ${cls}">${s}</bdi>`;
 
-const ils = (n) => `₪ ${ilsFmt.format(Math.abs(n))}`;
+// Thin space, not a full one: at font-black the ₪ otherwise collides with the
+// leading digit, but a normal space leaves the symbol looking detached.
+const ils = (n) => `₪ ${ilsFmt.format(Math.abs(n))}`;
 const signedIls = (n) => `${n < 0 ? '−' : '+'}${ils(n)}`;
 const signedPct = (n) => `${n < 0 ? '−' : '+'}${numFmt.format(Math.abs(n))}%`;
 
-// Gains use the app's emerald, losses its soft red.
-const toneOf = (n) => (n < 0 ? 'text-error' : 'text-secondary');
+const isUp = (n) => n >= 0;
 
 const icon = (name, cls = '') =>
   `<span class="material-symbols-outlined ${cls}">${name}</span>`;
+
+// Glowing pill — the app's signature indicator. tone: secondary | primary |
+// tertiary | red.
+function pill(tone, text, { dot = true } = {}) {
+  const TONES = {
+    secondary: ['bg-secondary/10', 'border-secondary/30', 'bg-secondary', 'text-secondary', '0 0 15px rgba(69,223,164,0.15)'],
+    primary:   ['bg-primary/10',   'border-primary/30',   'bg-primary',   'text-primary',   '0 0 15px rgba(206,189,255,0.18)'],
+    tertiary:  ['bg-tertiary/10',  'border-tertiary/30',  'bg-tertiary',  'text-tertiary',  '0 0 15px rgba(249,189,34,0.18)'],
+    red:       ['bg-red-400/10',   'border-red-400/30',   'bg-red-400',   'text-red-400',   '0 0 15px rgba(248,113,113,0.18)'],
+  };
+  const [bg, border, dotBg, fg, shadow] = TONES[tone] || TONES.secondary;
+  return `<div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full ${bg} border ${border}" style="box-shadow:${shadow};">
+    ${dot ? `<span class="w-1.5 h-1.5 rounded-full ${dotBg} animate-pulse shrink-0"></span>` : ''}
+    <span class="${fg} font-semibold text-xs font-data tnum tracking-wide whitespace-nowrap">${text}</span>
+  </div>`;
+}
 
 // ---------------------------------------------------------------------------
 // View state (local to the mockup — no EventBus, no persistence)
@@ -121,68 +139,115 @@ const view = {
 // Shared building blocks
 // ---------------------------------------------------------------------------
 
-const card = (inner, extra = '') => `
-  <div class="rounded-2xl border border-gray-800 bg-white/[0.02] ${extra}">${inner}</div>`;
-
-const sectionTitle = (text, trailing = '') => `
-  <div class="flex items-baseline justify-between px-1 pb-3 pt-2">
-    <h2 class="text-sm font-semibold tracking-wide text-on-surface-variant">${text}</h2>
-    ${trailing ? `<span class="text-xs text-outline">${trailing}</span>` : ''}
-  </div>`;
+const sectionTitle = (text) => `
+  <h2 class="px-1 pb-3 pt-1 text-[11px] font-bold uppercase tracking-[0.2em] text-on-surface-variant">${text}</h2>`;
 
 const screenHeader = (title, subtitle) => `
-  <header class="px-5 pb-2 pt-8">
-    <h1 class="text-2xl font-semibold text-on-surface">${title}</h1>
-    ${subtitle ? `<p class="mt-1 text-sm text-outline">${subtitle}</p>` : ''}
+  <header class="px-5 pb-1 pt-8">
+    <h1 class="text-2xl font-bold tracking-tight text-white">${title}</h1>
+    ${subtitle ? `<p class="mt-1.5 text-sm text-on-surface-variant">${subtitle}</p>` : ''}
   </header>`;
 
 // ---------------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------------
 
+// Focal colour per kid card, cycling the brand palette.
+const KID_PALETTE = [
+  { bright: 'rgba(206, 189, 255, 0.55)', soft: 'rgba(206, 189, 255, 0.16)', accent: 'text-primary',   bar: '#cebdff' },
+  { bright: 'rgba(69, 223, 164, 0.50)',  soft: 'rgba(69, 223, 164, 0.14)',  accent: 'text-secondary', bar: '#45dfa4' },
+  { bright: 'rgba(249, 189, 34, 0.50)',  soft: 'rgba(249, 189, 34, 0.14)',  accent: 'text-tertiary',  bar: '#f9bd22' },
+];
+
+// A fixed-radius circle rather than the default farthest-corner extent: on a
+// phone the cards are wide and short, and a proportional gradient floods the
+// whole surface instead of reading as a corner glow.
+const kidGlow = (c) =>
+  `radial-gradient(circle 200px at 14% -8%, ${c.bright} 0%, ${c.soft} 30%, transparent 68%)`;
+
+function kidCard(kid, i) {
+  const c = KID_PALETTE[i % KID_PALETTE.length];
+  const up = isUp(kid.profitIls);
+  // Centre the bar at 40% and let the return nudge it, so a flat kid still
+  // reads as a bar rather than an empty track.
+  const barPct = Math.max(8, Math.min(95, 40 + kid.profitPct * 2));
+
+  return `
+    <div class="glass-card pressable flex flex-col gap-4 rounded-2xl p-5">
+      <div class="card-glow" style="background: ${kidGlow(c)};"></div>
+
+      <div class="flex items-start justify-between">
+        <div class="flex items-center gap-3">
+          <div class="grid h-11 w-11 place-items-center rounded-full border border-white/10 bg-surface-container">
+            ${icon('person', `${c.accent} text-[21px]`)}
+          </div>
+          <div>
+            <h3 class="text-lg font-bold text-white">${kid.name}</h3>
+            <p class="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.15em] text-outline">${ltr(`${kid.allocationPct}%`)} מהתיק</p>
+          </div>
+        </div>
+        ${icon('chevron_left', `${c.accent} text-[20px]`)}
+      </div>
+
+      <div class="flex flex-col items-center gap-2 text-center">
+        <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant">יתרה</p>
+        <h4 class="text-3xl font-black tracking-tight text-white drop-shadow-[0_2px_10px_rgba(255,255,255,0.15)]">
+          ${ltr(ils(kid.valueIls))}
+        </h4>
+        <div class="mt-1 flex flex-wrap items-center justify-center gap-2">
+          ${pill(up ? 'secondary' : 'red', `${signedIls(kid.profitIls)} (${signedPct(kid.profitPct)})`)}
+          ${pill('primary', `שנתית ${numFmt.format(kid.xirrPct)}%`)}
+        </div>
+      </div>
+
+      <div class="kid-progress-track">
+        <div class="kid-progress-fill" style="width:${barPct}%; background:${c.bar};"></div>
+      </div>
+
+      <div class="flex items-center justify-between">
+        <span class="text-[10px] font-bold uppercase tracking-[0.15em] text-on-surface-variant">מזומן</span>
+        <span class="text-sm font-semibold text-white">${ltr(ils(kid.cashIls))}</span>
+      </div>
+    </div>`;
+}
+
 function renderDashboard() {
   const p = MOCK.portfolio;
+  const up = isUp(p.profitIls);
 
   const hero = `
-    <section class="px-5 pt-10 pb-8 text-center">
-      <p class="text-xs font-semibold uppercase tracking-[0.18em] text-outline">שווי תיק כולל</p>
-      <div class="mt-3 text-[2.75rem] font-semibold leading-none text-on-surface">
-        ${ltr(ils(p.totalIls))}
+    <section class="relative flex justify-center px-5 pb-2 pt-8">
+      <div class="hero-orb-bg">
+        <div class="orb-violet"></div>
+        <div class="orb-emerald"></div>
       </div>
-      <!-- Deliberately text-only: no pills or borders competing with the total. -->
-      <div class="mt-5 flex items-center justify-center gap-6 text-sm">
-        <span class="${toneOf(p.profitIls)} font-semibold">
-          ${ltr(signedIls(p.profitIls))}
-          <span class="opacity-70">${ltr(`(${signedPct(p.profitPct)})`)}</span>
-        </span>
-        <span class="h-3 w-px bg-outline-variant"></span>
-        <span class="text-on-surface-variant">
-          XIRR <span class="font-semibold text-on-surface">${ltr(`${numFmt.format(p.xirrPct)}%`)}</span>
-        </span>
-      </div>
-      <p class="mt-4 text-xs text-outline">עודכן ${p.asOf}</p>
-    </section>`;
 
-  const kids = MOCK.kids.map((k) => card(`
-    <div class="flex items-center justify-between p-5">
-      <div class="min-w-0">
-        <div class="flex items-center gap-2">
-          <h3 class="text-base font-semibold text-on-surface">${k.name}</h3>
-          <span class="text-xs text-outline">${ltr(`${k.allocationPct}%`)}</span>
+      <div class="hero-card w-full">
+        <p class="mb-4 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.2em] text-tertiary drop-shadow-md">
+          <span class="h-2 w-2 rounded-full bg-tertiary shadow-[0_0_15px_#f9bd22] animate-pulse"></span>
+          שווי תיק כולל (ילדים)
+        </p>
+
+        <h2 class="mb-1 text-4xl font-black tracking-tight text-white drop-shadow-[0_2px_15px_rgba(255,255,255,0.25)]">
+          ${ltr(ils(p.totalIls))}
+        </h2>
+
+        <div class="mt-5 flex flex-wrap items-center justify-center gap-2">
+          ${pill(up ? 'secondary' : 'red', `${signedIls(p.profitIls)} (${signedPct(p.profitPct)})`)}
+          ${pill('primary', `שנתית ${numFmt.format(p.xirrPct)}%`)}
         </div>
-        <p class="mt-2 text-xs ${toneOf(k.profitIls)}">
-          ${ltr(signedIls(k.profitIls))}
-          <span class="text-outline">· XIRR ${ltr(`${numFmt.format(k.xirrPct)}%`)}</span>
+
+        <p class="mt-5 text-[11px] tracking-wide text-outline">
+          עודכן ${p.asOf} · USD/ILS ${ltr(numFmt.format(p.fxRate))}
         </p>
       </div>
-      <div class="shrink-0 text-lg font-semibold text-on-surface">${ltr(ils(k.valueIls))}</div>
-    </div>`, 'pressable active:bg-white/[0.04]')).join('');
+    </section>`;
 
   return `
     ${hero}
-    <section class="px-5 pb-2">
+    <section class="px-5 pt-6">
       ${sectionTitle('הילדים')}
-      <div class="space-y-3">${kids}</div>
+      <div class="space-y-4">${MOCK.kids.map(kidCard).join('')}</div>
     </section>`;
 }
 
@@ -192,66 +257,64 @@ function renderDashboard() {
 
 function holdingCard(h) {
   const open = view.expanded === h.ticker;
+  const up = isUp(h.profitPct);
+  const yieldTone = up ? 'text-secondary' : 'text-red-400';
 
-  // Collapsed state shows only what a glance needs: ticker, value, profit %.
+  // Collapsed: name on the start side, value + brightly coloured yield on the
+  // end side. Nothing else competes.
   const summary = `
-    <button type="button" data-toggle="${h.ticker}"
-            aria-expanded="${open}"
-            class="pressable flex w-full items-center justify-between gap-4 p-5 text-right active:bg-white/[0.04]">
+    <button type="button" data-toggle="${h.ticker}" aria-expanded="${open}"
+            class="pressable flex w-full items-center justify-between gap-4 p-5 text-right">
       <div class="min-w-0">
-        <div class="text-base font-semibold text-on-surface">${ltr(h.ticker)}</div>
-        <div class="mt-1 truncate text-xs text-outline">${h.company}</div>
+        <div class="text-base font-bold text-white">${ltr(h.ticker)}</div>
+        <div class="mt-0.5 truncate text-xs text-on-surface-variant">${h.company}</div>
       </div>
       <div class="flex shrink-0 items-center gap-3">
         <div class="text-left">
-          <div class="text-base font-semibold text-on-surface">${ltr(ils(h.valueIls))}</div>
-          <div class="mt-1 text-xs font-semibold ${toneOf(h.profitPct)}">${ltr(signedPct(h.profitPct))}</div>
+          <div class="text-base font-bold text-white">${ltr(ils(h.valueIls))}</div>
+          <div class="mt-0.5 text-sm font-bold ${yieldTone}">${ltr(signedPct(h.profitPct))}</div>
         </div>
-        ${icon('expand_more', `chevron text-outline ${open ? 'open' : ''}`)}
+        ${icon('expand_more', `chevron text-outline text-[20px] ${open ? 'open' : ''}`)}
       </div>
     </button>`;
 
-  const row = (label, value, tone = 'text-on-surface') => `
-    <div class="flex items-center justify-between py-2">
-      <span class="text-xs text-outline">${label}</span>
-      <span class="text-sm ${tone}">${ltr(value)}</span>
+  const row = (label, value, tone = 'text-white') => `
+    <div class="flex items-center justify-between border-b border-gray-800 py-2 text-sm last:border-b-0">
+      <span class="text-gray-400">${label}</span>
+      <span class="font-semibold ${tone}">${ltr(value)}</span>
     </div>`;
 
   const split = h.split.map((s) => `
-    <div class="flex items-center justify-between py-2">
-      <span class="text-sm text-on-surface-variant">
-        ${s.name} <span class="text-xs text-outline">${ltr(`${s.pct}%`)}</span>
-      </span>
-      <span class="flex items-baseline gap-2 text-sm text-on-surface">
-        ${ltr(ils(s.valueIls))}
-        <span class="text-xs text-outline">${ltr(`${numFmt.format(s.shares)} מנ׳`)}</span>
+    <div class="flex items-center justify-between border-b border-gray-800 py-2 text-sm last:border-b-0">
+      <span class="text-gray-400">${s.name} <span class="text-xs text-outline">${ltr(`${s.pct}%`)}</span></span>
+      <span class="flex items-baseline gap-2">
+        <span class="font-semibold text-white">${ltr(ils(s.valueIls))}</span>
+        <span class="text-xs text-gray-400">${ltr(`${numFmt.format(s.shares)} מנ׳`)}</span>
       </span>
     </div>`).join('');
 
   const details = `
     <div class="accordion ${open ? 'open' : ''}">
       <div>
-        <div class="border-t border-gray-800 px-5 pb-5 pt-4">
+        <div class="border-t border-white/10 px-5 pb-5 pt-3">
           ${row('כמות מניות', numFmt.format(h.shares))}
           ${row('מחיר קנייה ממוצע', h.buyPrice)}
           ${row('מחיר נוכחי', h.currentPrice)}
-          ${row('רווח/הפסד', signedIls(h.profitIls), toneOf(h.profitIls))}
+          ${row('רווח/הפסד', signedIls(h.profitIls), yieldTone)}
 
-          <div class="mt-4 border-t border-gray-800 pt-4">
-            <p class="pb-1 text-xs font-semibold tracking-wide text-on-surface-variant">חלוקה בין הילדים</p>
-            ${split}
-          </div>
+          <p class="pb-1 pt-5 text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant">חלוקה בין הילדים</p>
+          ${split}
         </div>
       </div>
     </div>`;
 
-  return card(summary + details, 'overflow-hidden');
+  return `<div class="glass-card rounded-2xl">${summary}${details}</div>`;
 }
 
 function renderHoldings() {
   return `
     ${screenHeader('החזקות', `${MOCK.holdings.length} ניירות · הקש על כרטיס לפירוט`)}
-    <section class="space-y-3 px-5 pt-4">
+    <section class="space-y-4 px-5 pt-4">
       ${MOCK.holdings.map(holdingCard).join('')}
     </section>`;
 }
@@ -260,12 +323,24 @@ function renderHoldings() {
 // Ledger
 // ---------------------------------------------------------------------------
 
-// Only a dividend is income; a buy or sell is a position change, so neither
-// gets the gain/loss palette. The icon tint carries the kind instead.
+// The icon's tinted bubble carries the direction of the transaction; only
+// income is coloured in the amount column.
 const KIND = {
-  BUY:      { label: 'קנייה',   icon: 'add_shopping_cart', iconTone: 'text-primary',   amountTone: 'text-on-surface' },
-  SELL:     { label: 'מכירה',   icon: 'sell',              iconTone: 'text-tertiary',  amountTone: 'text-on-surface' },
-  DIVIDEND: { label: 'דיבידנד', icon: 'savings',           iconTone: 'text-secondary', amountTone: 'text-secondary' },
+  BUY: {
+    label: 'קנייה', icon: 'add_shopping_cart',
+    bubble: 'bg-secondary/10 border-secondary/25 text-secondary',
+    amountTone: 'text-white',
+  },
+  SELL: {
+    label: 'מכירה', icon: 'sell',
+    bubble: 'bg-tertiary/10 border-tertiary/25 text-tertiary',
+    amountTone: 'text-white',
+  },
+  DIVIDEND: {
+    label: 'דיבידנד', icon: 'savings',
+    bubble: 'bg-secondary/10 border-secondary/25 text-secondary',
+    amountTone: 'text-secondary',
+  },
 };
 
 function renderLedger() {
@@ -274,27 +349,27 @@ function renderLedger() {
     const amount = t.kind === 'DIVIDEND' ? `+${ils(t.amountIls)}` : ils(t.amountIls);
     return `
     <div class="pressable flex items-center gap-4 px-5 py-4 active:bg-white/[0.04]">
-      <div class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/[0.04] ${k.iconTone}">
+      <div class="grid h-11 w-11 shrink-0 place-items-center rounded-full border ${k.bubble}">
         ${icon(k.icon, 'text-[20px]')}
       </div>
       <div class="min-w-0 flex-1">
         <div class="flex items-center gap-2">
-          <span class="text-sm font-semibold text-on-surface">${k.label}</span>
-          <span class="text-xs text-outline">${ltr(t.ticker)}</span>
+          <span class="text-sm font-bold text-white">${k.label}</span>
+          <span class="text-xs text-on-surface-variant">${ltr(t.ticker)}</span>
         </div>
         <div class="mt-1 truncate text-xs text-outline">${t.detail}</div>
       </div>
       <div class="shrink-0 text-left">
-        <div class="text-sm font-semibold ${k.amountTone}">${ltr(amount)}</div>
+        <div class="text-sm font-bold ${k.amountTone}">${ltr(amount)}</div>
         <div class="mt-1 text-xs text-outline">${t.date}</div>
       </div>
     </div>`;
-  }).join('<div class="mx-5 border-t border-gray-800"></div>');
+  }).join('<div class="mx-5 border-t border-white/5"></div>');
 
   return `
     ${screenHeader('יומן', 'כל התנועות, מהחדשה לישנה')}
     <section class="px-5 pt-4">
-      ${card(rows, 'overflow-hidden')}
+      <div class="glass-card rounded-2xl">${rows}</div>
     </section>`;
 }
 
@@ -305,17 +380,15 @@ function renderLedger() {
 function settingsGroup(title, items) {
   const rows = items.map((it) => `
     <button type="button" class="pressable flex w-full items-center gap-4 px-5 py-4 text-right active:bg-white/[0.04]">
-      <div class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/[0.04] text-on-surface-variant">
+      <div class="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-primary/20 bg-white/5 text-primary">
         ${icon(it.icon, 'text-[18px]')}
       </div>
-      <span class="min-w-0 flex-1 truncate text-sm text-on-surface">${it.label}</span>
-      ${it.value ? `<span class="shrink-0 text-xs text-outline">${it.value}</span>` : ''}
+      <span class="min-w-0 flex-1 truncate text-sm font-medium text-white">${it.label}</span>
+      ${it.value ? `<span class="shrink-0 text-xs text-on-surface-variant">${it.value}</span>` : ''}
       ${icon('chevron_left', 'text-outline text-[20px]')}
-    </button>`).join('<div class="mx-5 border-t border-gray-800"></div>');
+    </button>`).join('<div class="mx-5 border-t border-white/5"></div>');
 
-  return `
-    ${sectionTitle(title)}
-    ${card(rows, 'overflow-hidden')}`;
+  return `${sectionTitle(title)}<div class="glass-card rounded-2xl">${rows}</div>`;
 }
 
 function renderSettings() {
@@ -323,13 +396,13 @@ function renderSettings() {
     ${screenHeader('הגדרות')}
     <section class="space-y-6 px-5 pt-4">
       <div>${settingsGroup('תיק', [
-        { icon: 'group',              label: 'ילדים והקצאות', value: '2 ילדים' },
-        { icon: 'currency_exchange',  label: 'שער דולר/שקל',  value: '3.62' },
+        { icon: 'group',             label: 'ילדים והקצאות', value: '2 ילדים' },
+        { icon: 'currency_exchange', label: 'שער דולר/שקל',  value: '3.62' },
       ])}</div>
 
       <div>${settingsGroup('שערים', [
-        { icon: 'sync',   label: 'רענון שערים',     value: 'עודכן היום' },
-        { icon: 'lan',    label: 'כתובת Worker',    value: 'מוגדר' },
+        { icon: 'sync',   label: 'רענון שערים',  value: 'עודכן היום' },
+        { icon: 'lan',    label: 'כתובת Worker', value: 'מוגדר' },
         { icon: 'search', label: 'בדיקת טיקר' },
       ])}</div>
 
@@ -357,14 +430,15 @@ function renderNav() {
     return `
       <button type="button" data-tab="${t.id}"
               aria-current="${active ? 'page' : 'false'}"
-              class="flex flex-1 flex-col items-center gap-1 py-2 transition-colors ${active ? 'text-primary' : 'text-outline'}">
+              class="flex flex-1 flex-col items-center gap-1 py-2 transition-colors ${
+                active ? 'text-primary drop-shadow-[0_0_8px_rgba(206,189,255,0.7)]' : 'text-outline'}">
         ${icon(t.icon, `text-[22px] ${active ? 'fill' : ''}`)}
-        <span class="text-[11px] ${active ? 'font-semibold' : ''}">${t.label}</span>
+        <span class="text-[11px] ${active ? 'font-bold' : 'font-medium'}">${t.label}</span>
       </button>`;
   }).join('');
 
   return `
-    <nav class="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-gray-800 bg-background/85 backdrop-blur-xl">
+    <nav class="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t-[0.5px] border-white/10 bg-background/70 backdrop-blur-xl">
       <div class="mx-auto flex max-w-lg items-stretch px-2 pt-1">${items}</div>
     </nav>`;
 }
@@ -372,7 +446,7 @@ function renderNav() {
 // Bottom-left mirrors the conventional bottom-right FAB under RTL.
 const renderFab = () => `
   <button type="button" id="v2-fab" aria-label="תנועה חדשה"
-          class="pressable fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] left-5 z-50 grid h-14 w-14 place-items-center rounded-2xl bg-primary text-on-primary shadow-[0_10px_30px_-6px_rgba(206,189,255,0.5)] active:brightness-95">
+          class="fab-neon fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] left-5 z-50 grid h-14 w-14 place-items-center rounded-2xl transition-all">
     ${icon('add', 'text-[26px] fill')}
   </button>`;
 

@@ -16,12 +16,11 @@
 <meta name="theme-color" content="#0F0C13" />
 
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700;800&family=Hanken+Grotesk:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
 
 <script id="tailwind-config">
-  // Same palette as index.html so v2 stays visually consistent with the app.
-  // Only the layout language changes in this redesign, not the brand colors.
+  // Palette lifted from index.html so v2 reads as the same product.
   tailwind.config = {
     darkMode: "class",
     theme: {
@@ -47,16 +46,16 @@
           "on-background": "#e8e0eb",
         },
         borderRadius: {
-          DEFAULT: "0.25rem",
-          lg: "0.5rem",
-          xl: "0.75rem",
-          "2xl": "1.25rem",
-          "3xl": "1.75rem",
-          full: "9999px",
+          DEFAULT: "0.25rem", lg: "0.5rem", xl: "0.75rem",
+          "2xl": "1.25rem", "3xl": "1.75rem", full: "9999px",
         },
         fontFamily: {
+          // Hanken Grotesk carries no Hebrew, so Latin text and every numeral
+          // render in Hanken while Hebrew falls through to Assistant. That
+          // fallback *is* the mechanism — do not reorder these.
           sans: ["Hanken Grotesk", "Assistant", "sans-serif"],
-          "data-tabular": ["Hanken Grotesk", "Assistant", "sans-serif"],
+          heb: ["Assistant", "sans-serif"],
+          data: ["Hanken Grotesk", "Assistant", "sans-serif"],
         },
       },
     },
@@ -70,6 +69,7 @@
     color: #e8e0eb;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+    overflow-x: hidden; /* the hero orb bleeds sideways by design */
   }
 
   /* Until the icon font arrives the browser lays out the ligature *text*
@@ -89,12 +89,99 @@
   html.icons-ready .material-symbols-outlined { visibility: visible; }
   .material-symbols-outlined.fill { font-variation-settings: 'FILL' 1, 'wght' 400; }
 
-  /* Latin tickers and numerals must never reorder inside RTL text. */
   bdi { unicode-bidi: isolate; }
-  .font-data-tabular { font-variant-numeric: tabular-nums; }
+  .font-data-tabular, .tnum { font-variant-numeric: tabular-nums; }
 
-  /* Bottom nav / FAB sit above the iOS home indicator. */
   .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+
+  /* ---- Midnight Astral surfaces (ported from index.html) ---------------- */
+
+  .glass-card {
+    position: relative;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 0.5px solid rgba(255, 255, 255, 0.1);
+    border-top-color: rgba(255, 255, 255, 0.2);
+    border-left-color: rgba(255, 255, 255, 0.2);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 18px 40px rgba(0, 0, 0, 0.5);
+    transition: background-color .4s cubic-bezier(.16,1,.3,1), transform .4s cubic-bezier(.16,1,.3,1);
+  }
+  .glass-card:active { background: rgba(255, 255, 255, 0.06); }
+
+  /* A radial gradient rather than a blurred child div: it inherits the card's
+     border-radius, so the glow can never leak past a rounded corner. */
+  .card-glow {
+    position: absolute; inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: .6;
+    z-index: 0;
+  }
+  .glass-card > :not(.card-glow) { position: relative; z-index: 1; }
+
+  /* ---- Hero orb ---------------------------------------------------------- */
+
+  /* No overflow clip here: clipping a 90px-blurred orb at the section edge
+     leaves a hard horizontal seam. The orb is allowed to bleed vertically and
+     fades out on its own blur; body handles the horizontal axis. */
+  .hero-orb-bg {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    pointer-events: none;
+  }
+  .hero-orb-bg .orb-violet {
+    width: 26rem; height: 26rem;
+    background: rgba(167, 139, 250, 0.28);
+    border-radius: 9999px;
+    filter: blur(90px);
+    opacity: .75;
+    mix-blend-mode: screen;
+  }
+  .hero-orb-bg .orb-emerald {
+    position: absolute;
+    width: 17rem; height: 17rem;
+    transform: translate(28%, 28%);
+    background: rgba(69, 223, 164, 0.18);
+    border-radius: 9999px;
+    filter: blur(80px);
+    mix-blend-mode: screen;
+  }
+
+  .hero-card {
+    position: relative;
+    z-index: 10;
+    padding: 2rem 1.5rem 1.75rem;
+    border-radius: 1.75rem;
+    background: linear-gradient(to bottom, rgba(21, 18, 25, 0.5), rgba(21, 18, 25, 0.88));
+    border: 0.5px solid rgba(255, 255, 255, 0.18);
+    box-shadow: 0 0 50px -12px rgba(167, 139, 250, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(40px);
+    -webkit-backdrop-filter: blur(40px);
+    display: flex; flex-direction: column; align-items: center; text-align: center;
+    animation: floatHero 6s ease-in-out infinite;
+  }
+  @keyframes floatHero {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+  }
+
+  .kid-progress-track {
+    width: 100%; height: 2px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 9999px; overflow: hidden;
+  }
+  .kid-progress-fill { height: 100%; border-radius: 9999px; }
+
+  /* Glowing FAB, matching the app's neon button treatment. */
+  .fab-neon {
+    background: linear-gradient(135deg, #cebdff, #45dfa4);
+    border: 0.5px solid rgba(206, 189, 255, 0.4);
+    box-shadow: 0 0 24px rgba(206, 189, 255, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    color: #151219;
+  }
+  .fab-neon:active { filter: brightness(.95); transform: scale(.96); }
 
   /* Accordion: animate height without measuring in JS. */
   .accordion { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .32s cubic-bezier(.16,1,.3,1); }
@@ -104,15 +191,16 @@
   .chevron { transition: transform .32s cubic-bezier(.16,1,.3,1); }
   .chevron.open { transform: rotate(180deg); }
 
-  /* Tap feedback, since there is no hover on touch. */
   .pressable { transition: background-color .18s ease, transform .18s ease; }
   .pressable:active { transform: scale(.985); }
 
   ::selection { background: rgba(206, 189, 255, 0.3); color: #151219; }
 
-  /* Hide scrollbars on the horizontal chip rail. */
-  .no-scrollbar::-webkit-scrollbar { display: none; }
-  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  @media (prefers-reduced-motion: reduce) {
+    .hero-card { animation: none; }
+    .accordion, .chevron, .pressable { transition: none; }
+    .animate-pulse { animation: none; }
+  }
 </style>
 </head>
 
