@@ -14,11 +14,23 @@ function check(name, cond, extra = '') {
   else { fail++; console.log('  FAIL', name, extra); }
 }
 
-const FIELDS = [{ id: 'ID_KUPA' }, { id: 'תקופת דוח' }, { id: 'תשואה נומינלית ברוטו' }];
-const ROWS = [
-  { ID_KUPA: '13344', 'תקופת דוח': '202602', 'תשואה נומינלית ברוטו': -3.1 },
-  { ID_KUPA: '13344', 'תקופת דוח': '202603', 'תשואה נומינלית ברוטו': 0.4 },
+// The live gemelnet schema, captured from a real response. INCEPTION_DATE is
+// the trap: its name matches a date pattern but it holds an Excel serial, and
+// choosing it makes every row fail to parse.
+const FIELDS = [
+  { id: '_id' }, { id: 'FUND_ID' }, { id: 'FUND_NAME' }, { id: 'MANAGING_CORPORATION' },
+  { id: 'REPORT_PERIOD' }, { id: 'INCEPTION_DATE' }, { id: 'DEPOSITS' },
+  { id: 'AVG_ANNUAL_MANAGEMENT_FEE' }, { id: 'MONTHLY_YIELD' }, { id: 'YEAR_TO_DATE_YIELD' },
+  { id: 'YIELD_TRAILING_3_YRS' }, { id: 'REPORTING_YEAR' },
 ];
+const row = (period, yield_, fee = 0.67) => ({
+  _id: 1, FUND_ID: 13344, FUND_NAME: 'קופה', MANAGING_CORPORATION: 'מנהל',
+  REPORT_PERIOD: period, INCEPTION_DATE: 44166, DEPOSITS: 0.33,
+  AVG_ANNUAL_MANAGEMENT_FEE: fee, MONTHLY_YIELD: yield_,
+  YEAR_TO_DATE_YIELD: 1.1, YIELD_TRAILING_3_YRS: 9.9, REPORTING_YEAR: Math.floor(period / 100),
+});
+// The inception month legitimately carries a null yield.
+const ROWS = [row(202012, null, null), row(202602, -3.1), row(202603, 0.4, 0.62)];
 
 function jsonRes(body, status = 200) {
   return Promise.resolve({ ok: status < 400, status, text: () => Promise.resolve(JSON.stringify(body)) });
@@ -35,7 +47,8 @@ function installFetch({ directFails = false, calls = [] } = {}) {
       return jsonRes({ success: true, result: { resources: [{ id: 'res-1', name: 'yields', datastore_active: true }] } });
     }
     if (target.includes('filters')) return jsonRes({ success: true, result: { records: ROWS } });
-    return jsonRes({ success: true, result: { fields: FIELDS, records: [] } });
+    // A probe returns one real row, which is what schema validation runs against.
+    return jsonRes({ success: true, result: { fields: FIELDS, records: [ROWS[0]] } });
   };
   return calls;
 }
@@ -56,10 +69,33 @@ check('no proxy used when direct works',
   !calls.some((c) => /codetabs|allorigins|corsproxy/.test(c)), calls.join('\n'));
 check('returns parsed', ok.returns?.length === 2, JSON.stringify(ok.error || ok.returns));
 check('newest first', ok.returns?.[0].month === '2026-03', JSON.stringify(ok.returns));
+check('integer YYYYMM period parsed', ok.returns?.[0].month === '2026-03', JSON.stringify(ok.returns));
 check('percent preserved', ok.returns?.[1].pct === -3.1, JSON.stringify(ok.returns));
 check('schema auto-detected',
-  ok.meta.fundField === 'ID_KUPA' && ok.meta.monthField === 'תקופת דוח'
-  && ok.meta.retField === 'תשואה נומינלית ברוטו', JSON.stringify(ok.meta));
+  ok.meta.fundField === 'FUND_ID' && ok.meta.monthField === 'REPORT_PERIOD'
+  && ok.meta.retField === 'MONTHLY_YIELD', JSON.stringify(ok.meta));
+check('INCEPTION_DATE rejected as the month column',
+  ok.meta.monthField !== 'INCEPTION_DATE', ok.meta.monthField);
+check('null inception yield skipped, not fatal', ok.returns.length === 2,
+  JSON.stringify(ok.returns));
+check('published management fee surfaced', ok.meta.avgFeePct === 0.62, String(ok.meta.avgFeePct));
+
+console.log('\n-- a name-matching column with unusable values is rejected --');
+// Drop REPORT_PERIOD entirely: INCEPTION_DATE still matches /date/i by name,
+// but its Excel serial must disqualify it rather than be silently accepted.
+const FIELDS_NO_PERIOD = FIELDS.filter((f) => f.id !== 'REPORT_PERIOD');
+globalThis.fetch = (url) => {
+  const isDirect = String(url).startsWith('https://data.gov.il/');
+  const target = isDirect ? String(url) : decodeURIComponent(String(url).replace(/^.*?(quest|url)=/, ''));
+  if (target.includes('package_show')) {
+    return jsonRes({ success: true, result: { resources: [{ id: 'res-1', name: 'y', datastore_active: true }] } });
+  }
+  if (target.includes('filters')) return jsonRes({ success: true, result: { records: ROWS } });
+  return jsonRes({ success: true, result: { fields: FIELDS_NO_PERIOD, records: [ROWS[0]] } });
+};
+const noMonth = await fetchGemelReturns('13344');
+check('detection fails loudly instead of parsing nothing',
+  noMonth.error?.includes('לא זוהו העמודות'), noMonth.error);
 
 console.log('\n-- proxy fallback when direct is blocked --');
 const calls2 = installFetch({ directFails: true });
@@ -83,7 +119,7 @@ console.log('\n-- diagnostic on success --');
 installFetch();
 const good = await describeSource('13344');
 check('reports success', good.startsWith('✓'), good);
-check('lists detected columns', good.includes('ID_KUPA'), good);
+check('lists detected columns', good.includes('FUND_ID') && good.includes('MONTHLY_YIELD'), good);
 check('shows the month range', good.includes('2026-02') && good.includes('2026-03'), good);
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

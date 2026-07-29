@@ -142,9 +142,24 @@ the error to zero.
 
 ### Fetching returns
 
-The גמל-נט dataset's Hebrew column names are not a stable published contract, so
-`GemelFetcher` discovers them: it reads each resource's own field list, matches
-columns by pattern, and only then queries. `describeSource()` renders that
+The גמל-נט dataset is reached **directly from the browser**, not through the
+Worker or the public CORS proxies. data.gov.il rejects data-centre addresses, so
+every proxy that makes the app's other sources reachable is what makes this one
+unreachable; CKAN serves `Access-Control-Allow-Origin: *`, so the direct call
+works from a home connection. The proxies remain a fallback.
+
+Column names are discovered rather than hard-coded, and — this is the part that
+matters — a candidate column is accepted only once a **real value from the
+resource survives the parser it will be fed to**. Name matching alone is not
+enough: `/date/i` matches `INCEPTION_DATE`, which holds an Excel serial rather
+than a period, and choosing it makes every row fail to parse. Validating at
+detection turns that into an honest "columns not detected" instead.
+
+The live schema is `FUND_ID` / `REPORT_PERIOD` (integer `YYYYMM`) /
+`MONTHLY_YIELD`; those are tried first, with looser patterns behind them.
+A fund's inception month legitimately carries a null yield, so nulls are skipped
+rather than treated as failure. `AVG_ANNUAL_MANAGEMENT_FEE` from the same rows
+is reported in the diagnostic, since it is the number the fee field wants. `describeSource()` renders that
 reasoning as text for the settings screen, so a failure reports which step
 failed and what columns it actually saw. A ratio-vs-percent mix-up — invisible in
 the UI, catastrophic in the maths — is caught by a magnitude check.

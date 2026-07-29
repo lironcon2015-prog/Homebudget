@@ -10,8 +10,10 @@
 // `describeSource()` renders that reasoning as text for the settings screen, so
 // a failure says which step failed and what it saw rather than "לא נמצא".
 //
-// Nothing here is trusted blindly: a detected column still has to produce
-// values that look like monthly percentages before they are accepted.
+// Nothing here is trusted blindly: a column is accepted only once a real value
+// from the resource survives the parser it will be fed to. Name matching alone
+// picked INCEPTION_DATE over REPORT_PERIOD once, and every row then failed to
+// parse — the validators exist so that fails at detection instead.
 
 import { proxyFetch } from './QuoteFetcher.js';
 
@@ -19,24 +21,44 @@ const CKAN = 'https://data.gov.il/api/3/action';
 const DATASET = 'gemelnet';
 const MAX_ROWS = 600;          // ~50 years of monthly rows for one track
 
-// Ordered best-guess first. The first pattern that matches a column wins.
+// The live schema, verified against the dataset, first — then looser patterns
+// so a column rename does not break the fetcher outright.
+//
+// Name matching alone is not enough: `/date/i` happily matches INCEPTION_DATE,
+// which holds an Excel serial (44166) rather than a period, and picking it
+// yields rows that all fail to parse. So a candidate column is only accepted
+// once a real value from the resource survives the parser below.
 const PATTERNS = {
-  fund: [/^ID_KUPA$/i, /^FUND_ID$/i, /מספר.?קופה/, /קופה/, /kupa/i],
-  month: [/תקופת.?דוח/, /^MONTH$/i, /^TKUFA/i, /חודש/, /תאריך/, /date/i, /period/i],
-  ret: [
-    /תשואה.?נומינלית.?ברוטו/,
-    /תשואה.?חודשית/,
-    /^YIELD$/i,
-    /MONTHLY.?YIELD/i,
-    /תשואה/,
-  ],
+  fund: [/^FUND_ID$/i, /^ID_KUPA$/i, /מספר.?קופה/, /קופה/, /kupa/i, /fund.?id/i],
+  month: [/^REPORT_PERIOD$/i, /report.?period/i, /תקופת.?דוח/, /^MONTH$/i, /^TKUFA/i,
+          /חודש/, /period/i, /תאריך/, /date/i],
+  ret: [/^MONTHLY_YIELD$/i, /monthly.?yield/i, /תשואה.?נומינלית.?ברוטו/,
+        /תשואה.?חודשית/, /^YIELD$/i, /תשואה/],
 };
 
-function pickField(fields, kind) {
+// A month column has to produce a real YYYY-MM. A yield column may legitimately
+// be null on a fund's inception month, so only a non-numeric non-null value
+// disqualifies it.
+const VALIDATORS = {
+  fund: (v) => v != null && String(v).length > 0,
+  month: (v) => normalizeMonth(v) != null,
+  ret: (v) => v == null || v === '' || toNumber(v) != null,
+};
+
+/**
+ * First column whose name matches a pattern *and* whose value in `sample`
+ * survives the corresponding validator. Falls back to name-only matching when
+ * no sample row is available.
+ */
+function pickField(fields, kind, sample = null) {
   const names = fields.map((f) => String(f.id));
+  const validate = VALIDATORS[kind];
   for (const re of PATTERNS[kind]) {
-    const hit = names.find((n) => re.test(n));
-    if (hit) return hit;
+    for (const name of names) {
+      if (!re.test(name)) continue;
+      if (sample && !validate(sample[name])) continue;
+      return name;
+    }
   }
   return null;
 }
@@ -139,9 +161,11 @@ async function resolveResource(log = []) {
   for (const res of candidates) {
     const probe = await ckan('datastore_search', { resource_id: res.id, limit: '1' }, log);
     if (!probe?.fields) continue;
-    const fundField = pickField(probe.fields, 'fund');
-    const monthField = pickField(probe.fields, 'month');
-    const retField = pickField(probe.fields, 'ret');
+    const sample = probe.records?.[0] || null;
+    const fundField = pickField(probe.fields, 'fund', sample);
+    const monthField = pickField(probe.fields, 'month', sample);
+    const retField = pickField(probe.fields, 'ret', sample);
+    if (sample) log.push(`  ↳ עמודות: ${fundField} · ${monthField} · ${retField}`);
     if (fundField && monthField && retField) {
       return { resourceId: res.id, resourceName: res.name, fundField, monthField, retField,
                allFields: probe.fields.map((f) => f.id), log };
@@ -177,10 +201,14 @@ export async function fetchGemelReturns(fundNumber) {
   }
 
   const returns = [];
+  let latestFee = null;
+  let latestFeeMonth = '';
   for (const rec of rows.records) {
     const month = normalizeMonth(rec[meta.monthField]);
     const pct = toNumber(rec[meta.retField]);
     if (month && pct != null) returns.push({ month, pct, source: 'gemelnet' });
+    const fee = toNumber(rec.AVG_ANNUAL_MANAGEMENT_FEE);
+    if (month && fee != null && month > latestFeeMonth) { latestFee = fee; latestFeeMonth = month; }
   }
   if (!returns.length) {
     return {
@@ -200,7 +228,7 @@ export async function fetchGemelReturns(fundNumber) {
       ? `ערכים קטנים מאוד (מקס ${worst}) — ייתכן שהעמודה ביחס ולא באחוזים`
       : null;
 
-  return { returns, meta: { ...meta, rows: rows.records.length, scaleWarning, log } };
+  return { returns, meta: { ...meta, rows: rows.records.length, scaleWarning, log, avgFeePct: latestFee } };
 }
 
 /**
@@ -218,6 +246,7 @@ export async function describeSource(fundNumber) {
   if (out.error) {
     lines.push(`✗ ${out.error} (${ms}ms)`);
     if (m.log?.length) lines.push(`ניסיונות:\n  ${m.log.join('\n  ')}`);
+    if (m.fundField) lines.push(`עמודות שנבחרו: קופה=${m.fundField} · חודש=${m.monthField} · תשואה=${m.retField}`);
     if (m.resourceId) lines.push(`resource: ${m.resourceId}`);
     if (m.candidates?.length) lines.push(`משאבים: ${m.candidates.join(', ')}`);
     if (m.resources?.length) lines.push(`משאבים בדאטהסט:\n  ${m.resources.join('\n  ')}`);
@@ -232,6 +261,7 @@ export async function describeSource(fundNumber) {
   lines.push(`טווח: ${oldest.month} … ${newest.month}`);
   lines.push(`עמודות: קופה=${m.fundField} · חודש=${m.monthField} · תשואה=${m.retField}`);
   lines.push(`אחרונים: ${out.returns.slice(0, 6).map((r) => `${r.month} ${r.pct}%`).join(' · ')}`);
+  if (m.avgFeePct != null) lines.push(`דמי ניהול ממוצעים בקופה: ${m.avgFeePct}% — הזן בשדה דמי הניהול`);
   if (m.scaleWarning) lines.push(`⚠ ${m.scaleWarning}`);
   if (m.log?.length) lines.push(`ניסיונות:\n  ${m.log.join('\n  ')}`);
   return lines.join('\n');
