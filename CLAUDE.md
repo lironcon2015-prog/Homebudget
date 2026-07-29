@@ -1,5 +1,24 @@
 # JuniorInvest — Project Instructions for Claude Code
 
+## Token discipline (MANDATORY — every session, without being asked)
+
+Invoke the `token-efficient-workflow` skill (`.claude/skills/token-efficient-workflow.md`)
+at the start of every session in this repository and follow it for the whole
+session. Do not wait to be told, and do not skip it on tasks that look small.
+
+In short: scoped `grep`/`ls` before reading, `view_range` instead of whole
+files, never re-read a file already in context, `str_replace` over rewrites,
+no filler or "I have updated…" narration.
+
+Two carve-outs specific to this repo, because they are correctness
+requirements rather than chatter:
+
+- **State a verification's outcome.** Tests, renders and screenshots must be
+  reported honestly, including failures and anything left unverified. Silence
+  after an edit is fine; silence about a failed check is not.
+- **Keep code comments that explain non-obvious *why*.** Brevity applies to
+  chat output, not to the codebase.
+
 ## Auto-merge policy (MANDATORY — follow without being asked)
 
 After creating any pull request in this repository:
