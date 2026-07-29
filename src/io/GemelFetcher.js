@@ -141,44 +141,78 @@ async function ckan(action, params, log = []) {
   }
 }
 
+const MAX_RESOURCES = 12;
+
 /**
- * Find the dataset resource that actually carries per-fund monthly returns, and
- * work out which of its columns are which.
+ * Every dataset resource that carries per-fund monthly returns — not just the
+ * first.
+ *
+ * The dataset is split across resources, and stopping at the first match
+ * silently truncates the history to whatever period that one resource happens
+ * to cover. Each resource is validated independently, because they need not
+ * share a schema.
  */
-async function resolveResource(log = []) {
+async function resolveResources(log = []) {
   const pkg = await ckan('package_show', { id: DATASET }, log);
   if (!pkg) return { error: 'package_show נכשל — data.gov.il לא נענה או חסם', log };
 
-  const candidates = (pkg.resources || []).filter((r) => r.datastore_active);
-  if (!candidates.length) {
+  const active = (pkg.resources || []).filter((r) => r.datastore_active);
+  if (!active.length) {
     return {
       error: 'לא נמצא משאב פעיל בדאטהסט',
       resources: (pkg.resources || []).map((r) => `${r.name} (datastore_active=${r.datastore_active})`),
       log,
     };
   }
+  log.push(`משאבים פעילים: ${active.length}`);
 
-  for (const res of candidates) {
+  const matched = [];
+  const rejected = [];
+  for (const res of active.slice(0, MAX_RESOURCES)) {
     const probe = await ckan('datastore_search', { resource_id: res.id, limit: '1' }, log);
-    if (!probe?.fields) continue;
+    if (!probe?.fields) { rejected.push(`${res.name}: אין שדות`); continue; }
     const sample = probe.records?.[0] || null;
     const fundField = pickField(probe.fields, 'fund', sample);
     const monthField = pickField(probe.fields, 'month', sample);
     const retField = pickField(probe.fields, 'ret', sample);
-    if (sample) log.push(`  ↳ עמודות: ${fundField} · ${monthField} · ${retField}`);
     if (fundField && monthField && retField) {
-      return { resourceId: res.id, resourceName: res.name, fundField, monthField, retField,
-               allFields: probe.fields.map((f) => f.id), log };
+      matched.push({ resourceId: res.id, resourceName: res.name, fundField, monthField, retField });
+      log.push(`  ↳ ${res.name}: ${fundField} · ${monthField} · ${retField}`);
+    } else {
+      rejected.push(`${res.name}: קופה=${fundField} חודש=${monthField} תשואה=${retField}`);
+      log.push(`  ↳ ${res.name}: נדחה`);
     }
   }
-  const first = await ckan('datastore_search', { resource_id: candidates[0].id, limit: '1' }, log);
-  return {
-    error: 'נמצא משאב אך לא זוהו העמודות הדרושות',
-    resourceId: candidates[0].id,
-    allFields: (first?.fields || []).map((f) => f.id),
-    candidates: candidates.map((c) => c.name),
-    log,
+
+  if (!matched.length) {
+    return {
+      error: 'נמצאו משאבים אך לא זוהו העמודות הדרושות',
+      rejected,
+      candidates: active.map((c) => c.name),
+      log,
+    };
+  }
+  return { matched, rejected, candidates: active.map((c) => c.name), log };
+}
+
+/**
+ * Rows for one fund from one resource, newest first.
+ * Without an explicit sort the datastore answers in insertion order, so a
+ * capped query returns the oldest rows and drops exactly the recent months the
+ * revaluation needs. Falls back to an unsorted query if the sort is rejected.
+ */
+async function fetchRows(res, fundNumber, log) {
+  const base = {
+    resource_id: res.resourceId,
+    filters: JSON.stringify({ [res.fundField]: String(fundNumber) }),
+    limit: String(MAX_ROWS),
   };
+  let rows = await ckan('datastore_search', { ...base, sort: `"${res.monthField}" desc` }, log);
+  if (!rows) {
+    log.push(`  ↳ ${res.resourceName}: שאילתה ממוינת נכשלה, מנסה ללא מיון`);
+    rows = await ckan('datastore_search', base, log);
+  }
+  return rows;
 }
 
 /**
@@ -187,34 +221,61 @@ async function resolveResource(log = []) {
  */
 export async function fetchGemelReturns(fundNumber) {
   const log = [];
-  const meta = await resolveResource(log);
-  if (meta.error) return { error: meta.error, meta: { ...meta, log } };
+  const found = await resolveResources(log);
+  if (found.error) return { error: found.error, meta: { ...found, log } };
 
-  const rows = await ckan('datastore_search', {
-    resource_id: meta.resourceId,
-    filters: JSON.stringify({ [meta.fundField]: String(fundNumber) }),
-    limit: String(MAX_ROWS),
-  }, log);
-  if (!rows) return { error: 'שאילתת datastore_search נכשלה', meta: { ...meta, log } };
-  if (!rows.records?.length) {
-    return { error: `לא נמצאו שורות לקופה ${fundNumber} בעמודה ${meta.fundField}`, meta: { ...meta, log } };
-  }
-
-  const returns = [];
+  const byMonth = new Map();
+  const perResource = [];
   let latestFee = null;
   let latestFeeMonth = '';
-  for (const rec of rows.records) {
-    const month = normalizeMonth(rec[meta.monthField]);
-    const pct = toNumber(rec[meta.retField]);
-    if (month && pct != null) returns.push({ month, pct, source: 'gemelnet' });
-    const fee = toNumber(rec.AVG_ANNUAL_MANAGEMENT_FEE);
-    if (month && fee != null && month > latestFeeMonth) { latestFee = fee; latestFeeMonth = month; }
+  let totalRows = 0;
+  let sampleRow = null;
+
+  for (const res of found.matched) {
+    const rows = await fetchRows(res, fundNumber, log);
+    if (!rows?.records?.length) { perResource.push(`${res.resourceName}: 0 שורות`); continue; }
+    totalRows += rows.records.length;
+    sampleRow = sampleRow || rows.records[0];
+
+    let kept = 0;
+    let lo = '', hi = '';
+    for (const rec of rows.records) {
+      const month = normalizeMonth(rec[res.monthField]);
+      const pct = toNumber(rec[res.retField]);
+      if (month) {
+        if (!lo || month < lo) lo = month;
+        if (month > hi) hi = month;
+      }
+      // Resources overlap at the seams; first writer wins and later ones only
+      // fill gaps, so a stale archive cannot overwrite a current figure.
+      if (month && pct != null && !byMonth.has(month)) {
+        byMonth.set(month, { month, pct, source: 'gemelnet' });
+        kept += 1;
+      }
+      const fee = toNumber(rec.AVG_ANNUAL_MANAGEMENT_FEE);
+      if (month && fee != null && month > latestFeeMonth) { latestFee = fee; latestFeeMonth = month; }
+    }
+    perResource.push(`${res.resourceName}: ${rows.records.length} שורות, ${kept} נשמרו, ${lo || '—'}…${hi || '—'}`);
   }
+
+  const meta = {
+    ...found,
+    fundField: found.matched[0].fundField,
+    monthField: found.matched[0].monthField,
+    retField: found.matched[0].retField,
+    resourceId: found.matched[0].resourceId,
+    perResource,
+    rows: totalRows,
+    avgFeePct: latestFee,
+    log,
+  };
+
+  if (!totalRows) {
+    return { error: `לא נמצאו שורות לקופה ${fundNumber}`, meta };
+  }
+  const returns = [...byMonth.values()];
   if (!returns.length) {
-    return {
-      error: 'נמצאו שורות אך אף אחת לא נפרסה',
-      meta: { ...meta, sampleRow: rows.records[0], log },
-    };
+    return { error: 'נמצאו שורות אך אף אחת לא נפרסה', meta: { ...meta, sampleRow } };
   }
 
   returns.sort((a, b) => (a.month < b.month ? 1 : a.month > b.month ? -1 : 0));
@@ -228,7 +289,7 @@ export async function fetchGemelReturns(fundNumber) {
       ? `ערכים קטנים מאוד (מקס ${worst}) — ייתכן שהעמודה ביחס ולא באחוזים`
       : null;
 
-  return { returns, meta: { ...meta, rows: rows.records.length, scaleWarning, log, avgFeePct: latestFee } };
+  return { returns, meta: { ...meta, scaleWarning } };
 }
 
 /**
@@ -249,6 +310,8 @@ export async function describeSource(fundNumber) {
     if (m.fundField) lines.push(`עמודות שנבחרו: קופה=${m.fundField} · חודש=${m.monthField} · תשואה=${m.retField}`);
     if (m.resourceId) lines.push(`resource: ${m.resourceId}`);
     if (m.candidates?.length) lines.push(`משאבים: ${m.candidates.join(', ')}`);
+    if (m.rejected?.length) lines.push(`נדחו:\n  ${m.rejected.join('\n  ')}`);
+    if (m.perResource?.length) lines.push(`לפי משאב:\n  ${m.perResource.join('\n  ')}`);
     if (m.resources?.length) lines.push(`משאבים בדאטהסט:\n  ${m.resources.join('\n  ')}`);
     if (m.allFields?.length) lines.push(`עמודות זמינות:\n  ${m.allFields.join('\n  ')}`);
     if (m.sampleRow) lines.push(`שורה לדוגמה:\n${JSON.stringify(m.sampleRow, null, 2)}`);
@@ -260,6 +323,7 @@ export async function describeSource(fundNumber) {
   lines.push(`✓ ${out.returns.length} חודשים לקופה ${fundNumber} (${ms}ms)`);
   lines.push(`טווח: ${oldest.month} … ${newest.month}`);
   lines.push(`עמודות: קופה=${m.fundField} · חודש=${m.monthField} · תשואה=${m.retField}`);
+  if (m.perResource?.length) lines.push(`לפי משאב:\n  ${m.perResource.join('\n  ')}`);
   lines.push(`אחרונים: ${out.returns.slice(0, 6).map((r) => `${r.month} ${r.pct}%`).join(' · ')}`);
   if (m.avgFeePct != null) lines.push(`דמי ניהול ממוצעים בקופה: ${m.avgFeePct}% — הזן בשדה דמי הניהול`);
   if (m.scaleWarning) lines.push(`⚠ ${m.scaleWarning}`);

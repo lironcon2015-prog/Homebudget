@@ -106,6 +106,76 @@ check('still resolves through the proxy', viaProxy.returns?.length === 2,
 check('log records the direct failure',
   viaProxy.meta.log?.some((l) => l.includes('TypeError')), JSON.stringify(viaProxy.meta.log));
 
+console.log('\n-- history split across resources is merged, not truncated --');
+// The dataset is split by era. Stopping at the first matching resource is what
+// silently cut the history short at 2022.
+const ARCHIVE = [row(202012, null, null), row(202111, 1.0), row(202206, -2.0)];
+const CURRENT = [row(202312, 0.9), row(202602, -3.1), row(202603, 0.4, 0.62)];
+let sortSeen = [];
+function installSplitFetch({ rejectSort = false } = {}) {
+  sortSeen = [];
+  globalThis.fetch = (url) => {
+    const isDirect = String(url).startsWith('https://data.gov.il/');
+    const target = isDirect ? String(url) : decodeURIComponent(String(url).replace(/^.*?(quest|url)=/, ''));
+    if (target.includes('package_show')) {
+      return jsonRes({ success: true, result: { resources: [
+        { id: 'res-archive', name: 'gemelnet 2020-2022', datastore_active: true },
+        { id: 'res-current', name: 'gemelnet 2023-', datastore_active: true },
+      ] } });
+    }
+    if (target.includes('filters')) {
+      const u = new URL(target);
+      if (u.searchParams.get('sort')) {
+        sortSeen.push(u.searchParams.get('sort'));
+        if (rejectSort) return jsonRes({ success: false, error: { message: 'bad sort' } }, 409);
+      }
+      const rows = target.includes('res-archive') ? ARCHIVE : CURRENT;
+      return jsonRes({ success: true, result: { records: rows } });
+    }
+    const rows = target.includes('res-archive') ? ARCHIVE : CURRENT;
+    return jsonRes({ success: true, result: { fields: FIELDS, records: [rows[0]] } });
+  };
+}
+
+installSplitFetch();
+const merged = await fetchGemelReturns('13344');
+check('both resources contribute', merged.returns?.length === 5,
+  JSON.stringify(merged.error || merged.returns?.map((r) => r.month)));
+check('reaches the newest month', merged.returns?.[0].month === '2026-03',
+  JSON.stringify(merged.returns?.map((r) => r.month)));
+check('keeps the oldest month too',
+  merged.returns?.at(-1).month === '2021-11', JSON.stringify(merged.returns?.map((r) => r.month)));
+check('query is sorted newest-first', sortSeen.every((v) => /desc/.test(v)), JSON.stringify(sortSeen));
+check('per-resource breakdown reported', merged.meta.perResource?.length === 2,
+  JSON.stringify(merged.meta.perResource));
+
+console.log('\n-- overlapping months: first resource wins --');
+const OVERLAP_A = [row(202603, 5.5)];
+const OVERLAP_B = [row(202603, 9.9)];
+globalThis.fetch = (url) => {
+  const isDirect = String(url).startsWith('https://data.gov.il/');
+  const target = isDirect ? String(url) : decodeURIComponent(String(url).replace(/^.*?(quest|url)=/, ''));
+  if (target.includes('package_show')) {
+    return jsonRes({ success: true, result: { resources: [
+      { id: 'res-a', name: 'a', datastore_active: true },
+      { id: 'res-b', name: 'b', datastore_active: true },
+    ] } });
+  }
+  const rows = target.includes('res-a') ? OVERLAP_A : OVERLAP_B;
+  if (target.includes('filters')) return jsonRes({ success: true, result: { records: rows } });
+  return jsonRes({ success: true, result: { fields: FIELDS, records: [rows[0]] } });
+};
+const overlap = await fetchGemelReturns('13344');
+check('duplicate month kept once', overlap.returns?.length === 1, JSON.stringify(overlap.returns));
+check('first resource wins the tie', overlap.returns?.[0].pct === 5.5, JSON.stringify(overlap.returns));
+
+console.log('\n-- a rejected sort falls back to an unsorted query --');
+installSplitFetch({ rejectSort: true });
+const unsorted = await fetchGemelReturns('13344');
+check('sort was attempted', sortSeen.length > 0);
+check('still returns rows without sort', unsorted.returns?.length === 5,
+  JSON.stringify(unsorted.error || unsorted.returns?.length));
+
 console.log('\n-- diagnostic explains a total failure --');
 globalThis.fetch = () => Promise.reject(Object.assign(new Error('Failed to fetch'), { name: 'TypeError' }));
 const report = await describeSource('13344');
