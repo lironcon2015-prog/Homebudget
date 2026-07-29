@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - app.js
+      - app-v2.js
       - src/**
       - index.html
       - icons/icon-192.png

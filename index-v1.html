@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html class="dark" dir="rtl" lang="he">
+<head>
+<meta charset="utf-8" />
+<meta content="width=device-width, initial-scale=1.0" name="viewport" />
+<meta http-equiv="Cache-Control" content="no-cache, must-revalidate" />
+<title>JuniorInvest</title>
+<!--
+  Cache-busting bootstrap. Reads APP_VERSION from version.json at runtime,
+  injects a matching importmap, then loads ./app.js. Bumping version.json
+  alone is enough to invalidate the cached copy of every module on the
+  next page load — no need to keep an importmap in sync by hand.
+-->
+<link rel="manifest" href="./manifest.webmanifest" />
+<link rel="icon" type="image/png" sizes="32x32" href="./icons/favicon-32.png" />
+<link rel="icon" type="image/png" sizes="16x16" href="./icons/favicon-16.png" />
+<link rel="shortcut icon" href="./icons/favicon.ico" />
+<link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="הון ג'וניור" />
+<meta name="theme-color" content="#151219" />
+<script>
+// Tear down any service worker / app cache left over from older builds.
+// iOS home-screen webapps will otherwise keep serving the stale shell.
+try {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations?.().then((rs) => rs.forEach((r) => r.unregister()));
+  }
+  if ('caches' in window) {
+    caches.keys?.().then((keys) => keys.forEach((k) => caches.delete(k)));
+  }
+} catch (_) { /* best-effort cleanup */ }
+
+// Surface boot failures so the page never silently sits blank.
+function jiShowBootError(msg, detail) {
+  const el = document.getElementById('ji-boot-error') || document.createElement('div');
+  el.id = 'ji-boot-error';
+  el.style.cssText = 'position:fixed;inset:1rem;z-index:9999;padding:1.25rem;border-radius:1rem;background:rgba(40,20,20,0.92);color:#ffd6d3;font:14px/1.5 system-ui,-apple-system,sans-serif;direction:rtl;text-align:right;border:1px solid rgba(255,180,170,0.4);box-shadow:0 20px 60px rgba(0,0,0,0.7);overflow:auto;max-height:80vh;';
+  el.innerHTML = '<div style="font-weight:600;font-size:16px;margin-bottom:.5rem;">תקלה בטעינה</div>'
+    + '<div style="margin-bottom:.75rem;">' + msg + '</div>'
+    + '<div style="font-size:12px;opacity:.8;margin-bottom:.75rem;direction:ltr;text-align:left;white-space:pre-wrap;">' + (detail || '') + '</div>'
+    + '<div style="font-size:13px;opacity:.9;">אם הוספת קיצור-דרך למסך הבית: לחץ ארוכות עליו → הסר אפליקציה, פתח את ה-URL בסאפארי, ואז Add to Home Screen מחדש.</div>'
+    + '<button onclick="location.reload()" style="margin-top:.75rem;padding:.5rem 1rem;border-radius:.5rem;background:#ffb4ab;color:#241010;border:none;font-weight:600;cursor:pointer;">נסה שוב</button>';
+  if (!el.isConnected) document.body.appendChild(el);
+}
+window.addEventListener('error', (e) => { if (!window.JI) jiShowBootError('שגיאת JS:', (e.error && e.error.stack) || e.message); });
+window.addEventListener('unhandledrejection', (e) => { if (!window.JI) jiShowBootError('Promise נדחה:', (e.reason && e.reason.stack) || String(e.reason)); });
+
+(async () => {
+  const MODULES = [
+    './app.js',
+    './src/ui.js',
+    './src/state/LocalStoragePersistence.js',
+    './src/state/StateManager.js',
+    './src/view/Selectors.js',
+    './src/ledger/LedgerEngine.js',
+    './src/ledger/FifoEngine.js',
+    './src/ledger/DividendEngine.js',
+    './src/math/Xirr.js',
+    './src/io/QuoteFetcher.js',
+    './src/util/MathUtils.js',
+    './src/util/EventBus.js',
+    './src/util/IdGen.js'
+  ];
+  let v;
+  try {
+    const r = await fetch('./version.json?_=' + Date.now(), { cache: 'no-store' });
+    v = (await r.json()).version;
+  } catch (e) {
+    // Network/parsing failure — fall back to a per-load timestamp so the
+    // user at least sees a fresh build instead of a broken page.
+    v = String(Date.now());
+  }
+  try {
+    const importmap = { imports: Object.fromEntries(MODULES.map((p) => [p, `${p}?v=${v}`])) };
+    const mapEl = document.createElement('script');
+    mapEl.type = 'importmap';
+    mapEl.textContent = JSON.stringify(importmap);
+    document.head.appendChild(mapEl);
+
+    // Wait for body before appending the entry module.
+    const onBodyReady = () => new Promise((res) => {
+      if (document.body) return res();
+      document.addEventListener('DOMContentLoaded', () => res(), { once: true });
+    });
+    await onBodyReady();
+
+    window.JI_APP_VERSION = v;
+    const appEl = document.createElement('script');
+    appEl.type = 'module';
+    appEl.src = `./app.js?v=${v}`;
+    appEl.onerror = (e) => jiShowBootError('כשל בטעינת app.js (גרסה ' + v + ')', String(e));
+    document.body.appendChild(appEl);
+  } catch (e) {
+    jiShowBootError('כשל בבוטסטרפ:', e && e.stack || String(e));
+  }
+})();
+</script>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        colors: {
+          "on-tertiary-fixed-variant": "#5c4300",
+          "tertiary": "#f9bd22",
+          "tertiary-container": "#c79500",
+          "on-primary": "#381385",
+          "surface": "#151219",
+          "surface-container": "#221e26",
+          "primary-fixed": "#e8ddff",
+          "on-primary-container": "#3c1989",
+          "surface-container-lowest": "#100d14",
+          "background": "#151219",
+          "error-container": "#93000a",
+          "surface-container-highest": "#37333b",
+          "on-secondary-container": "#00452e",
+          "on-surface-variant": "#cac4d4",
+          "on-tertiary-container": "#453100",
+          "primary-fixed-dim": "#cebdff",
+          "surface-variant": "#37333b",
+          "surface-dim": "#151219",
+          "on-error": "#690005",
+          "surface-tint": "#cebdff",
+          "secondary-fixed": "#68fcbf",
+          "on-primary-fixed": "#21005e",
+          "secondary-fixed-dim": "#45dfa4",
+          "primary-container": "#a78bfa",
+          "primary": "#cebdff",
+          "primary-hover": "#e8ddff",
+          "outline": "#948e9d",
+          "inverse-surface": "#e8e0eb",
+          "tertiary-fixed-dim": "#f9bd22",
+          "on-tertiary-fixed": "#261a00",
+          "on-error-container": "#ffdad6",
+          "on-primary-fixed-variant": "#4f319c",
+          "surface-container-high": "#2c2830",
+          "on-secondary-fixed-variant": "#005137",
+          "surface-container-low": "#1e1a22",
+          "secondary-container": "#00bd85",
+          "outline-variant": "#494552",
+          "on-surface": "#e8e0eb",
+          "on-background": "#e8e0eb",
+          "inverse-primary": "#674bb5",
+          "on-secondary-fixed": "#002114",
+          "surface-bright": "#3c3840",
+          "inverse-on-surface": "#332f37",
+          "secondary": "#45dfa4",
+          "on-secondary": "#003825",
+          "error": "#ffb4ab",
+          "tertiary-fixed": "#ffdf9f",
+          "on-tertiary": "#402d00",
+          "surface-hover": "rgba(44, 40, 50, 0.6)",
+          "border-thin": "rgba(206, 189, 255, 0.2)",
+        },
+        borderRadius: {
+          DEFAULT: "0.25rem",
+          lg: "0.5rem",
+          xl: "0.75rem",
+          "2xl": "1.5rem",
+          "3xl": "2rem",
+          full: "9999px",
+        },
+        spacing: {
+          "stack-md": "16px",
+          "stack-lg": "32px",
+          "container-max": "1440px",
+          "stack-sm": "8px",
+          "margin-desktop": "40px",
+          "gutter": "24px",
+          "unit": "8px",
+          "margin-mobile": "16px",
+          "sidebar-width": "256px",
+          "card-gap": "24px",
+          "container-padding": "40px",
+        },
+        fontFamily: {
+          "body-lg": ["Hanken Grotesk", "Assistant", "sans-serif"],
+          "display-lg": ["Hanken Grotesk", "Assistant", "sans-serif"],
+          "headline-lg-mobile": ["Hanken Grotesk", "Assistant", "sans-serif"],
+          "body-md": ["Hanken Grotesk", "Assistant", "sans-serif"],
+          "headline-md": ["Hanken Grotesk", "Assistant", "sans-serif"],
+          "headline-lg": ["Hanken Grotesk", "Assistant", "sans-serif"],
+          "label-sm": ["Hanken Grotesk", "Assistant", "sans-serif"],
+          "body-base": ["Hanken Grotesk", "Assistant", "sans-serif"],
+          "label-caps": ["Hanken Grotesk", "Assistant", "sans-serif"],
+          "data-tabular": ["Hanken Grotesk", "Assistant", "sans-serif"],
+        },
+        fontSize: {
+          "body-lg": ["18px", { "lineHeight": "1.6", "letterSpacing": "0.01em", "fontWeight": "400" }],
+          "display-lg": ["48px", { "lineHeight": "1.1", "letterSpacing": "0.04em", "fontWeight": "600" }],
+          "headline-lg-mobile": ["28px", { "lineHeight": "1.2", "letterSpacing": "0.02em", "fontWeight": "600" }],
+          "body-md": ["16px", { "lineHeight": "1.5", "letterSpacing": "0", "fontWeight": "400" }],
+          "headline-md": ["24px", { "lineHeight": "1.3", "letterSpacing": "0.02em", "fontWeight": "500" }],
+          "headline-lg": ["32px", { "lineHeight": "1.2", "letterSpacing": "0.03em", "fontWeight": "600" }],
+          "label-sm": ["12px", { "lineHeight": "1", "letterSpacing": "0.1em", "fontWeight": "600" }],
+        },
+      },
+    },
+  };
+</script>
+<style>
+  html { color-scheme: dark; }
+  body { background-color: #0F0C13; color: #e8e0eb; }
+  select option, datalist option { background-color: #100d14; color: #e8e0eb; }
+
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+    transition: all 0.3s ease;
+  }
+  .material-symbols-outlined.fill { font-variation-settings: 'FILL' 1; }
+  .icon-glow:hover .material-symbols-outlined { text-shadow: 0 0 12px currentColor; }
+
+  .ticker-font { direction: ltr; unicode-bidi: isolate; display: inline-block; }
+
+  /* Midnight Astral surfaces */
+  .glass-base {
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 0.5px solid rgba(255, 255, 255, 0.1);
+    border-top-color: rgba(255, 255, 255, 0.2);
+    border-left-color: rgba(255, 255, 255, 0.2);
+  }
+  .glass-raised {
+    background: rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(40px);
+    -webkit-backdrop-filter: blur(40px);
+    border: 0.5px solid rgba(255, 255, 255, 0.1);
+    border-top-color: rgba(255, 255, 255, 0.2);
+    border-left-color: rgba(255, 255, 255, 0.2);
+  }
+  .orb-gradient {
+    background: radial-gradient(circle at 50% 50%, rgba(167, 139, 250, 0.3) 0%, rgba(167, 139, 250, 0.1) 40%, transparent 100%);
+  }
+  .btn-primary {
+    box-shadow: 0 0 15px rgba(167, 139, 250, 0.4);
+  }
+  .elite-border {
+    border-image: linear-gradient(to bottom right, #FBBF24, #F59E0B) 1;
+    border-width: 0.5px;
+    border-style: solid;
+  }
+
+  /* Backwards-compat panels still used by other views */
+  .glass-panel {
+    background: rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(40px);
+    -webkit-backdrop-filter: blur(40px);
+    border: 0.5px solid rgba(255, 255, 255, 0.1);
+    border-top-color: rgba(255, 255, 255, 0.2);
+    border-left-color: rgba(255, 255, 255, 0.2);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 24px 48px rgba(0, 0, 0, 0.6);
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    border-radius: 1.5rem;
+  }
+  .glass-panel:hover {
+    background: rgba(255, 255, 255, 0.06);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 30px 60px rgba(0, 0, 0, 0.7), 0 0 40px rgba(206, 189, 255, 0.08);
+  }
+
+  .neon-button {
+    background: linear-gradient(135deg, #cebdff, #45dfa4);
+    border: 0.5px solid rgba(206, 189, 255, 0.4);
+    box-shadow: 0 0 20px rgba(206, 189, 255, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    color: #151219;
+  }
+  .neon-button:hover {
+    box-shadow: 0 0 35px rgba(206, 189, 255, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    transform: translateY(-2px);
+  }
+
+  .rtl-nav-item { transition: transform 0.3s ease, background-color 0.3s ease, color 0.3s ease; }
+  .rtl-nav-item:hover { transform: translateX(-4px); }
+
+  ::selection { background: rgba(206, 189, 255, 0.3); color: #151219; }
+
+  .input-field {
+    background: rgba(255,255,255,0.03) !important;
+    border: 0.5px solid rgba(206, 189, 255, 0.2) !important;
+    color: #e8e0eb !important;
+    border-radius: 0.75rem;
+    padding: 0.85rem 1rem;
+    width: 100%;
+    transition: all 0.2s ease;
+  }
+  .input-field:focus {
+    outline: none;
+    border-color: rgba(206, 189, 255, 0.7) !important;
+    box-shadow: 0 0 0 4px rgba(206, 189, 255, 0.12);
+  }
+  .field-label {
+    display: block; font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.15em;
+    color: #cac4d4;
+    margin-bottom: 0.5rem; font-weight: 600;
+  }
+
+  /* Hero orb card */
+  .hero-card {
+    position: relative;
+    z-index: 10;
+    padding: 3rem 2.5rem;
+    border-radius: 2rem;
+    background: linear-gradient(to bottom, rgba(21, 18, 25, 0.5), rgba(21, 18, 25, 0.85));
+    border: 0.5px solid rgba(255, 255, 255, 0.18);
+    box-shadow: 0 0 50px -12px rgba(167, 139, 250, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(40px);
+    -webkit-backdrop-filter: blur(40px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    width: 100%;
+    max-width: 720px;
+    animation: floatHero 6s ease-in-out infinite;
+  }
+  @keyframes floatHero {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+  .hero-orb-bg {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  }
+  .hero-orb-bg .orb-violet {
+    width: 32rem;
+    height: 32rem;
+    background: rgba(167, 139, 250, 0.22);
+    border-radius: 9999px;
+    filter: blur(100px);
+    opacity: 0.7;
+    mix-blend-mode: screen;
+  }
+  .hero-orb-bg .orb-emerald {
+    position: absolute;
+    width: 24rem;
+    height: 24rem;
+    background: rgba(69, 223, 164, 0.15);
+    border-radius: 9999px;
+    filter: blur(80px);
+    opacity: 0.6;
+  }
+  @media (max-width: 767px) {
+    .hero-card { padding: 2rem 1.25rem; border-radius: 1.5rem; max-width: 100%; }
+    .hero-orb-bg .orb-violet { width: 22rem; height: 22rem; filter: blur(70px); }
+    .hero-orb-bg .orb-emerald { width: 16rem; height: 16rem; filter: blur(60px); }
+  }
+
+  /* Bento kid card */
+  .kid-card {
+    position: relative;
+    overflow: hidden;
+    border-radius: 1rem;
+    padding: 1.25rem;
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 0.5px solid rgba(255, 255, 255, 0.1);
+    border-top-color: rgba(255, 255, 255, 0.2);
+    border-left-color: rgba(255, 255, 255, 0.2);
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    cursor: pointer;
+  }
+  .kid-card:hover {
+    background: rgba(255, 255, 255, 0.06);
+    transform: translateY(-2px);
+  }
+  /* The glow used to be a separately-blurred absolutely-positioned div that
+     leaked past the rounded corners in browsers that don't clip filtered
+     content against border-radius. Replace it with a radial-gradient that
+     fills the card and inherits its border-radius, so it can never escape
+     the corner. The gradient itself is set inline from JS. */
+  .kid-card .kid-glow {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0.85;
+    transition: opacity 0.4s ease;
+    z-index: 0;
+  }
+  .kid-card:hover .kid-glow { opacity: 1; }
+  .kid-card > :not(.kid-glow) { position: relative; z-index: 1; }
+
+  /* Spinning sync icon while quotes are refreshing */
+  @keyframes spin-sync { from { transform: rotate(0); } to { transform: rotate(360deg); } }
+  .refreshing .btn-sync-icon { animation: spin-sync 0.9s linear infinite; }
+  .kid-card .kid-progress-track {
+    width: 100%;
+    height: 2px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 9999px;
+    overflow: hidden;
+  }
+  .kid-card .kid-progress-fill {
+    height: 100%;
+    border-radius: 9999px;
+    transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .font-data-tabular { font-variant-numeric: tabular-nums; }
+
+  #view-dashboard.hyper-bg {
+    position: relative;
+  }
+  @media (max-width: 767px) {
+    #kids-grid { grid-template-columns: 1fr !important; }
+  }
+  #edit-tx-dialog { border: none; background: transparent; padding: 0; max-width: min(94vw, 520px); width: 100%; }
+  #edit-tx-dialog::backdrop { background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); }
+
+  /* ---------- Mobile responsive tables ----------
+     On small screens the standard table layout breaks because each row holds
+     too much content. We collapse rows into cards with labels coming from
+     the data-label attribute set in JS. */
+  @media (max-width: 767px) {
+    /* Slim down glass-panel padding so content gets the screen width */
+    .glass-panel {
+      padding: 1rem !important;
+      border-radius: 1.25rem;
+    }
+    .glass-panel h2.font-headline-md,
+    .glass-panel h3.font-headline-md {
+      font-size: 1.125rem;
+      margin-bottom: 1rem;
+      gap: 0.75rem;
+    }
+    .glass-panel h2 .w-10.h-10,
+    .glass-panel h3 .w-10.h-10 {
+      width: 2rem; height: 2rem;
+    }
+    .glass-panel h2 .text-xl,
+    .glass-panel h3 .text-xl {
+      font-size: 1rem;
+    }
+
+    /* Holdings table -> card list */
+    .table-as-cards,
+    .table-as-cards tbody {
+      display: block;
+      width: 100%;
+    }
+    .table-as-cards thead { display: none; }
+    .table-as-cards tbody tr.row-card {
+      display: block;
+      background: rgba(255,255,255,0.03);
+      border: 0.5px solid rgba(255,255,255,0.08);
+      border-radius: 1rem;
+      padding: 0.875rem;
+      margin-bottom: 0.75rem;
+    }
+    .table-as-cards tbody tr.row-card td {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.4rem 0;
+      border: none;
+      width: auto;
+    }
+    .table-as-cards tbody tr.row-card td[data-label]::before {
+      content: attr(data-label);
+      font-size: 10px;
+      color: rgba(202, 196, 212, 0.7);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    /* The asset cell is the card header — full width, no label */
+    .table-as-cards tbody tr.row-card td.cell-header {
+      display: block;
+      padding: 0 0 0.6rem 0;
+      margin-bottom: 0.5rem;
+      border-bottom: 0.5px solid rgba(255,255,255,0.08);
+    }
+    /* Suppress the ::before label on header cells even if they carry a
+       data-label attribute */
+    .table-as-cards tbody tr.row-card td.cell-header::before {
+      content: none !important;
+    }
+
+    /* Kid-portfolio lot rows: lay the 6 data cells out as a 2-col grid so
+       each datum (label above value) gets room to breathe instead of being
+       squeezed onto one line. */
+    .table-as-cards tbody tr.kid-lot-card {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      column-gap: 0.75rem;
+      row-gap: 0.5rem;
+    }
+    .table-as-cards tbody tr.kid-lot-card td.cell-header {
+      grid-column: 1 / -1;
+    }
+    .table-as-cards tbody tr.kid-lot-card td[data-label] {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.15rem;
+      padding: 0.35rem 0;
+      min-width: 0;
+    }
+    .table-as-cards tbody tr.kid-lot-card td[data-label]::before {
+      margin: 0;
+      display: block;
+    }
+    .table-as-cards tbody tr.kid-lot-card td[data-label] > bdi {
+      font-size: 0.95rem;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    /* The kid-split cell becomes a block so its inner items stack nicely */
+    .table-as-cards tbody tr.row-card td.cell-block {
+      display: block;
+      padding-top: 0.6rem;
+      margin-top: 0.5rem;
+      border-top: 0.5px solid rgba(255,255,255,0.08);
+    }
+    .table-as-cards tbody tr.row-card td.cell-block::before {
+      display: block;
+      margin-bottom: 0.4rem;
+    }
+    /* Expanded lots row spans full width */
+    .table-as-cards tbody tr.lots-row {
+      display: block;
+      background: transparent;
+      border: none;
+      padding: 0;
+      margin: -0.5rem 0 0.75rem 0;
+    }
+    .table-as-cards tbody tr.lots-row td {
+      display: block;
+      padding: 0;
+    }
+    .table-as-cards tbody tr.lots-row td::before { content: none; }
+    /* Inner lots table: convert to a stack of cards so each lot is legible
+       without horizontal scrolling. */
+    .lots-table,
+    .lots-table thead,
+    .lots-table tbody {
+      display: block;
+      width: 100% !important;
+      min-width: 0 !important;
+    }
+    .lots-table { min-width: 0 !important; }
+    .lots-table thead { display: none; }
+    .lots-table tbody tr.lot-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      column-gap: 0.75rem;
+      row-gap: 0.4rem;
+      padding: 0.7rem 0.75rem;
+      border: 0.5px solid rgba(255,255,255,0.08);
+      border-radius: 0.75rem;
+      margin: 0.4rem 0;
+      background: rgba(255,255,255,0.03);
+    }
+    .lots-table tbody tr.lot-row td {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.15rem;
+      padding: 0 !important;
+      border: none;
+      min-width: 0;
+    }
+    .lots-table tbody tr.lot-row td.lot-date {
+      grid-column: 1 / -1;
+      padding-bottom: 0.4rem !important;
+      margin-bottom: 0.2rem;
+      border-bottom: 0.5px solid rgba(255,255,255,0.06) !important;
+    }
+    .lots-table tbody tr.lot-row td::before {
+      content: attr(data-label);
+      font-size: 10px;
+      color: rgba(202, 196, 212, 0.7);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-weight: 600;
+      display: block;
+    }
+    .lots-table tbody tr.lot-row td > bdi {
+      font-size: 0.85rem;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Ledger amount cell: keep buttons on a new line below the amount */
+    .table-as-cards tbody tr.row-card td.cell-amount {
+      flex-wrap: wrap;
+    }
+    .table-as-cards tbody tr.row-card td.cell-amount .row-actions {
+      display: flex;
+      gap: 0.5rem;
+      width: 100%;
+      justify-content: flex-end;
+      margin-top: 0.4rem;
+    }
+    /* Edit/delete buttons always visible on touch screens */
+    .table-as-cards tbody tr.row-card td.cell-amount .row-actions button {
+      opacity: 1 !important;
+    }
+
+    /* Reduce ticker max-width on mobile to avoid clipping issues */
+    bdi.ticker-cell {
+      max-width: 90px !important;
+    }
+
+    /* Hero typography — scales with viewport so big numbers never overflow */
+    #hero-total { font-size: clamp(1.75rem, 9vw, 2.5rem) !important; line-height: 1.1; }
+
+    /* Mobile top bar: tighten icon button padding and title size */
+    .mobile-topbar-title { font-size: 1.125rem !important; }
+    .mobile-topbar-nav button { padding: 0.4rem !important; }
+    .mobile-topbar-nav .material-symbols-outlined { font-size: 22px; }
+  }
+
+  /* Edit/delete buttons should always be visible on touch devices, even
+     when not in a card-as-table context */
+  @media (hover: none) {
+    .row-actions button { opacity: 1 !important; }
+  }
+</style>
+</head>
+<body class="font-body-md text-body-md min-h-screen flex relative overflow-x-hidden" dir="rtl">
+
+<!-- Sidebar (Desktop) -->
+<nav class="hidden md:flex flex-col h-screen w-sidebar-width fixed right-0 top-0 bg-surface/30 backdrop-blur-md border-l-[0.5px] border-white/20 shadow-2xl py-stack-lg px-gutter z-50">
+  <div class="mb-stack-lg">
+    <div class="flex items-center gap-3">
+      <img src="./icons/icon-192.png" alt="" class="w-10 h-10 rounded-xl shadow-[0_0_18px_rgba(206,189,255,0.35)]" />
+      <div>
+        <h1 class="font-display-lg text-headline-md text-primary tracking-widest font-semibold">הון ג'וניור</h1>
+        <p class="font-label-sm text-label-sm text-on-surface-variant uppercase mt-1">תיק עילית</p>
+      </div>
+    </div>
+  </div>
+
+  <ul class="flex flex-col gap-stack-sm flex-grow">
+    <li>
+      <a data-nav="dashboard" class="rtl-nav-item flex items-center gap-stack-sm p-3 rounded-lg bg-primary/10 text-primary shadow-[0_0_15px_rgba(167,139,250,0.4)] border border-primary/30 cursor-pointer">
+        <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">dashboard</span>
+        <span class="font-body-md text-body-md font-medium">לוח בקרה</span>
+      </a>
+    </li>
+    <li>
+      <a data-nav="holdings" class="rtl-nav-item icon-glow flex items-center gap-stack-sm p-3 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-white/5 transition-all duration-300 cursor-pointer">
+        <span class="material-symbols-outlined">account_balance_wallet</span>
+        <span class="font-body-md text-body-md">אחזקות</span>
+      </a>
+    </li>
+    <li>
+      <a data-nav="ledger" class="rtl-nav-item icon-glow flex items-center gap-stack-sm p-3 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-white/5 transition-all duration-300 cursor-pointer">
+        <span class="material-symbols-outlined">receipt_long</span>
+        <span class="font-body-md text-body-md">יומן ופעולות</span>
+      </a>
+    </li>
+    <li>
+      <a data-nav="settings" class="rtl-nav-item icon-glow flex items-center gap-stack-sm p-3 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-white/5 transition-all duration-300 cursor-pointer">
+        <span class="material-symbols-outlined">settings</span>
+        <span class="font-body-md text-body-md">הגדרות</span>
+      </a>
+    </li>
+  </ul>
+
+  <div class="mt-auto pt-stack-md border-t-[0.5px] border-white/10 flex flex-col gap-stack-sm">
+    <button id="btn-fetch-quotes-side" class="w-full text-primary hover:text-white py-3 rounded-lg flex items-center justify-center gap-2 border border-primary/30 bg-primary/10 hover:bg-primary/20 transition disabled:opacity-60 disabled:cursor-wait">
+      <span class="material-symbols-outlined btn-sync-icon" style="font-size:18px;">sync</span>
+      רענן שערים
+    </button>
+    <input id="import-file" type="file" accept="application/json" class="hidden" />
+  </div>
+</nav>
+
+<!-- Main -->
+<main class="flex-1 mr-0 md:mr-sidebar-width p-margin-mobile md:p-container-padding flex flex-col gap-card-gap relative z-10 max-w-container-max mx-auto w-full">
+
+  <!-- Mobile top bar (Midnight Astral restyle) -->
+  <div class="md:hidden flex justify-between items-center gap-2 h-14 bg-background/60 backdrop-blur-xl border-b-[0.5px] border-white/10 -mx-margin-mobile px-3 mb-2 z-40 sticky top-0">
+    <h1 class="mobile-topbar-title font-headline-lg-mobile text-primary flex items-center gap-2 min-w-0">
+      <img src="./icons/icon-192.png" alt="" class="w-7 h-7 rounded-lg shadow-[0_0_10px_rgba(206,189,255,0.4)] shrink-0" />
+      <span class="truncate">הון ג'וניור</span>
+    </h1>
+    <div class="mobile-topbar-nav flex gap-0.5 shrink-0">
+      <button data-nav="dashboard" class="p-2 text-primary transition-colors drop-shadow-[0_0_8px_rgba(206,189,255,0.8)]" aria-label="לוח בקרה"><span class="material-symbols-outlined fill">dashboard</span></button>
+      <button data-nav="holdings" class="p-2 text-on-surface-variant hover:text-on-surface transition-colors" aria-label="אחזקות"><span class="material-symbols-outlined">account_balance_wallet</span></button>
+      <button data-nav="ledger" class="p-2 text-on-surface-variant hover:text-on-surface transition-colors" aria-label="יומן"><span class="material-symbols-outlined">receipt_long</span></button>
+      <button id="btn-fetch-quotes-mobile" class="p-2 text-primary hover:text-white transition-colors disabled:opacity-60 disabled:cursor-wait" aria-label="רענן שערים"><span class="material-symbols-outlined btn-sync-icon">sync</span></button>
+      <button data-nav="settings" class="p-2 text-on-surface-variant hover:text-on-surface transition-colors" aria-label="הגדרות"><span class="material-symbols-outlined">settings</span></button>
+    </div>
+  </div>
+
+  <!-- ================ DASHBOARD ================ -->
+  <section id="view-dashboard" class="flex flex-col gap-stack-lg hyper-bg pb-16">
+    <!-- Central 'Orb' Hero Section -->
+    <div class="w-full flex justify-center py-8 md:py-12 relative mt-2">
+      <div class="hero-orb-bg">
+        <div class="orb-violet"></div>
+        <div class="orb-emerald"></div>
+      </div>
+      <div class="hero-card cursor-pointer transition-transform duration-300 hover:scale-[1.02]" id="btn-hero-total">
+        <p class="font-label-sm text-label-sm uppercase tracking-[0.2em] mb-4 font-bold drop-shadow-md flex items-center gap-2 text-tertiary">
+          <span class="w-2 h-2 rounded-full bg-tertiary shadow-[0_0_15px_#f9bd22] animate-pulse"></span>
+          שווי תיק כולל (ילדים)
+        </p>
+        <h2 id="hero-total" class="font-display-lg text-4xl md:text-6xl text-white tracking-tight font-bold drop-shadow-[0_2px_15px_rgba(255,255,255,0.2)] mb-2 tabular-nums">—</h2>
+        <div class="flex items-center gap-2 mt-4 md:mt-6 bg-secondary/10 px-5 py-2.5 rounded-full border border-secondary/30 shadow-[0_0_20px_rgba(69,223,164,0.15)]">
+          <span class="w-2 h-2 rounded-full bg-secondary animate-pulse"></span>
+          <p id="hero-fx" class="font-body-md text-sm md:text-base font-medium text-secondary tracking-wide">—</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Kids Grid (Bento Style) -->
+    <div id="kids-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter relative z-10 w-full max-w-5xl mx-auto"></div>
+  </section>
+
+  <!-- ================ HOLDINGS ================ -->
+  <section id="view-holdings" class="hidden flex-col gap-card-gap">
+    <div class="glass-panel rounded-3xl p-4 sm:p-6 md:p-8 lg:p-10">
+      <h2 class="font-headline-md text-xl md:text-2xl font-bold text-on-background flex items-center gap-3 md:gap-4 mb-5 md:mb-8">
+        <div class="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center border border-primary/20 shrink-0">
+          <span class="material-symbols-outlined text-primary text-xl">account_balance_wallet</span>
+        </div>
+        אחזקות (ילדים בלבד)
+      </h2>
+      <div class="md:overflow-x-auto">
+        <table class="w-full text-right border-collapse table-as-cards">
+          <thead>
+            <tr class="border-b border-white/10 font-label-caps text-[11px] text-on-surface-variant uppercase tracking-[0.15em]">
+              <th class="py-5 font-semibold pr-4">נכס</th>
+              <th class="py-5 font-semibold">סה״כ מניות (ילדים)</th>
+              <th class="py-5 font-semibold">מחיר נוכחי</th>
+              <th class="py-5 font-semibold">שווי בש״ח</th>
+              <th class="py-5 font-semibold">פיצול בין הילדים</th>
+            </tr>
+          </thead>
+          <tbody id="holdings-tbody" class="font-data-tabular tabular-nums text-sm text-on-background"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="glass-panel rounded-3xl p-4 sm:p-6 md:p-8 lg:p-10">
+      <h3 class="font-headline-md text-lg md:text-xl font-bold text-on-background mb-4 md:mb-6">ציטוטים</h3>
+      <div id="settings-quotes" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
+    </div>
+  </section>
+
+  <!-- ================ KID PORTFOLIO ================ -->
+  <section id="view-kid-portfolio" class="hidden flex-col gap-6 pb-16"></section>
+
+  <!-- ================ LEDGER ================ -->
+  <section id="view-ledger" class="hidden flex-col gap-card-gap">
+
+    <div class="glass-panel rounded-3xl p-4 sm:p-6 md:p-8 lg:p-10">
+      <h2 class="font-headline-md text-xl md:text-2xl font-bold text-on-background flex items-center gap-3 md:gap-4 mb-5 md:mb-8">
+        <div class="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center border border-primary/20 shrink-0">
+          <span class="material-symbols-outlined text-primary text-xl">add_circle</span>
+        </div>
+        רישום פעולה חדשה
+      </h2>
+
+      <div class="mb-8">
+        <label class="field-label">סוג פעולה</label>
+        <select id="tx-type" class="input-field">
+          <option value="DEPOSIT">הפקדת מזומן</option>
+          <option value="BUY">קנייה</option>
+          <option value="SELL">מכירה</option>
+          <option value="DIVIDEND">דיבידנד</option>
+        </select>
+      </div>
+
+      <!-- DEPOSIT -->
+      <form id="form-deposit" class="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div><label class="field-label">תאריך</label><input class="input-field" type="date" name="date" required /></div>
+        <div><label class="field-label">ילד/ה</label><select id="dep-kidId" class="input-field" name="kidId" required></select></div>
+        <div><label class="field-label">סכום (₪)</label><input class="input-field tabular-nums" type="number" step="0.01" min="0.01" name="amountIls" required /></div>
+        <div><label class="field-label">הערה</label><input class="input-field" type="text" name="note" placeholder="אופציונלי" /></div>
+        <div class="md:col-span-2"><button class="neon-button w-full py-4 rounded-2xl font-semibold">שמור הפקדה</button></div>
+      </form>
+
+      <!-- BUY -->
+      <form id="form-buy" class="hidden grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div><label class="field-label">תאריך</label><input class="input-field" type="date" name="date" required /></div>
+        <div>
+          <label class="field-label">סימול (Ticker)</label>
+          <input class="input-field text-left" type="text" name="ticker" list="ticker-suggestions" required dir="ltr" style="text-transform: uppercase;" />
+          <datalist id="ticker-suggestions"></datalist>
+        </div>
+        <div><label class="field-label">שם החברה</label><input class="input-field" type="text" name="company" required /></div>
+        <div>
+          <label class="field-label">מטבע</label>
+          <select name="currency" class="input-field">
+            <option value="USD">USD</option>
+            <option value="ILS-Agorot">אגורות (מקומי)</option>
+            <option value="EUR">EUR</option>
+            <option value="GBP">GBP</option>
+          </select>
+        </div>
+        <div><label class="field-label">מחיר למניה</label><input class="input-field tabular-nums" type="number" step="0.0001" min="0.0001" name="price" required /></div>
+        <div id="fxRate-wrapper"><label class="field-label">שער חליפין ל-ILS</label><input class="input-field tabular-nums" type="number" step="0.0001" min="0.0001" name="fxRate" required /></div>
+        <div><label class="field-label">סך כל המניות שנקנו (כולל הורה)</label><input class="input-field tabular-nums" type="number" step="0.00000001" min="0" name="totalShares" required /></div>
+        <div><label class="field-label">מניות לילדים</label><input class="input-field tabular-nums" type="number" step="0.00000001" min="0" name="kidsShares" required /></div>
+        <div><label class="field-label">עמלות (₪)</label><input class="input-field tabular-nums" type="number" step="0.01" min="0" name="feesIls" value="0" /></div>
+        <div class="md:col-span-2 flex items-center gap-3">
+          <input type="checkbox" name="externalFunds" id="chk-external-funds" checked class="w-5 h-5 rounded accent-[#cebdff]" />
+          <label for="chk-external-funds" class="field-label mb-0 cursor-pointer">כסף חיצוני (לא מהתיק) — לא לנכות ממזומן</label>
+        </div>
+        <div class="md:col-span-2">
+          <label class="field-label">פיצול אחוזים בין הילדים (סך 100%)</label>
+          <div id="buy-allocation" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
+        </div>
+        <div class="md:col-span-2"><button class="neon-button w-full py-4 rounded-2xl font-semibold">שמור קנייה</button></div>
+      </form>
+
+      <!-- SELL -->
+      <form id="form-sell" class="hidden grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div><label class="field-label">תאריך</label><input class="input-field" type="date" name="date" required /></div>
+        <div>
+          <label class="field-label">סימול (Ticker)</label>
+          <input class="input-field text-left" type="text" name="ticker" list="ticker-suggestions" required dir="ltr" style="text-transform: uppercase;" />
+        </div>
+        <div><label class="field-label">מניות שנמכרו (מצד הילדים)</label><input class="input-field tabular-nums" type="number" step="0.00000001" min="0.00000001" name="sharesSold" required /></div>
+        <div><label class="field-label">תקבול נטו (₪)</label><input class="input-field tabular-nums" type="number" step="0.01" min="0" name="netIls" required /></div>
+        <div class="md:col-span-2 text-xs text-on-surface-variant">
+          ההקצאה בין הילדים תחושב אוטומטית בשיטת FIFO על פי הלוטים הפתוחים.
+        </div>
+        <div class="md:col-span-2"><button class="neon-button w-full py-4 rounded-2xl font-semibold">שמור מכירה</button></div>
+      </form>
+
+      <!-- DIVIDEND -->
+      <form id="form-dividend" class="hidden grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div><label class="field-label">תאריך</label><input class="input-field" type="date" name="date" required /></div>
+        <div>
+          <label class="field-label">סימול (Ticker)</label>
+          <input class="input-field text-left" type="text" name="ticker" list="ticker-suggestions" required dir="ltr" style="text-transform: uppercase;" />
+        </div>
+        <div class="md:col-span-2">
+          <label class="field-label">סך הדיבידנד נטו שהתקבל לחשבון (₪) — כולל חלקו של ההורה</label>
+          <input class="input-field tabular-nums" type="number" step="0.01" min="0" name="netIlsTotal" required />
+        </div>
+        <div class="md:col-span-2 text-xs text-on-surface-variant">
+          רק חלקם של הילדים יזוקף ליתרות המזומן שלהם. חלקו של ההורה אינו מוצג ואינו נשמר במזומן.
+        </div>
+        <div class="md:col-span-2"><button class="neon-button w-full py-4 rounded-2xl font-semibold">שמור דיבידנד</button></div>
+      </form>
+    </div>
+
+    <!-- History -->
+    <div class="glass-panel rounded-3xl p-4 sm:p-6 md:p-8 lg:p-10">
+      <h2 class="font-headline-md text-xl md:text-2xl font-bold text-on-background flex items-center gap-3 md:gap-4 mb-5 md:mb-8">
+        <div class="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center border border-primary/20 shrink-0">
+          <span class="material-symbols-outlined text-primary text-xl">history</span>
+        </div>
+        יומן פעולות
+      </h2>
+      <div class="md:overflow-x-auto">
+        <table class="w-full text-right border-collapse table-as-cards">
+          <thead>
+            <tr class="border-b border-white/10 font-label-caps text-[11px] text-on-surface-variant uppercase tracking-[0.15em]">
+              <th class="py-4 pr-4">תאריך</th>
+              <th class="py-4">פעולה</th>
+              <th class="py-4">נושא</th>
+              <th class="py-4">פרטים</th>
+              <th class="py-4 text-left">סכום</th>
+            </tr>
+          </thead>
+          <tbody id="ledger-tbody" class="font-data-tabular tabular-nums text-sm text-on-background"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ================ SETTINGS ================ -->
+  <section id="view-settings" class="hidden flex-col gap-card-gap">
+
+    <!-- General settings -->
+    <div class="glass-panel rounded-3xl p-4 sm:p-6 md:p-8 lg:p-10">
+      <h2 class="font-headline-md text-xl md:text-2xl font-bold text-on-background flex items-center gap-3 md:gap-4 mb-5 md:mb-8">
+        <div class="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center border border-primary/20 shrink-0">
+          <span class="material-symbols-outlined text-primary text-xl">tune</span>
+        </div>
+        הגדרות כלליות
+      </h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+        <div>
+          <label class="field-label">שער USD/ILS לשערוך</label>
+          <input id="settings-fx" class="input-field tabular-nums" type="number" step="0.0001" min="0" />
+        </div>
+        <div>
+          <label class="field-label">ילדים</label>
+          <ul id="settings-kids" class="flex flex-col gap-2"></ul>
+          <button id="btn-add-kid" class="mt-3 text-sm text-primary hover:text-primary-hover flex items-center gap-1">
+            <span class="material-symbols-outlined text-base">add</span> הוסף ילד/ה
+          </button>
+        </div>
+        <div class="md:col-span-2">
+          <label class="field-label">כתובת Worker לשערים (אופציונלי, מומלץ)</label>
+          <input id="settings-worker-url" class="input-field" type="url" dir="ltr" placeholder="https://juniorinvest-quotes.<account>.workers.dev" />
+          <p class="text-xs text-on-background/60 mt-1">אם הפרוקסים החיצוניים נופלים, פרוס Cloudflare Worker (worker/quote-proxy.js) והדבק כאן את ה-URL שלו.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Backup -->
+    <div class="glass-panel rounded-3xl p-4 sm:p-6 md:p-8 lg:p-10">
+      <h2 class="font-headline-md text-xl md:text-2xl font-bold text-on-background flex items-center gap-3 md:gap-4 mb-5 md:mb-8">
+        <div class="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center border border-primary/20 shrink-0">
+          <span class="material-symbols-outlined text-primary text-xl">backup</span>
+        </div>
+        גיבוי ושחזור
+      </h2>
+      <p class="text-sm text-on-surface-variant mb-5">ייצא את כל המידע (יומן, ילדים, שערים והגדרות) לקובץ JSON, או טען קובץ קיים. הייבוא דורס את המידע הקיים.</p>
+      <div class="flex flex-col sm:flex-row gap-3">
+        <button id="btn-export" class="flex-1 py-3 rounded-lg font-semibold neon-button flex items-center justify-center gap-2">
+          <span class="material-symbols-outlined" style="font-size:18px;">download</span>
+          ייצוא JSON
+        </button>
+        <button id="btn-import" class="flex-1 py-3 rounded-lg flex items-center justify-center gap-2 border border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 transition">
+          <span class="material-symbols-outlined" style="font-size:18px;">upload</span>
+          ייבוא JSON
+        </button>
+      </div>
+    </div>
+
+    <!-- About / version -->
+    <div class="glass-panel rounded-3xl p-4 sm:p-6 md:p-8">
+      <div id="settings-version" class="text-xs text-on-surface-variant/70 text-left font-mono" dir="ltr"></div>
+    </div>
+
+  </section>
+
+</main>
+
+<dialog id="edit-tx-dialog">
+  <div class="glass-panel rounded-3xl p-8 text-right w-full">
+    <div class="flex items-center justify-between mb-6">
+      <h3 class="text-lg font-bold text-on-background" id="edit-tx-title">עריכת פעולה</h3>
+      <button id="edit-tx-close" class="text-on-surface-variant hover:text-white transition-colors" aria-label="סגור">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div id="edit-tx-fields" class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6"></div>
+    <div class="flex gap-3 justify-start">
+      <button id="edit-tx-save" type="button" class="neon-button px-6 py-2.5 rounded-xl text-sm font-semibold">שמור שינויים</button>
+      <button id="edit-tx-cancel" type="button" class="px-6 py-2.5 rounded-xl text-sm text-on-surface-variant hover:text-white border border-white/10 hover:bg-white/5 transition-colors">ביטול</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- app.js is loaded by the cache-busting bootstrap in <head>. -->
+</body>
+</html>

@@ -471,6 +471,14 @@ export class UIv2 {
               ${icon('chevron_left', 'text-outline text-[20px]')}
             </button>
             <input id="import-file" type="file" accept="application/json" class="hidden" />
+            <div class="border-t border-white/5"></div>
+            <!-- Escape hatch while v2 is being evaluated. Same data either way:
+                 both shells read the same persistence key. -->
+            <a href="./index-v1.html" class="pressable flex w-full items-center gap-4 px-5 py-4 text-right">
+              <div class="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/5 text-on-surface-variant">${icon('history', 'text-[18px]')}</div>
+              <span class="flex-1 text-sm font-medium text-white">הממשק הקודם</span>
+              ${icon('chevron_left', 'text-outline text-[20px]')}
+            </a>
           </div>
         </div>
       </section>`;

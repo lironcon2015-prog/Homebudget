@@ -35,11 +35,13 @@ const TEXT_FONTS_URL =
 
 // Material Symbols supports a `&icon_names=` parameter that returns a
 // font subset containing only the named glyph ligatures.
+// Every glyph src/ui-v2.js renders. An icon missing from this subset does not
+// fall back to anything — it simply never paints in the offline build.
 const ICON_NAMES = [
-  'account_balance_wallet', 'add', 'add_circle', 'arrow_forward', 'backup',
-  'close', 'currency_exchange', 'dashboard', 'download', 'expand_more',
-  'history', 'person', 'receipt_long', 'settings', 'show_chart', 'sync',
-  'tune', 'upload',
+  'account_balance', 'account_balance_wallet', 'add', 'add_shopping_cart',
+  'chevron_left', 'close', 'dashboard', 'delete', 'download', 'edit',
+  'expand_more', 'history', 'person', 'receipt_long', 'savings', 'sell',
+  'settings', 'sync', 'upload',
 ];
 const ICONS_FONT_URL =
   'https://fonts.googleapis.com/css2?' +
@@ -83,7 +85,7 @@ async function main() {
   console.log(`  ${(tailwindCss.length / 1024).toFixed(1)} KB`);
 
   console.log('• Bundling JS...');
-  sh('npx esbuild app.js --bundle --format=iife --minify --target=es2020 --outfile=tools/.bundle.js');
+  sh('npx esbuild app-v2.js --bundle --format=iife --minify --target=es2020 --outfile=tools/.bundle.js');
   const bundle = fs.readFileSync(path.join(ROOT, 'tools/.bundle.js'), 'utf8');
   console.log(`  ${(bundle.length / 1024).toFixed(1)} KB`);
 
@@ -99,9 +101,12 @@ async function main() {
   const version = JSON.parse(fs.readFileSync(path.join(ROOT, 'version.json'), 'utf8')).version;
   let html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 
-  // Strip cache-busting bootstrap (we don't need it; JS is inline).
+  // Strip the runtime bootstrap; the bundle is injected inline below. Leaving
+  // the module import in place would 404 over file:// and its catch handler
+  // would then paint an error over the app the bundle had already booted.
   html = html.replace(/<!--\s*Cache-busting bootstrap[\s\S]*?-->\s*/g, '');
   html = html.replace(/<script>\s*\/\/\s*Tear down any service worker[\s\S]*?<\/script>\s*/g, '');
+  html = html.replace(/<script type="module">[\s\S]*?app-v2\.js[\s\S]*?<\/script>\s*/g, '');
 
   // Drop PWA manifest + favicons (we're file:// now; brand icon is inlined separately).
   html = html.replace(/<link rel="manifest"[^>]*>\s*/g, '');
