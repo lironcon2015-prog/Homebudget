@@ -1191,7 +1191,12 @@ export class UIv2 {
   }
 
   _export() {
-    const blob = new Blob([this.sm.exportJson()], { type: 'application/json' });
+    // The worker URL lives under QuoteFetcher's own localStorage key, not in
+    // the ledger state, so a plain state export drops it — and a restore onto
+    // a new device would come back with quote fetching quietly broken.
+    const data = JSON.parse(this.sm.exportJson());
+    data.settings = { ...data.settings, quoteWorkerUrl: getWorkerUrl() };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -1204,8 +1209,16 @@ export class UIv2 {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
-      try { this.sm.importJson(reader.result); toast('הנתונים יובאו'); }
-      catch (err) { toast(`ייבוא נכשל: ${err.message}`, 7000); }
+      try {
+        const parsed = JSON.parse(reader.result);
+        // Read it before the import: a file from an older export won't carry
+        // the key, and that must leave the current worker URL alone rather
+        // than clearing it.
+        const worker = parsed?.settings?.quoteWorkerUrl;
+        this.sm.importJson(parsed);
+        if (typeof worker === 'string') setWorkerUrl(worker);
+        toast('הנתונים יובאו');
+      } catch (err) { toast(`ייבוא נכשל: ${err.message}`, 7000); }
     };
     reader.readAsText(file);
   }
