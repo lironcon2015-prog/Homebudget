@@ -37,11 +37,12 @@ const TEXT_FONTS_URL =
 // font subset containing only the named glyph ligatures.
 // Every glyph src/ui-v2.js renders. An icon missing from this subset does not
 // fall back to anything — it simply never paints in the offline build.
+// Google Fonts rejects the request with HTTP 400 unless icon_names is sorted.
 const ICON_NAMES = [
   'account_balance', 'account_balance_wallet', 'add', 'add_shopping_cart',
-  'chevron_left', 'chevron_right', 'close', 'dashboard', 'delete', 'download', 'edit',
-  'expand_more', 'history', 'info', 'person', 'receipt_long', 'savings', 'sell',
-  'settings', 'sync', 'upload', 'warning',
+  'chevron_left', 'chevron_right', 'close', 'content_copy', 'dashboard', 'delete',
+  'download', 'edit', 'expand_more', 'history', 'info', 'person', 'receipt_long',
+  'savings', 'sell', 'settings', 'sync', 'upload', 'warning',
 ];
 const ICONS_FONT_URL =
   'https://fonts.googleapis.com/css2?' +

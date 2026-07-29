@@ -14,7 +14,6 @@ on:
       - tools/tailwind.input.css
       - package.json
       - package-lock.json
-      - version.json
       - .github/workflows/build-offline.yml
   workflow_dispatch:
 
@@ -37,6 +36,17 @@ jobs:
 
       - run: npm ci
 
+      # Every module is fetched as `module.js?v=<version>`, so a release that
+      # does not move this string is served from cache and never reaches a
+      # returning user. Bumping it here means shipping and cache-busting can
+      # not drift apart the way they did when this was a manual step.
+      - name: Bump patch version
+        run: |
+          current=$(jq -r .version version.json)
+          bumped=$(echo "$current" | awk -F. '{printf "%d.%d.%d", $1, $2, $3 + 1}')
+          jq -n --arg v "$bumped" '{version: $v}' > version.json
+          echo "$current -> $bumped"
+
       - name: Build dist/KidsPortfolio-Offline.html
         run: node tools/build-offline.js
 
@@ -48,9 +58,10 @@ jobs:
           if git diff --quiet -- dist/KidsPortfolio-Offline.html; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
             echo "no changes"
+            git checkout -- version.json
             exit 0
           fi
-          git add dist/KidsPortfolio-Offline.html
+          git add dist/KidsPortfolio-Offline.html version.json
           git commit -m "ci: rebuild offline bundle ($(jq -r .version version.json))"
           git push
           echo "changed=true" >> "$GITHUB_OUTPUT"

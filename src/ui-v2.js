@@ -1299,7 +1299,15 @@ export class UIv2 {
               <button type="button" id="btn-test-ret"
                       class="pressable shrink-0 rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-on-surface-variant">בדוק מקור</button>
             </div>
-            <pre id="ret-result" class="mt-2 hidden max-h-56 overflow-auto whitespace-pre-wrap break-all font-data text-[11px] text-on-surface-variant"></pre>
+            <div id="ret-result-wrap" class="mt-2 hidden">
+              <pre id="ret-result" class="max-h-56 overflow-auto whitespace-pre-wrap break-all font-data text-[11px] text-on-surface-variant"></pre>
+              <!-- The report scrolls inside its own box, so the part that
+                   explains the failure is usually the part not on screen. -->
+              <button type="button" id="btn-copy-ret"
+                      class="pressable mt-2 w-full rounded-xl border border-white/10 bg-white/5 py-2 text-xs font-semibold text-on-surface-variant">
+                ${icon('content_copy', 'align-middle text-[15px]')} העתק את הדוח
+              </button>
+            </div>
             <p class="${hintCls}">
               השערוך מגלגל את היתרה מהעוגן קדימה לפי התשואה של כל חודש. חודש שטרם פורסם
               נספר ללא תשואה ומסומן בכרטיס. ידני גובר תמיד על נמשך.
@@ -1386,7 +1394,7 @@ export class UIv2 {
     const showRet = (text) => {
       const pane = $('#ret-result', overlay);
       if (!pane) return;
-      pane.classList.remove('hidden');
+      $('#ret-result-wrap', overlay).classList.remove('hidden');
       pane.textContent = text;
     };
     // Pulling returns re-renders the sheet so the new rows appear, which would
@@ -1411,6 +1419,27 @@ export class UIv2 {
         } catch (err) {
           showRet(`✗ ${err.message}`);
         } finally { fetchBtn.disabled = false; }
+      });
+    }
+
+    const copyBtn = $('#btn-copy-ret', overlay);
+    if (copyBtn) {
+      copyBtn.addEventListener('click', async () => {
+        const text = $('#ret-result', overlay)?.textContent || '';
+        try {
+          await navigator.clipboard.writeText(text);
+          toast('הדוח הועתק');
+        } catch {
+          // Clipboard access is refused on insecure origins and in some
+          // in-app browsers; selecting the text is the fallback that always works.
+          const pane = $('#ret-result', overlay);
+          const range = document.createRange();
+          range.selectNodeContents(pane);
+          const sel = window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(range);
+          toast('הדוח נבחר — העתק ידנית', 6000);
+        }
       });
     }
 
