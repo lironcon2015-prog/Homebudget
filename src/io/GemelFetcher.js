@@ -63,43 +63,97 @@ function toNumber(value) {
   return Number.isFinite(n) ? n : null;
 }
 
-async function ckan(action, params) {
+const ATTEMPT_TIMEOUT_MS = 12000;
+
+function fetchWithTimeout(url, timeoutMs = ATTEMPT_TIMEOUT_MS) {
+  const ctrl = new AbortController();
+  const id = setTimeout(() => ctrl.abort(), timeoutMs);
+  return fetch(url, { signal: ctrl.signal }).finally(() => clearTimeout(id));
+}
+
+/**
+ * Try data.gov.il directly before falling back to the proxy chain.
+ *
+ * The proxies all run in data centres, and data.gov.il sits behind bot
+ * protection that rejects those addresses — so the proxy that makes every other
+ * source in this app reachable is precisely what makes this one unreachable.
+ * A browser on a home connection is not blocked, and CKAN serves
+ * `Access-Control-Allow-Origin: *`, so the direct call is both the most likely
+ * to succeed and the cheapest. The proxies stay as a fallback for the reverse
+ * case (a browser or network that blocks the request instead).
+ *
+ * Every attempt is recorded: this source cannot be verified from a development
+ * machine, so a failure has to explain itself well enough to be diagnosed from
+ * a phone.
+ */
+async function ckan(action, params, log = []) {
   const qs = new URLSearchParams(params).toString();
-  const text = await proxyFetch(`${CKAN}/${action}?${qs}`);
-  if (!text) return null;
+  const target = `${CKAN}/${action}?${qs}`;
+
+  const t0 = Date.now();
+  try {
+    const res = await fetchWithTimeout(target);
+    const body = await res.text();
+    log.push(`ישיר: HTTP ${res.status}, ${body.length}B, ${Date.now() - t0}ms`);
+    if (res.ok && body) {
+      const json = JSON.parse(body);
+      if (json?.success) return json.result;
+      log.push(`  ↳ success=false${json?.error ? ' · ' + JSON.stringify(json.error).slice(0, 200) : ''}`);
+    }
+  } catch (e) {
+    log.push(`ישיר: ${e.name} ${e.message} (${Date.now() - t0}ms)`);
+  }
+
+  const t1 = Date.now();
+  const text = await proxyFetch(target);
+  if (!text) { log.push(`דרך פרוקסי: נכשל (${Date.now() - t1}ms)`); return null; }
+  log.push(`דרך פרוקסי: ${text.length}B, ${Date.now() - t1}ms`);
   try {
     const json = JSON.parse(text);
-    return json?.success ? json.result : null;
-  } catch { return null; }
+    if (json?.success) return json.result;
+    log.push(`  ↳ success=false${json?.error ? ' · ' + JSON.stringify(json.error).slice(0, 200) : ''}`);
+    return null;
+  } catch {
+    log.push(`  ↳ תשובה אינה JSON: ${text.slice(0, 160)}`);
+    return null;
+  }
 }
 
 /**
  * Find the dataset resource that actually carries per-fund monthly returns, and
  * work out which of its columns are which.
  */
-async function resolveResource() {
-  const pkg = await ckan('package_show', { id: DATASET });
-  if (!pkg) return { error: 'package_show נכשל — data.gov.il לא נענה או חסם' };
+async function resolveResource(log = []) {
+  const pkg = await ckan('package_show', { id: DATASET }, log);
+  if (!pkg) return { error: 'package_show נכשל — data.gov.il לא נענה או חסם', log };
 
   const candidates = (pkg.resources || []).filter((r) => r.datastore_active);
-  if (!candidates.length) return { error: 'לא נמצא משאב פעיל בדאטהסט', resources: (pkg.resources || []).length };
+  if (!candidates.length) {
+    return {
+      error: 'לא נמצא משאב פעיל בדאטהסט',
+      resources: (pkg.resources || []).map((r) => `${r.name} (datastore_active=${r.datastore_active})`),
+      log,
+    };
+  }
 
   for (const res of candidates) {
-    const probe = await ckan('datastore_search', { resource_id: res.id, limit: '1' });
+    const probe = await ckan('datastore_search', { resource_id: res.id, limit: '1' }, log);
     if (!probe?.fields) continue;
     const fundField = pickField(probe.fields, 'fund');
     const monthField = pickField(probe.fields, 'month');
     const retField = pickField(probe.fields, 'ret');
     if (fundField && monthField && retField) {
       return { resourceId: res.id, resourceName: res.name, fundField, monthField, retField,
-               allFields: probe.fields.map((f) => f.id) };
+               allFields: probe.fields.map((f) => f.id), log };
     }
   }
-  const first = await ckan('datastore_search', { resource_id: candidates[0].id, limit: '1' });
+  const first = await ckan('datastore_search', { resource_id: candidates[0].id, limit: '1' }, log);
   return {
     error: 'נמצא משאב אך לא זוהו העמודות הדרושות',
     resourceId: candidates[0].id,
     allFields: (first?.fields || []).map((f) => f.id),
+    candidates: candidates.map((c) => c.name),
+    log,
   };
 }
 
@@ -108,17 +162,18 @@ async function resolveResource() {
  * Returns `{ returns: [{month, pct}], meta }` or `{ error, meta }`.
  */
 export async function fetchGemelReturns(fundNumber) {
-  const meta = await resolveResource();
-  if (meta.error) return { error: meta.error, meta };
+  const log = [];
+  const meta = await resolveResource(log);
+  if (meta.error) return { error: meta.error, meta: { ...meta, log } };
 
   const rows = await ckan('datastore_search', {
     resource_id: meta.resourceId,
     filters: JSON.stringify({ [meta.fundField]: String(fundNumber) }),
     limit: String(MAX_ROWS),
-  });
-  if (!rows) return { error: 'שאילתת datastore_search נכשלה', meta };
+  }, log);
+  if (!rows) return { error: 'שאילתת datastore_search נכשלה', meta: { ...meta, log } };
   if (!rows.records?.length) {
-    return { error: `לא נמצאו שורות לקופה ${fundNumber} בעמודה ${meta.fundField}`, meta };
+    return { error: `לא נמצאו שורות לקופה ${fundNumber} בעמודה ${meta.fundField}`, meta: { ...meta, log } };
   }
 
   const returns = [];
@@ -130,7 +185,7 @@ export async function fetchGemelReturns(fundNumber) {
   if (!returns.length) {
     return {
       error: 'נמצאו שורות אך אף אחת לא נפרסה',
-      meta: { ...meta, sampleRow: rows.records[0] },
+      meta: { ...meta, sampleRow: rows.records[0], log },
     };
   }
 
@@ -145,7 +200,7 @@ export async function fetchGemelReturns(fundNumber) {
       ? `ערכים קטנים מאוד (מקס ${worst}) — ייתכן שהעמודה ביחס ולא באחוזים`
       : null;
 
-  return { returns, meta: { ...meta, rows: rows.records.length, scaleWarning } };
+  return { returns, meta: { ...meta, rows: rows.records.length, scaleWarning, log } };
 }
 
 /**
@@ -162,7 +217,10 @@ export async function describeSource(fundNumber) {
 
   if (out.error) {
     lines.push(`✗ ${out.error} (${ms}ms)`);
+    if (m.log?.length) lines.push(`ניסיונות:\n  ${m.log.join('\n  ')}`);
     if (m.resourceId) lines.push(`resource: ${m.resourceId}`);
+    if (m.candidates?.length) lines.push(`משאבים: ${m.candidates.join(', ')}`);
+    if (m.resources?.length) lines.push(`משאבים בדאטהסט:\n  ${m.resources.join('\n  ')}`);
     if (m.allFields?.length) lines.push(`עמודות זמינות:\n  ${m.allFields.join('\n  ')}`);
     if (m.sampleRow) lines.push(`שורה לדוגמה:\n${JSON.stringify(m.sampleRow, null, 2)}`);
     return lines.join('\n');
@@ -175,5 +233,6 @@ export async function describeSource(fundNumber) {
   lines.push(`עמודות: קופה=${m.fundField} · חודש=${m.monthField} · תשואה=${m.retField}`);
   lines.push(`אחרונים: ${out.returns.slice(0, 6).map((r) => `${r.month} ${r.pct}%`).join(' · ')}`);
   if (m.scaleWarning) lines.push(`⚠ ${m.scaleWarning}`);
+  if (m.log?.length) lines.push(`ניסיונות:\n  ${m.log.join('\n  ')}`);
   return lines.join('\n');
 }
