@@ -1,94 +1,25 @@
-// JuniorInvest — UI v2 mockup shell.
+// JuniorInvest — UI v2.
 //
-// PHASE 1: static mock data only. This module deliberately imports nothing
-// from src/state, src/ledger or src/view — the redesign is being reviewed as
-// a visual skeleton first, and the engine stays untouched until it's approved.
+// Same engine as ui.js: reads through Selectors, writes through StateManager,
+// never touches the ledger directly. Parent ghost shares are stripped by the
+// selectors and are never rendered here.
 //
-// MOCK is shaped like the real selectors' output so Phase 2 can swap the
-// constant for a Selectors call without reworking the render functions.
+// Layout: four tabs behind a floating bar, a FAB for new transactions, and
+// pull-to-refresh for quotes on every screen.
+
+import {
+  dashboardViewModel, holdingsViewModel, ledgerViewModel, tickersViewModel,
+} from './view/Selectors.js';
+import { fetchQuotes, getWorkerUrl, setWorkerUrl, testWorker } from './io/QuoteFetcher.js';
+
+const $ = (sel, root = document) => root.querySelector(sel);
+const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+
+const escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 // ---------------------------------------------------------------------------
-// Mock data
-// ---------------------------------------------------------------------------
-
-const MOCK = {
-  portfolio: {
-    totalIls: 217422.47,
-    profitIls: 34908.12,
-    profitPct: 19.1,
-    xirrPct: 14.2,
-    fxRate: 3.62,
-    asOf: '28 ביולי 2026',
-  },
-  // Parent ghost shares are internal to dividend math and never surface here.
-  kids: [
-    { name: 'איתמר', allocationPct: 60, valueIls: 130453.48, cashIls: 1240.10, profitIls: 20944.87, profitPct: 19.1, xirrPct: 14.6 },
-    { name: 'אורי',  allocationPct: 40, valueIls: 86968.99,  cashIls: 826.73,  profitIls: 13963.25, profitPct: 19.1, xirrPct: 13.6 },
-  ],
-  holdings: [
-    {
-      ticker: 'VOO',
-      company: 'Vanguard S&P 500 ETF',
-      valueIls: 98340.20,
-      profitPct: 22.4,
-      profitIls: 17984.55,
-      shares: 42.5,
-      buyPrice: '$412.30',
-      currentPrice: '$504.68',
-      split: [
-        { name: 'איתמר', pct: 60, shares: 25.5, valueIls: 59004.12 },
-        { name: 'אורי',  pct: 40, shares: 17.0, valueIls: 39336.08 },
-      ],
-    },
-    {
-      ticker: 'QQQ',
-      company: 'Invesco QQQ Trust',
-      valueIls: 71882.15,
-      profitPct: 18.9,
-      profitIls: 11428.30,
-      shares: 31.0,
-      buyPrice: '$389.10',
-      currentPrice: '$462.65',
-      split: [
-        { name: 'איתמר', pct: 60, shares: 18.6, valueIls: 43129.29 },
-        { name: 'אורי',  pct: 40, shares: 12.4, valueIls: 28752.86 },
-      ],
-    },
-    {
-      ticker: '1159250',
-      company: 'הראל סל ת״א 125',
-      valueIls: 47200.12,
-      profitPct: -2.3,
-      profitIls: -1111.24,
-      shares: 810,
-      buyPrice: '‏5,962 אג׳',
-      currentPrice: '‏5,825 אג׳',
-      split: [
-        { name: 'איתמר', pct: 60, shares: 486, valueIls: 28320.07 },
-        { name: 'אורי',  pct: 40, shares: 324, valueIls: 18880.05 },
-      ],
-    },
-  ],
-  // amountIls is the transaction's cash value, always positive — the kind
-  // carries the direction.
-  ledger: [
-    { kind: 'BUY',      date: '14 ביולי 2026', ticker: 'VOO',     detail: '12 מניות · $504.68',    amountIls: 22_010.40 },
-    { kind: 'DIVIDEND', date: '02 ביולי 2026', ticker: 'VOO',     detail: 'דיבידנד רבעוני',         amountIls: 412.88 },
-    { kind: 'BUY',      date: '21 ביוני 2026', ticker: '1159250', detail: '310 יחידות · 5,962 אג׳', amountIls: 18_482.20 },
-    { kind: 'SELL',     date: '09 ביוני 2026', ticker: 'QQQ',     detail: '4 מניות · $462.65',     amountIls: 7_402.40 },
-    { kind: 'BUY',      date: '18 במאי 2026',  ticker: 'QQQ',     detail: '9 מניות · $441.02',     amountIls: 15_876.72 },
-  ],
-};
-
-const TABS = [
-  { id: 'dashboard', label: 'דשבורד',  icon: 'dashboard' },
-  { id: 'holdings',  label: 'החזקות',  icon: 'account_balance_wallet' },
-  { id: 'ledger',    label: 'יומן',    icon: 'receipt_long' },
-  { id: 'settings',  label: 'הגדרות',  icon: 'settings' },
-];
-
-// ---------------------------------------------------------------------------
-// Formatting helpers
+// Formatting
 // ---------------------------------------------------------------------------
 
 const ilsFmt = new Intl.NumberFormat('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -98,99 +29,45 @@ const numFmt = new Intl.NumberFormat('he-IL', { maximumFractionDigits: 2 });
 // the Hanken Grotesk stack so every numeral is tabular.
 const ltr = (s, cls = '') => `<bdi dir="ltr" class="font-data tnum ${cls}">${s}</bdi>`;
 
-// Thin space, not a full one: at font-black the ₪ otherwise collides with the
-// leading digit, but a normal space leaves the symbol looking detached.
-const ils = (n) => `₪ ${ilsFmt.format(Math.abs(n))}`;
-const signedIls = (n) => `${n < 0 ? '−' : '+'}${ils(n)}`;
-const signedPct = (n) => `${n < 0 ? '−' : '+'}${numFmt.format(Math.abs(n))}%`;
+const ils = (n) => (n == null || isNaN(n) ? '—' : `₪ ${ilsFmt.format(Math.abs(n))}`);
+const signedIls = (n) => (n == null || isNaN(n) ? '—' : `${n < 0 ? '−' : '+'}${ils(n)}`);
+const signedPct = (n) => (n == null || isNaN(n) ? '—' : `${n < 0 ? '−' : '+'}${numFmt.format(Math.abs(n * 100))}%`);
+const pctPlain = (n) => (n == null || isNaN(n) ? '—' : `${numFmt.format(n * 100)}%`);
 
-const isUp = (n) => n >= 0;
+const isUp = (n) => (n ?? 0) >= 0;
+const today = () => new Date().toISOString().slice(0, 10);
 
-const icon = (name, cls = '') =>
-  `<span class="material-symbols-outlined ${cls}">${name}</span>`;
+const formatDateHe = (iso) => {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return isNaN(d) ? String(iso) : d.toLocaleDateString('he-IL', { day: 'numeric', month: 'long', year: 'numeric' });
+};
 
-// Glowing pill — the app's signature indicator. tone: secondary | primary |
-// tertiary | red.
-function pill(tone, text, { dot = true } = {}) {
-  const TONES = {
-    secondary: ['bg-secondary/10', 'border-secondary/30', 'bg-secondary', 'text-secondary', '0 0 15px rgba(69,223,164,0.15)'],
-    primary:   ['bg-primary/10',   'border-primary/30',   'bg-primary',   'text-primary',   '0 0 15px rgba(206,189,255,0.18)'],
-    tertiary:  ['bg-tertiary/10',  'border-tertiary/30',  'bg-tertiary',  'text-tertiary',  '0 0 15px rgba(249,189,34,0.18)'],
-    red:       ['bg-red-400/10',   'border-red-400/30',   'bg-red-400',   'text-red-400',   '0 0 15px rgba(248,113,113,0.18)'],
-  };
-  const [bg, border, dotBg, fg, shadow] = TONES[tone] || TONES.secondary;
+const icon = (name, cls = '') => `<span class="material-symbols-outlined ${cls}">${name}</span>`;
+
+// Glowing pill — the app's signature indicator.
+const PILL_TONES = {
+  secondary: ['bg-secondary/10', 'border-secondary/30', 'bg-secondary', 'text-secondary', '0 0 15px rgba(69,223,164,0.15)'],
+  primary:   ['bg-primary/10',   'border-primary/30',   'bg-primary',   'text-primary',   '0 0 15px rgba(206,189,255,0.18)'],
+  tertiary:  ['bg-tertiary/10',  'border-tertiary/30',  'bg-tertiary',  'text-tertiary',  '0 0 15px rgba(249,189,34,0.18)'],
+  red:       ['bg-red-400/10',   'border-red-400/30',   'bg-red-400',   'text-red-400',   '0 0 15px rgba(248,113,113,0.18)'],
+};
+
+function pill(tone, text) {
+  const [bg, border, dotBg, fg, shadow] = PILL_TONES[tone] || PILL_TONES.secondary;
   return `<div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full ${bg} border ${border}" style="box-shadow:${shadow};">
-    ${dot ? `<span class="w-1.5 h-1.5 rounded-full ${dotBg} animate-pulse shrink-0"></span>` : ''}
+    <span class="w-1.5 h-1.5 rounded-full ${dotBg} animate-pulse shrink-0"></span>
     <span class="${fg} font-semibold text-xs font-data tnum tracking-wide whitespace-nowrap">${text}</span>
   </div>`;
 }
 
-// ---------------------------------------------------------------------------
-// View state (local to the mockup — no EventBus, no persistence)
-// ---------------------------------------------------------------------------
-
-const view = {
-  tab: 'dashboard',
-  // One holding starts expanded so the accordion state is visible on load.
-  expanded: 'VOO',
-  // Review-only: which quote-refresh treatment is being demonstrated.
-  // 'header' = freshness chip, 'fab' = mini FAB, 'pull' = pull-to-refresh.
-  refreshOption: 'header',
-  refreshing: false,
-  lastUpdated: '07:12',
-};
-
-const REFRESH_OPTIONS = [
-  { id: 'header', label: '1 · ציפור טריות' },
-  { id: 'fab',    label: '2 · FAB קטן' },
-  { id: 'pull',   label: '3 · משיכה' },
+const TABS = [
+  { id: 'dashboard', label: 'דשבורד', icon: 'dashboard' },
+  { id: 'holdings',  label: 'החזקות', icon: 'account_balance_wallet' },
+  { id: 'ledger',    label: 'יומן',   icon: 'receipt_long' },
+  { id: 'settings',  label: 'הגדרות', icon: 'settings' },
 ];
 
-// Stands in for QuoteFetcher.fetchQuotes so each treatment can be felt with
-// real latency and a real busy state.
-function simulateRefresh() {
-  if (view.refreshing) return;
-  view.refreshing = true;
-  render();
-  setTimeout(() => {
-    view.refreshing = false;
-    const d = new Date();
-    view.lastUpdated = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-    render();
-  }, 1800);
-}
-
-// Option 1 — the freshness chip that is also the control.
-function freshnessChip() {
-  if (view.refreshOption !== 'header') return '';
-  const busy = view.refreshing;
-  return `
-    <button type="button" data-refresh
-            class="pressable mt-2 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-on-surface-variant active:bg-white/[0.08]">
-      ${icon('sync', `text-[15px] text-primary ${busy ? 'spinning' : ''}`)}
-      <span>${busy ? 'מרענן שערים…' : `עודכן ${ltr(view.lastUpdated)}`}</span>
-    </button>`;
-}
-
-// ---------------------------------------------------------------------------
-// Shared building blocks
-// ---------------------------------------------------------------------------
-
-const sectionTitle = (text) => `
-  <h2 class="px-1 pb-3 pt-1 text-[11px] font-bold uppercase tracking-[0.2em] text-on-surface-variant">${text}</h2>`;
-
-const screenHeader = (title, subtitle) => `
-  <header class="px-5 pb-1 pt-8">
-    <h1 class="text-2xl font-bold tracking-tight text-white">${title}</h1>
-    ${subtitle ? `<p class="mt-1.5 text-sm text-on-surface-variant">${subtitle}</p>` : ''}
-    ${freshnessChip()}
-  </header>`;
-
-// ---------------------------------------------------------------------------
-// Dashboard
-// ---------------------------------------------------------------------------
-
-// Focal colour per kid card, cycling the brand palette.
 const KID_PALETTE = [
   { bright: 'rgba(206, 189, 255, 0.55)', soft: 'rgba(206, 189, 255, 0.16)', accent: 'text-primary',   bar: '#cebdff' },
   { bright: 'rgba(69, 223, 164, 0.50)',  soft: 'rgba(69, 223, 164, 0.14)',  accent: 'text-secondary', bar: '#45dfa4' },
@@ -200,427 +77,860 @@ const KID_PALETTE = [
 // A fixed-radius circle rather than the default farthest-corner extent: on a
 // phone the cards are wide and short, and a proportional gradient floods the
 // whole surface instead of reading as a corner glow.
-const kidGlow = (c) =>
+const cardGlow = (c) =>
   `radial-gradient(circle 200px at 14% -8%, ${c.bright} 0%, ${c.soft} 30%, transparent 68%)`;
 
-function kidCard(kid, i) {
-  const c = KID_PALETTE[i % KID_PALETTE.length];
-  const up = isUp(kid.profitIls);
-  // Centre the bar at 40% and let the return nudge it, so a flat kid still
-  // reads as a bar rather than an empty track.
-  const barPct = Math.max(8, Math.min(95, 40 + kid.profitPct * 2));
-
-  return `
-    <div class="glass-card pressable flex flex-col gap-4 rounded-2xl p-5">
-      <div class="card-glow" style="background: ${kidGlow(c)};"></div>
-
-      <!-- Identity on the start side, numbers on the end side — the same
-           grammar every holdings and ledger row uses. -->
-      <div class="flex items-center justify-between gap-3">
-        <div class="flex min-w-0 items-center gap-3">
-          <div class="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/10 bg-surface-container">
-            ${icon('person', `${c.accent} text-[21px]`)}
-          </div>
-          <div class="min-w-0">
-            <h3 class="text-base font-bold text-white">${kid.name}</h3>
-            <p class="mt-0.5 text-xs text-on-surface-variant">${ltr(`${kid.allocationPct}%`)} מהתיק</p>
-          </div>
-        </div>
-        <div class="shrink-0 text-left">
-          <div class="text-xl font-black tracking-tight text-white">${ltr(ils(kid.valueIls))}</div>
-          <div class="mt-0.5 text-sm font-bold ${up ? 'text-secondary' : 'text-red-400'}">${ltr(signedPct(kid.profitPct))}</div>
-        </div>
-      </div>
-
-      <div class="flex flex-wrap items-center gap-2">
-        ${pill(up ? 'secondary' : 'red', signedIls(kid.profitIls))}
-        ${pill('primary', `שנתית ${numFmt.format(kid.xirrPct)}%`)}
-      </div>
-
-      <div class="kid-progress-track">
-        <div class="kid-progress-fill" style="width:${barPct}%; background:${c.bar};"></div>
-      </div>
-
-      <div class="flex items-center justify-between">
-        <span class="text-[10px] font-bold uppercase tracking-[0.15em] text-on-surface-variant">מזומן</span>
-        <span class="text-sm font-semibold text-white">${ltr(ils(kid.cashIls))}</span>
-      </div>
-    </div>`;
-}
-
-function renderDashboard() {
-  const p = MOCK.portfolio;
-  const up = isUp(p.profitIls);
-
-  // Same glass surface, radius and padding as every other card in the app —
-  // the total is emphasised by type weight, not by a bespoke floating card.
-  const summary = `
-    <section class="px-5 pt-4">
-      <div class="glass-card rounded-2xl p-5">
-        <div class="card-glow" style="background: ${kidGlow(KID_PALETTE[0])};"></div>
-
-        <p class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-tertiary">
-          <span class="h-1.5 w-1.5 rounded-full bg-tertiary shadow-[0_0_12px_#f9bd22] animate-pulse"></span>
-          שווי תיק כולל (ילדים)
-        </p>
-
-        <h2 class="mt-3 text-4xl font-black tracking-tight text-white drop-shadow-[0_2px_15px_rgba(255,255,255,0.22)]">
-          ${ltr(ils(p.totalIls))}
-        </h2>
-
-        <div class="mt-4 flex flex-wrap items-center gap-2">
-          ${pill(up ? 'secondary' : 'red', `${signedIls(p.profitIls)} (${signedPct(p.profitPct)})`)}
-          ${pill('primary', `שנתית ${numFmt.format(p.xirrPct)}%`)}
-        </div>
-
-        <div class="mt-5 flex items-center justify-between border-t border-white/10 pt-3">
-          <span class="text-[10px] font-bold uppercase tracking-[0.15em] text-on-surface-variant">USD/ILS</span>
-          <span class="text-sm font-semibold text-white">${ltr(numFmt.format(p.fxRate))}</span>
-        </div>
-      </div>
-    </section>`;
-
-  return `
-    ${screenHeader('תיק ההשקעות', `עודכן ${p.asOf}`)}
-    ${summary}
-    <section class="px-5 pt-6">
-      ${sectionTitle('הילדים')}
-      <div class="space-y-4">${MOCK.kids.map(kidCard).join('')}</div>
-    </section>`;
-}
-
-// ---------------------------------------------------------------------------
-// Holdings — progressive disclosure
-// ---------------------------------------------------------------------------
-
-function holdingCard(h) {
-  const open = view.expanded === h.ticker;
-  const up = isUp(h.profitPct);
-  const yieldTone = up ? 'text-secondary' : 'text-red-400';
-
-  // Collapsed: name on the start side, value + brightly coloured yield on the
-  // end side. Nothing else competes.
-  const summary = `
-    <button type="button" data-toggle="${h.ticker}" aria-expanded="${open}"
-            class="pressable flex w-full items-center justify-between gap-4 p-5 text-right">
-      <div class="min-w-0">
-        <div class="text-base font-bold text-white">${ltr(h.ticker)}</div>
-        <div class="mt-0.5 truncate text-xs text-on-surface-variant">${h.company}</div>
-      </div>
-      <div class="flex shrink-0 items-center gap-3">
-        <div class="text-left">
-          <div class="text-base font-bold text-white">${ltr(ils(h.valueIls))}</div>
-          <div class="mt-0.5 text-sm font-bold ${yieldTone}">${ltr(signedPct(h.profitPct))}</div>
-        </div>
-        ${icon('expand_more', `chevron text-outline text-[20px] ${open ? 'open' : ''}`)}
-      </div>
-    </button>`;
-
-  const row = (label, value, tone = 'text-white') => `
-    <div class="flex items-center justify-between border-b border-gray-800 py-2 text-sm last:border-b-0">
-      <span class="text-gray-400">${label}</span>
-      <span class="font-semibold ${tone}">${ltr(value)}</span>
-    </div>`;
-
-  const split = h.split.map((s) => `
-    <div class="flex items-center justify-between border-b border-gray-800 py-2 text-sm last:border-b-0">
-      <span class="text-gray-400">${s.name} <span class="text-xs text-outline">${ltr(`${s.pct}%`)}</span></span>
-      <span class="flex items-baseline gap-2">
-        <span class="font-semibold text-white">${ltr(ils(s.valueIls))}</span>
-        <span class="text-xs text-gray-400">${ltr(`${numFmt.format(s.shares)} מנ׳`)}</span>
-      </span>
-    </div>`).join('');
-
-  const details = `
-    <div class="accordion ${open ? 'open' : ''}">
-      <div>
-        <div class="border-t border-white/10 px-5 pb-5 pt-3">
-          ${row('כמות מניות', numFmt.format(h.shares))}
-          ${row('מחיר קנייה ממוצע', h.buyPrice)}
-          ${row('מחיר נוכחי', h.currentPrice)}
-          ${row('רווח/הפסד', signedIls(h.profitIls), yieldTone)}
-
-          <p class="pb-1 pt-5 text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant">חלוקה בין הילדים</p>
-          ${split}
-        </div>
-      </div>
-    </div>`;
-
-  return `<div class="glass-card rounded-2xl">${summary}${details}</div>`;
-}
-
-function renderHoldings() {
-  return `
-    ${screenHeader('החזקות', `${MOCK.holdings.length} ניירות · הקש על כרטיס לפירוט`)}
-    <section class="space-y-4 px-5 pt-4">
-      ${MOCK.holdings.map(holdingCard).join('')}
-    </section>`;
-}
-
-// ---------------------------------------------------------------------------
-// Ledger
-// ---------------------------------------------------------------------------
-
-// The icon's tinted bubble carries the direction of the transaction; only
-// income is coloured in the amount column.
-const KIND = {
-  BUY: {
-    label: 'קנייה', icon: 'add_shopping_cart',
-    bubble: 'bg-secondary/10 border-secondary/25 text-secondary',
-    amountTone: 'text-white',
-  },
-  SELL: {
-    label: 'מכירה', icon: 'sell',
-    bubble: 'bg-tertiary/10 border-tertiary/25 text-tertiary',
-    amountTone: 'text-white',
-  },
-  DIVIDEND: {
-    label: 'דיבידנד', icon: 'savings',
-    bubble: 'bg-secondary/10 border-secondary/25 text-secondary',
-    amountTone: 'text-secondary',
-  },
+const LEDGER_KIND = {
+  DEPOSIT:  { icon: 'account_balance', bubble: 'bg-primary/10 border-primary/25 text-primary',     tone: 'text-secondary' },
+  BUY:      { icon: 'add_shopping_cart', bubble: 'bg-secondary/10 border-secondary/25 text-secondary', tone: 'text-white' },
+  SELL:     { icon: 'sell',            bubble: 'bg-tertiary/10 border-tertiary/25 text-tertiary',  tone: 'text-white' },
+  DIVIDEND: { icon: 'savings',         bubble: 'bg-secondary/10 border-secondary/25 text-secondary', tone: 'text-secondary' },
 };
 
-function renderLedger() {
-  const rows = MOCK.ledger.map((t) => {
-    const k = KIND[t.kind];
-    const amount = t.kind === 'DIVIDEND' ? `+${ils(t.amountIls)}` : ils(t.amountIls);
-    return `
-    <div class="pressable flex items-center gap-4 px-5 py-4 active:bg-white/[0.04]">
-      <div class="grid h-11 w-11 shrink-0 place-items-center rounded-full border ${k.bubble}">
-        ${icon(k.icon, 'text-[20px]')}
+// ---------------------------------------------------------------------------
+
+export class UIv2 {
+  constructor(sm) {
+    this.sm = sm;
+    this.tab = 'dashboard';
+    this.expanded = null;
+    this.refreshing = false;
+    this.pullStart = null;
+    this.sheetOpen = false;
+  }
+
+  init() {
+    // Overlays live outside #v2-root so a state-driven re-render can't wipe a
+    // half-typed form out from under the user.
+    if (!$('#v2-overlay')) {
+      const el = document.createElement('div');
+      el.id = 'v2-overlay';
+      document.body.appendChild(el);
+    }
+    this.sm.on('state:changed', () => this.render());
+    this._bind();
+    this.render();
+  }
+
+  // ---- Derived helpers ----------------------------------------------------
+
+  // Cost basis and average buy price per ticker, kids' remaining shares only.
+  // holdingsViewModel gives value but not cost, and the raw lots are the only
+  // place the buy price and FX at buy survive.
+  _costByTicker() {
+    const derived = this.sm.getDerived();
+    const out = {};
+    for (const lot of derived.lots || []) {
+      const shares = Object.values(lot.remaining.kids).reduce((a, b) => a + b, 0);
+      if (shares <= 0) continue;
+      const rate = lot.currency === 'ILS-Agorot' ? 0.01 : lot.fxAtBuy;
+      const e = out[lot.ticker] || (out[lot.ticker] = { shares: 0, costIls: 0, priceSum: 0 });
+      e.shares += shares;
+      e.costIls += shares * lot.price * rate;
+      e.priceSum += shares * lot.price;
+    }
+    for (const t in out) out[t].avgPrice = out[t].shares > 0 ? out[t].priceSum / out[t].shares : null;
+    return out;
+  }
+
+  // ---- Render -------------------------------------------------------------
+
+  render() {
+    const state = this.sm.getState();
+    const derived = this.sm.getDerived();
+    const views = {
+      dashboard: () => this._dashboard(state, derived),
+      holdings:  () => this._holdings(state, derived),
+      ledger:    () => this._ledger(state),
+      settings:  () => this._settings(state, derived),
+    };
+
+    $('#v2-root').innerHTML = `
+      <div id="pull-ind" class="pull-ind">${icon('sync', `text-[20px] ${this.refreshing ? 'spinning' : ''}`)}</div>
+      <div class="ambient-orb"><div class="orb-violet"></div><div class="orb-emerald"></div></div>
+      <!-- Bottom padding clears the floating bar *and* the FAB, so the last row
+           of a list is never parked underneath either at the end of a scroll. -->
+      <div class="relative z-10 mx-auto min-h-screen max-w-lg pb-[calc(11rem+env(safe-area-inset-bottom))]">
+        <main>${views[this.tab]()}</main>
       </div>
-      <div class="min-w-0 flex-1">
-        <div class="flex items-center gap-2">
-          <span class="text-sm font-bold text-white">${k.label}</span>
-          <span class="text-xs text-on-surface-variant">${ltr(t.ticker)}</span>
+      ${this._fab()}
+      ${this._nav()}`;
+
+    if (this.refreshing) this._showPull(56, true);
+  }
+
+  _header(title, subtitle) {
+    return `
+      <header class="px-5 pb-1 pt-8">
+        <h1 class="text-2xl font-bold tracking-tight text-white">${escapeHtml(title)}</h1>
+        ${subtitle ? `<p class="mt-1.5 text-sm text-on-surface-variant">${subtitle}</p>` : ''}
+      </header>`;
+  }
+
+  _sectionTitle(text) {
+    return `<h2 class="px-1 pb-3 pt-1 text-[11px] font-bold uppercase tracking-[0.2em] text-on-surface-variant">${escapeHtml(text)}</h2>`;
+  }
+
+  _empty(text, hint = '') {
+    return `
+      <div class="glass-card rounded-2xl px-5 py-10 text-center">
+        <p class="text-sm text-on-surface-variant">${escapeHtml(text)}</p>
+        ${hint ? `<p class="mt-2 text-xs text-outline">${escapeHtml(hint)}</p>` : ''}
+      </div>`;
+  }
+
+  // ---- Dashboard ----------------------------------------------------------
+
+  _dashboard(state, derived) {
+    const vm = dashboardViewModel(state, derived);
+    const up = isUp(vm.totalProfit);
+
+    const summary = `
+      <section class="px-5 pt-4">
+        <div class="glass-card rounded-2xl p-5">
+          <div class="card-glow" style="background: ${cardGlow(KID_PALETTE[0])};"></div>
+
+          <p class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-tertiary">
+            <span class="h-1.5 w-1.5 rounded-full bg-tertiary shadow-[0_0_12px_#f9bd22] animate-pulse"></span>
+            שווי תיק כולל (ילדים)
+          </p>
+
+          <h2 class="mt-3 text-4xl font-black tracking-tight text-white drop-shadow-[0_2px_15px_rgba(255,255,255,0.22)]">
+            ${ltr(ils(vm.totalKidsValue))}
+          </h2>
+
+          <div class="mt-4 flex flex-wrap items-center gap-2">
+            ${pill(up ? 'secondary' : 'red', `${signedIls(vm.totalProfit)} (${signedPct(vm.totalReturnPct)})`)}
+            ${vm.totalKidsXirr != null ? pill('primary', `שנתית ${pctPlain(vm.totalKidsXirr)}`) : ''}
+          </div>
+
+          <div class="mt-5 flex items-center justify-between border-t border-white/10 pt-3">
+            <span class="text-[10px] font-bold uppercase tracking-[0.15em] text-on-surface-variant">USD/ILS</span>
+            <span class="text-sm font-semibold text-white">${ltr(numFmt.format(vm.fxRate))}</span>
+          </div>
         </div>
-        <div class="mt-1 truncate text-xs text-outline">${t.detail}</div>
-      </div>
-      <div class="shrink-0 text-left">
-        <div class="text-sm font-bold ${k.amountTone}">${ltr(amount)}</div>
-        <div class="mt-1 text-xs text-outline">${t.date}</div>
-      </div>
-    </div>`;
-  }).join('<div class="mx-5 border-t border-white/5"></div>');
+      </section>`;
 
-  return `
-    ${screenHeader('יומן', 'כל התנועות, מהחדשה לישנה')}
-    <section class="px-5 pt-4">
-      <div class="glass-card rounded-2xl">${rows}</div>
-    </section>`;
-}
+    const kids = vm.kids.length
+      ? vm.kids.map((k, i) => this._kidCard(k, i)).join('')
+      : this._empty('אין ילדים עדיין', 'הוסף ילד בהגדרות כדי להתחיל');
 
-// ---------------------------------------------------------------------------
-// Settings
-// ---------------------------------------------------------------------------
-
-function settingsGroup(title, items) {
-  const rows = items.map((it) => `
-    <button type="button" class="pressable flex w-full items-center gap-4 px-5 py-4 text-right active:bg-white/[0.04]">
-      <div class="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-primary/20 bg-white/5 text-primary">
-        ${icon(it.icon, 'text-[18px]')}
-      </div>
-      <span class="min-w-0 flex-1 truncate text-sm font-medium text-white">${it.label}</span>
-      ${it.value ? `<span class="shrink-0 text-xs text-on-surface-variant">${it.value}</span>` : ''}
-      ${icon('chevron_left', 'text-outline text-[20px]')}
-    </button>`).join('<div class="mx-5 border-t border-white/5"></div>');
-
-  return `${sectionTitle(title)}<div class="glass-card rounded-2xl">${rows}</div>`;
-}
-
-function renderSettings() {
-  return `
-    ${screenHeader('הגדרות')}
-    <section class="space-y-6 px-5 pt-4">
-      <div>${settingsGroup('תיק', [
-        { icon: 'group',             label: 'ילדים והקצאות', value: '2 ילדים' },
-        { icon: 'currency_exchange', label: 'שער דולר/שקל',  value: '3.62' },
-      ])}</div>
-
-      <div>${settingsGroup('שערים', [
-        { icon: 'sync',   label: 'רענון שערים',  value: 'עודכן היום' },
-        { icon: 'lan',    label: 'כתובת Worker', value: 'מוגדר' },
-        { icon: 'search', label: 'בדיקת טיקר' },
-      ])}</div>
-
-      <div>${settingsGroup('נתונים', [
-        { icon: 'download', label: 'ייצוא JSON' },
-        { icon: 'upload',   label: 'ייבוא JSON' },
-      ])}</div>
-    </section>`;
-}
-
-// ---------------------------------------------------------------------------
-// Shell: scroll area + FAB + bottom navigation
-// ---------------------------------------------------------------------------
-
-const VIEWS = {
-  dashboard: renderDashboard,
-  holdings: renderHoldings,
-  ledger: renderLedger,
-  settings: renderSettings,
-};
-
-// Floating iOS-style capsule, detached from the screen edges. The active tab
-// carries its own filled pill, so selection survives being read at a glance
-// without relying on colour alone.
-function renderNav() {
-  const items = TABS.map((t) => {
-    const active = view.tab === t.id;
     return `
-      <button type="button" data-tab="${t.id}"
-              aria-current="${active ? 'page' : 'false'}"
-              class="tab-item flex flex-1 flex-col items-center gap-1 rounded-full px-1 py-2 ${
-                active ? 'text-primary' : 'text-outline'}">
-        ${icon(t.icon, `text-[21px] ${active ? 'fill' : ''}`)}
-        <span class="text-[10px] ${active ? 'font-bold' : 'font-medium'}">${t.label}</span>
+      ${this._header('תיק ההשקעות', `עודכן ${formatDateHe(vm.fxRateAsOf || today())}`)}
+      ${summary}
+      <section class="px-5 pt-6">
+        ${this._sectionTitle('הילדים')}
+        <div class="space-y-4">${kids}</div>
+      </section>`;
+  }
+
+  _kidCard(kid, i) {
+    const c = KID_PALETTE[i % KID_PALETTE.length];
+    const up = isUp(kid.profit);
+    // Centre the bar at 40% and let the return nudge it, so a flat kid still
+    // reads as a bar rather than an empty track.
+    const barPct = Math.max(8, Math.min(95, 40 + (kid.profitPct || 0) * 200));
+
+    return `
+      <div class="glass-card pressable flex flex-col gap-4 rounded-2xl p-5">
+        <div class="card-glow" style="background: ${cardGlow(c)};"></div>
+
+        <!-- Identity on the start side, numbers on the end side — the same
+             grammar every holdings and ledger row uses. -->
+        <div class="flex items-center justify-between gap-3">
+          <div class="flex min-w-0 items-center gap-3">
+            <div class="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/10 bg-surface-container">
+              ${icon('person', `${c.accent} text-[21px]`)}
+            </div>
+            <div class="min-w-0">
+              <h3 class="truncate text-base font-bold text-white">${escapeHtml(kid.name)}</h3>
+              <p class="mt-0.5 text-xs text-on-surface-variant">מזומן ${ltr(ils(kid.cashIls))}</p>
+            </div>
+          </div>
+          <div class="shrink-0 text-left">
+            <div class="text-xl font-black tracking-tight text-white">${ltr(ils(kid.portfolioValueIls))}</div>
+            <div class="mt-0.5 text-sm font-bold ${up ? 'text-secondary' : 'text-red-400'}">${ltr(signedPct(kid.profitPct))}</div>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+          ${pill(up ? 'secondary' : 'red', signedIls(kid.profit))}
+          ${kid.xirr != null ? pill('primary', `שנתית ${pctPlain(kid.xirr)}`) : ''}
+        </div>
+
+        <div class="kid-progress-track">
+          <div class="kid-progress-fill" style="width:${barPct}%; background:${c.bar};"></div>
+        </div>
+      </div>`;
+  }
+
+  // ---- Holdings -----------------------------------------------------------
+
+  _holdings(state, derived) {
+    const vm = holdingsViewModel(state, derived);
+    if (!vm.rows.length) {
+      return `${this._header('החזקות')}
+        <section class="px-5 pt-4">${this._empty('אין אחזקות עדיין', 'הוסף קנייה עם הכפתור הצף')}</section>`;
+    }
+
+    const cost = this._costByTicker();
+    const cards = vm.rows.map((r) => this._holdingCard(r, cost[r.ticker])).join('');
+
+    return `
+      ${this._header('החזקות', `${vm.rows.length} ניירות · הקש על כרטיס לפירוט`)}
+      <section class="space-y-4 px-5 pt-4">${cards}</section>`;
+  }
+
+  _holdingCard(r, cost) {
+    const open = this.expanded === r.ticker;
+    const profit = r.valueIls != null && cost ? r.valueIls - cost.costIls : null;
+    const profitPct = profit != null && cost?.costIls ? profit / cost.costIls : null;
+    const tone = profit == null ? 'text-on-surface-variant' : isUp(profit) ? 'text-secondary' : 'text-red-400';
+    const sym = r.currency === 'ILS-Agorot' ? '' : (r.currency === 'USD' ? '$' : '');
+
+    const summary = `
+      <button type="button" data-toggle="${escapeHtml(r.ticker)}" aria-expanded="${open}"
+              class="pressable flex w-full items-center justify-between gap-4 p-5 text-right">
+        <div class="min-w-0">
+          <div class="text-base font-bold text-white">${ltr(escapeHtml(r.ticker))}</div>
+          <div class="mt-0.5 truncate text-xs text-on-surface-variant">${escapeHtml(r.company)}</div>
+        </div>
+        <div class="flex shrink-0 items-center gap-3">
+          <div class="text-left">
+            <div class="text-base font-bold text-white">${ltr(r.valueIls != null ? ils(r.valueIls) : '—')}</div>
+            <div class="mt-0.5 text-sm font-bold ${tone}">${ltr(signedPct(profitPct))}</div>
+          </div>
+          ${icon('expand_more', `chevron text-outline text-[20px] ${open ? 'open' : ''}`)}
+        </div>
       </button>`;
-  }).join('');
 
-  return `
-    <nav class="pointer-events-none fixed inset-x-0 bottom-0 z-40 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
-      <div class="tabbar pointer-events-auto mx-auto flex max-w-md items-stretch gap-1 rounded-full p-1.5">${items}</div>
-    </nav>`;
-}
+    const row = (label, value, valueTone = 'text-white') => `
+      <div class="flex items-center justify-between border-b border-gray-800 py-2 text-sm last:border-b-0">
+        <span class="text-gray-400">${escapeHtml(label)}</span>
+        <span class="font-semibold ${valueTone}">${ltr(value)}</span>
+      </div>`;
 
-// Bottom-left mirrors the conventional bottom-right FAB under RTL.
-// Option 2 stacks a smaller refresh button directly above it.
-const renderFab = () => {
-  const mini = view.refreshOption !== 'fab' ? '' : `
-    <button type="button" data-refresh aria-label="רענן שערים"
-            class="pressable fixed bottom-[calc(11rem+env(safe-area-inset-bottom))] left-[1.55rem] z-50 grid h-11 w-11 place-items-center rounded-full border border-primary/30 bg-surface-container/90 text-primary backdrop-blur-xl shadow-[0_6px_20px_rgba(0,0,0,0.5)]">
-      ${icon('sync', `text-[20px] ${view.refreshing ? 'spinning' : ''}`)}
-    </button>`;
+    const split = r.perKid.map((k) => {
+      const kidValue = r.price != null
+        ? k.shares * r.price * (r.currency === 'ILS-Agorot' ? 0.01 : this.sm.getState().settings.lastFxRate)
+        : null;
+      const pct = r.totalShares > 0 ? (k.shares / r.totalShares) * 100 : 0;
+      return `
+        <div class="flex items-center justify-between border-b border-gray-800 py-2 text-sm last:border-b-0">
+          <span class="text-gray-400">${escapeHtml(k.kidName)} <span class="text-xs text-outline">${ltr(`${numFmt.format(pct)}%`)}</span></span>
+          <span class="flex items-baseline gap-2">
+            <span class="font-semibold text-white">${ltr(kidValue != null ? ils(kidValue) : '—')}</span>
+            <span class="text-xs text-gray-400">${ltr(`${k.sharesFmt} מנ׳`)}</span>
+          </span>
+        </div>`;
+    }).join('');
 
-  return `${mini}
-  <button type="button" id="v2-fab" aria-label="תנועה חדשה"
-          class="fab-neon fixed bottom-[calc(6.75rem+env(safe-area-inset-bottom))] left-5 z-50 grid h-14 w-14 place-items-center rounded-2xl transition-all">
-    ${icon('add', 'text-[26px] fill')}
-  </button>`;
-};
+    const details = `
+      <div class="accordion ${open ? 'open' : ''}">
+        <div>
+          <div class="border-t border-white/10 px-5 pb-5 pt-3">
+            ${row('כמות מניות', r.totalSharesFmt)}
+            ${row('מחיר קנייה ממוצע', cost?.avgPrice != null ? `${sym}${numFmt.format(cost.avgPrice)}` : '—')}
+            ${row('מחיר נוכחי', r.priceFmt)}
+            ${row('רווח/הפסד', signedIls(profit), tone)}
+            ${row('עודכן', r.asOf)}
 
-// Review-only scaffolding — remove once a treatment is chosen.
-const renderOptionSwitch = () => `
-  <div class="opt-switch sticky top-0 z-[60] flex items-center gap-2 px-4 py-2">
-    <span class="shrink-0 text-[10px] font-bold uppercase tracking-[0.15em] text-outline">רענון</span>
-    <div class="flex flex-1 gap-1">
-      ${REFRESH_OPTIONS.map((o) => `
-        <button type="button" data-opt="${o.id}"
-                class="flex-1 rounded-lg px-2 py-1.5 text-[11px] font-semibold transition-colors ${
-                  view.refreshOption === o.id
-                    ? 'bg-primary/20 text-primary'
-                    : 'bg-white/[0.04] text-on-surface-variant'}">${o.label}</button>`).join('')}
-    </div>
-  </div>`;
+            <p class="pb-1 pt-5 text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant">חלוקה בין הילדים</p>
+            ${split}
+          </div>
+        </div>
+      </div>`;
 
-function render() {
-  const root = document.getElementById('v2-root');
-  const pull = view.refreshOption !== 'pull' ? '' :
-    `<div id="pull-ind" class="pull-ind">${icon('sync', `text-[20px] ${view.refreshing ? 'spinning' : ''}`)}</div>`;
+    return `<div class="glass-card rounded-2xl">${summary}${details}</div>`;
+  }
 
-  root.innerHTML = `
-    ${renderOptionSwitch()}
-    ${pull}
-    <div class="ambient-orb"><div class="orb-violet"></div><div class="orb-emerald"></div></div>
-    <!-- Bottom padding clears the floating bar *and* the FAB, so the last row
-         of a list is never parked underneath either at the end of a scroll. -->
-    <div class="relative z-10 mx-auto min-h-screen max-w-lg pb-[calc(11rem+env(safe-area-inset-bottom))]">
-      <main id="v2-main">${VIEWS[view.tab]()}</main>
-    </div>
-    ${renderFab()}
-    ${renderNav()}`;
+  // ---- Ledger -------------------------------------------------------------
 
-  if (view.refreshing && view.refreshOption === 'pull') showPull(56, true);
+  _ledger(state) {
+    const vm = ledgerViewModel(state);
+    if (!vm.rows.length) {
+      return `${this._header('יומן')}
+        <section class="px-5 pt-4">${this._empty('אין תנועות עדיין', 'רשום תנועה עם הכפתור הצף')}</section>`;
+    }
+
+    const rows = vm.rows.map((t) => {
+      const k = LEDGER_KIND[t.type] || LEDGER_KIND.BUY;
+      return `
+        <div class="flex items-center gap-4 px-5 py-4">
+          <div class="grid h-11 w-11 shrink-0 place-items-center rounded-full border ${k.bubble}">
+            ${icon(k.icon, 'text-[20px]')}
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-2">
+              <span class="text-sm font-bold text-white">${escapeHtml(t.label)}</span>
+              <span class="truncate text-xs text-on-surface-variant">${ltr(escapeHtml(t.who))}</span>
+            </div>
+            <div class="mt-1 truncate text-xs text-outline">${escapeHtml(t.details)}</div>
+          </div>
+          <div class="shrink-0 text-left">
+            <div class="text-sm font-bold ${k.tone}">${ltr(escapeHtml(t.amountFmt))}</div>
+            <div class="mt-1 text-xs text-outline">${escapeHtml(formatDateHe(t.date))}</div>
+          </div>
+          <button type="button" data-del-tx="${escapeHtml(t.id)}" aria-label="מחק תנועה"
+                  class="pressable shrink-0 text-outline active:text-red-400">
+            ${icon('close', 'text-[18px]')}
+          </button>
+        </div>`;
+    }).join('<div class="mx-5 border-t border-white/5"></div>');
+
+    return `
+      ${this._header('יומן', `${vm.rows.length} תנועות, מהחדשה לישנה`)}
+      <section class="px-5 pt-4"><div class="glass-card rounded-2xl">${rows}</div></section>`;
+  }
+
+  // ---- Settings -----------------------------------------------------------
+
+  _settings(state, derived) {
+    const kids = Object.values(state.kids);
+    const quotes = Object.values(state.quotes).sort((a, b) => a.ticker.localeCompare(b.ticker));
+
+    const kidRows = kids.length ? kids.map((k) => `
+      <div class="flex items-center gap-3 px-5 py-3">
+        <span class="min-w-0 flex-1 truncate text-sm text-white">${escapeHtml(k.name)}</span>
+        <span class="shrink-0 text-xs text-on-surface-variant">${ltr(ils(derived.portfolioValueByKid[k.id] || 0))}</span>
+        <button type="button" data-rename-kid="${escapeHtml(k.id)}" class="pressable shrink-0 text-outline active:text-primary">${icon('edit', 'text-[17px]')}</button>
+        <button type="button" data-remove-kid="${escapeHtml(k.id)}" class="pressable shrink-0 text-outline active:text-red-400">${icon('delete', 'text-[17px]')}</button>
+      </div>`).join('<div class="mx-5 border-t border-white/5"></div>')
+      : '<p class="px-5 py-4 text-sm text-on-surface-variant">אין ילדים עדיין</p>';
+
+    const quoteRows = quotes.length ? quotes.map((q) => `
+      <div class="flex items-center gap-3 px-5 py-3">
+        <div class="min-w-0 flex-1">
+          <div class="text-sm font-semibold text-white">${ltr(escapeHtml(q.ticker))}</div>
+          <div class="truncate text-xs text-outline">${escapeHtml(q.company || '')} · ${escapeHtml(formatDateHe(q.asOf))}</div>
+        </div>
+        <input type="number" step="0.01" min="0" value="${q.price ?? q.priceUsd ?? ''}"
+               data-quote-price="${escapeHtml(q.ticker)}" dir="ltr"
+               class="w-24 shrink-0 bg-transparent text-left font-data tnum text-sm text-white outline-none focus:text-primary" />
+        <span class="shrink-0 text-xs text-outline">${q.currency === 'ILS-Agorot' ? 'אג׳' : escapeHtml(q.currency || 'USD')}</span>
+        <button type="button" data-remove-quote="${escapeHtml(q.ticker)}" class="pressable shrink-0 text-outline active:text-red-400">${icon('close', 'text-[17px]')}</button>
+      </div>`).join('<div class="mx-5 border-t border-white/5"></div>')
+      : '<p class="px-5 py-4 text-sm text-on-surface-variant">אין ציטוטים עדיין</p>';
+
+    const field = (label, inner) => `
+      <div class="px-5 py-3">
+        <label class="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.15em] text-on-surface-variant">${escapeHtml(label)}</label>
+        ${inner}
+      </div>`;
+
+    const inputCls = 'w-full rounded-xl border border-primary/20 bg-white/[0.03] px-3 py-2.5 text-sm text-white outline-none focus:border-primary/60';
+
+    return `
+      ${this._header('הגדרות')}
+      <section class="space-y-6 px-5 pt-4">
+        <div>
+          ${this._sectionTitle('ילדים')}
+          <div class="glass-card rounded-2xl">
+            ${kidRows}
+            <div class="border-t border-white/5 px-5 py-3">
+              <button type="button" id="btn-add-kid" class="pressable flex items-center gap-2 text-sm font-semibold text-primary">
+                ${icon('add', 'text-[18px]')} הוסף ילד/ה
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          ${this._sectionTitle('שערים')}
+          <div class="glass-card rounded-2xl">
+            ${field('שער דולר/שקל', `<input id="set-fx" type="number" step="0.001" min="0" dir="ltr" value="${state.settings.lastFxRate}" class="${inputCls} font-data tnum" />`)}
+            <div class="border-t border-white/5"></div>
+            ${field('כתובת Worker לשערים', `<input id="set-worker" type="url" dir="ltr" placeholder="https://…workers.dev" value="${escapeHtml(getWorkerUrl())}" class="${inputCls}" />`)}
+            <div class="border-t border-white/5"></div>
+            ${field('בדיקת טיקר', `
+              <div class="flex gap-2">
+                <input id="test-ticker" type="text" dir="ltr" placeholder="AAPL / 1159250" class="${inputCls} flex-1" />
+                <button type="button" id="btn-test-ticker" class="pressable shrink-0 rounded-xl bg-primary/20 px-4 text-sm font-semibold text-primary">בדוק</button>
+              </div>
+              <pre id="test-result" class="mt-2 hidden whitespace-pre-wrap break-all font-data text-[11px] text-on-surface-variant"></pre>`)}
+          </div>
+        </div>
+
+        <div>
+          ${this._sectionTitle('ציטוטים')}
+          <div class="glass-card rounded-2xl">${quoteRows}</div>
+        </div>
+
+        <div>
+          ${this._sectionTitle('נתונים')}
+          <div class="glass-card rounded-2xl">
+            <button type="button" id="btn-export" class="pressable flex w-full items-center gap-4 px-5 py-4 text-right">
+              <div class="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-primary/20 bg-white/5 text-primary">${icon('download', 'text-[18px]')}</div>
+              <span class="flex-1 text-sm font-medium text-white">ייצוא JSON</span>
+              ${icon('chevron_left', 'text-outline text-[20px]')}
+            </button>
+            <div class="border-t border-white/5"></div>
+            <button type="button" id="btn-import" class="pressable flex w-full items-center gap-4 px-5 py-4 text-right">
+              <div class="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-primary/20 bg-white/5 text-primary">${icon('upload', 'text-[18px]')}</div>
+              <span class="flex-1 text-sm font-medium text-white">ייבוא JSON</span>
+              ${icon('chevron_left', 'text-outline text-[20px]')}
+            </button>
+            <input id="import-file" type="file" accept="application/json" class="hidden" />
+          </div>
+        </div>
+      </section>`;
+  }
+
+  // ---- Chrome -------------------------------------------------------------
+
+  _nav() {
+    const items = TABS.map((t) => {
+      const active = this.tab === t.id;
+      return `
+        <button type="button" data-tab="${t.id}" aria-current="${active ? 'page' : 'false'}"
+                class="tab-item flex flex-1 flex-col items-center gap-1 rounded-full px-1 py-2 ${active ? 'text-primary' : 'text-outline'}">
+          ${icon(t.icon, `text-[21px] ${active ? 'fill' : ''}`)}
+          <span class="text-[10px] ${active ? 'font-bold' : 'font-medium'}">${t.label}</span>
+        </button>`;
+    }).join('');
+
+    return `
+      <nav class="pointer-events-none fixed inset-x-0 bottom-0 z-40 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+        <div class="tabbar pointer-events-auto mx-auto flex max-w-md items-stretch gap-1 rounded-full p-1.5">${items}</div>
+      </nav>`;
+  }
+
+  // Bottom-left mirrors the conventional bottom-right FAB under RTL.
+  _fab() {
+    return `
+      <button type="button" id="v2-fab" aria-label="תנועה חדשה"
+              class="fab-neon fixed bottom-[calc(6.75rem+env(safe-area-inset-bottom))] left-5 z-50 grid h-14 w-14 place-items-center rounded-2xl transition-all">
+        ${icon('add', 'text-[26px] fill')}
+      </button>`;
+  }
+
+  // ---- Pull to refresh ----------------------------------------------------
+
+  _showPull(dist, locked = false) {
+    const el = $('#pull-ind');
+    if (!el) return;
+    el.style.transform = `translateY(${Math.min(dist, 88)}px) rotate(${locked ? 0 : dist * 2}deg)`;
+    el.style.opacity = String(Math.min(1, dist / 64));
+  }
+
+  _resetPull() {
+    const el = $('#pull-ind');
+    if (!el) return;
+    el.style.transition = 'transform .25s ease, opacity .25s ease';
+    el.style.transform = 'translateY(-3rem)';
+    el.style.opacity = '0';
+    setTimeout(() => { if (el) el.style.transition = ''; }, 260);
+  }
+
+  async _refreshQuotes() {
+    if (this.refreshing) return;
+    const state = this.sm.getState();
+    const derived = this.sm.getDerived();
+    const active = (derived.lots || [])
+      .filter((l) => Object.values(l.remaining.kids).reduce((a, b) => a + b, 0) > 0)
+      .map((l) => l.ticker);
+    const tickers = [...new Set([...Object.keys(state.quotes || {}), ...active])];
+    if (!tickers.includes('ILS=X')) tickers.push('ILS=X');
+
+    if (tickers.length <= 1) {
+      this._resetPull();
+      return toast('אין ניירות לעדכון');
+    }
+
+    this.refreshing = true;
+    this.render();
+    const status = stickyToast(`מושך שערים עבור ${tickers.length - 1} ניירות…`);
+
+    // Hard cap: never let the indicator hang longer than this regardless of
+    // proxy state. Matches the budget inside QuoteFetcher plus round-trips.
+    const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 45000));
+
+    try {
+      const results = await Promise.race([
+        fetchQuotes(tickers, {
+          onProgress: ({ done, total, ticker, ok }) => status.update(`(${done}/${total}) ${ok ? '✓' : '✗'} ${ticker}`),
+        }),
+        timeout,
+      ]);
+
+      const stock = tickers.filter((t) => t !== 'ILS=X');
+      const ok = [];
+      Object.keys(results).forEach((t) => {
+        if (t === 'ILS=X') return this.sm.setFxRate(results[t].price);
+        const q = state.quotes[t] || {};
+        // A currency already on the quote is the user's choice and wins. Only
+        // when there is none do we take the source's, then the name heuristic.
+        const currency = q.currency || results[t].currency
+          || (t.endsWith('.TA') || /^\d+(\.TA)?$/.test(t) ? 'ILS-Agorot' : 'USD');
+        this.sm.upsertQuote({
+          ticker: t, company: q.company || t, price: results[t].price,
+          currency, asOf: today(), source: 'api',
+        });
+        ok.push(t);
+      });
+
+      const failed = stock.filter((t) => !results[t]);
+      const fx = results['ILS=X'] ? ` · USD/ILS ${results['ILS=X'].price.toFixed(3)}` : '';
+      status.finish(
+        `✓ ${ok.length}/${stock.length} עודכנו${fx}` + (failed.length ? ` | ✗ נכשלו: ${failed.join(', ')}` : ''),
+        ok.length ? 4000 : 7000,
+      );
+    } catch (e) {
+      status.finish(e?.message === 'timeout'
+        ? 'הזמן עבר 45 שניות — כל הפרוקסים נכשלו. נסה שוב מאוחר יותר.'
+        : 'שגיאה בעת משיכת השערים', 7000);
+    } finally {
+      this.refreshing = false;
+      this.render();
+      this._resetPull();
+    }
+  }
+
+  // ---- Transaction sheet --------------------------------------------------
+
+  _openSheet(type = 'BUY') {
+    this.sheetOpen = true;
+    const state = this.sm.getState();
+    const kids = Object.values(state.kids);
+    const tickers = tickersViewModel(state, this.sm.getDerived());
+
+    const TYPES = [
+      { id: 'DEPOSIT', label: 'הפקדה' },
+      { id: 'BUY', label: 'קנייה' },
+      { id: 'SELL', label: 'מכירה' },
+      { id: 'DIVIDEND', label: 'דיבידנד' },
+    ];
+
+    const inputCls = 'w-full rounded-xl border border-primary/20 bg-white/[0.03] px-3 py-2.5 text-sm text-white outline-none focus:border-primary/60';
+    const fld = (label, inner) => `
+      <div>
+        <label class="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.15em] text-on-surface-variant">${label}</label>
+        ${inner}
+      </div>`;
+
+    const dateFld = fld('תאריך', `<input name="date" type="date" value="${today()}" required class="${inputCls} font-data" />`);
+    const tickerFld = fld('סימול', `<input name="ticker" list="v2-tickers" dir="ltr" required class="${inputCls} font-data uppercase" />
+      <datalist id="v2-tickers">${tickers.map((t) => `<option value="${escapeHtml(t.ticker)}">${escapeHtml(t.company)}</option>`).join('')}</datalist>`);
+
+    // Even split by default; the engine requires the allocation to total 100.
+    const evenPct = kids.length ? +(100 / kids.length).toFixed(2) : 0;
+    const allocFlds = kids.map((k, i) => `
+      <div class="flex items-center gap-2">
+        <span class="min-w-0 flex-1 truncate text-sm text-white">${escapeHtml(k.name)}</span>
+        <input data-alloc-kid="${escapeHtml(k.id)}" type="number" step="0.01" min="0" max="100" dir="ltr"
+               value="${i === kids.length - 1 ? +(100 - evenPct * (kids.length - 1)).toFixed(2) : evenPct}"
+               class="w-24 rounded-xl border border-primary/20 bg-white/[0.03] px-2 py-1.5 text-left font-data tnum text-sm text-white outline-none focus:border-primary/60" />
+        <span class="text-xs text-outline">%</span>
+      </div>`).join('');
+
+    const bodies = {
+      DEPOSIT: `
+        ${dateFld}
+        ${fld('ילד/ה', `<select name="kidId" required class="${inputCls}">${kids.map((k) => `<option value="${escapeHtml(k.id)}">${escapeHtml(k.name)}</option>`).join('')}</select>`)}
+        ${fld('סכום (₪)', `<input name="amountIls" type="number" step="0.01" min="0.01" dir="ltr" required class="${inputCls} font-data tnum" />`)}
+        ${fld('הערה', `<input name="note" type="text" class="${inputCls}" />`)}`,
+
+      BUY: `
+        ${dateFld}
+        ${tickerFld}
+        ${fld('שם החברה', `<input name="company" type="text" class="${inputCls}" />`)}
+        <div class="grid grid-cols-2 gap-3">
+          ${fld('סה״כ מניות', `<input name="totalShares" type="number" step="any" min="0" dir="ltr" required class="${inputCls} font-data tnum" />`)}
+          ${fld('מהן לילדים', `<input name="kidsShares" type="number" step="any" min="0" dir="ltr" required class="${inputCls} font-data tnum" />`)}
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          ${fld('מחיר', `<input name="price" type="number" step="any" min="0" dir="ltr" required class="${inputCls} font-data tnum" />`)}
+          ${fld('מטבע', `<select name="currency" class="${inputCls}">
+            <option value="USD">USD</option><option value="ILS-Agorot">אגורות</option>
+            <option value="EUR">EUR</option><option value="GBP">GBP</option></select>`)}
+        </div>
+        <div id="fx-wrap">${fld('שער חליפין', `<input name="fxRate" type="number" step="any" min="0" dir="ltr" value="${state.settings.lastFxRate}" required class="${inputCls} font-data tnum" />`)}</div>
+        ${fld('עמלות (₪)', `<input name="feesIls" type="number" step="0.01" min="0" dir="ltr" value="0" class="${inputCls} font-data tnum" />`)}
+        <div>
+          <p class="mb-2 text-[10px] font-bold uppercase tracking-[0.15em] text-on-surface-variant">חלוקה בין הילדים</p>
+          <div class="space-y-2">${allocFlds || '<p class="text-sm text-on-surface-variant">הוסף ילדים בהגדרות תחילה</p>'}</div>
+          <p id="alloc-sum" class="mt-2 text-xs text-outline"></p>
+        </div>`,
+
+      SELL: `
+        ${dateFld}
+        ${tickerFld}
+        ${fld('מניות שנמכרו', `<input name="sharesSold" type="number" step="any" min="0" dir="ltr" required class="${inputCls} font-data tnum" />`)}
+        ${fld('תמורה נטו (₪)', `<input name="netIls" type="number" step="0.01" min="0" dir="ltr" required class="${inputCls} font-data tnum" />`)}`,
+
+      DIVIDEND: `
+        ${dateFld}
+        ${tickerFld}
+        ${fld('נטו לחשבון (₪)', `<input name="netIlsTotal" type="number" step="0.01" dir="ltr" required class="${inputCls} font-data tnum" />`)}`,
+    };
+
+    $('#v2-overlay').innerHTML = `
+      <div id="sheet-backdrop" class="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm"></div>
+      <div class="sheet fixed inset-x-0 bottom-0 z-[71] mx-auto max-h-[88vh] max-w-lg overflow-y-auto rounded-t-3xl"
+           dir="rtl" role="dialog" aria-modal="true" aria-label="תנועה חדשה">
+        <div class="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-white/10 bg-surface-container/95 px-5 py-4 backdrop-blur-xl">
+          <h2 class="text-base font-bold text-white">תנועה חדשה</h2>
+          <button type="button" id="sheet-close" aria-label="סגור" class="pressable text-outline active:text-white">${icon('close', 'text-[22px]')}</button>
+        </div>
+
+        <div class="flex gap-1 px-5 pt-4">
+          ${TYPES.map((t) => `
+            <button type="button" data-tx-type="${t.id}"
+                    class="flex-1 rounded-lg px-2 py-2 text-xs font-semibold transition-colors ${
+                      t.id === type ? 'bg-primary/20 text-primary' : 'bg-white/[0.04] text-on-surface-variant'}">${t.label}</button>`).join('')}
+        </div>
+
+        <form id="tx-form" class="space-y-4 px-5 pb-8 pt-5">
+          ${bodies[type]}
+          <button type="submit" class="fab-neon w-full rounded-xl py-3 text-sm font-bold">שמור</button>
+        </form>
+      </div>`;
+
+    document.body.style.overflow = 'hidden';
+    this._bindSheet(type);
+  }
+
+  _closeSheet() {
+    this.sheetOpen = false;
+    $('#v2-overlay').innerHTML = '';
+    document.body.style.overflow = '';
+  }
+
+  _bindSheet(type) {
+    const overlay = $('#v2-overlay');
+    $('#sheet-close', overlay).addEventListener('click', () => this._closeSheet());
+    $('#sheet-backdrop', overlay).addEventListener('click', () => this._closeSheet());
+    $$('[data-tx-type]', overlay).forEach((b) =>
+      b.addEventListener('click', () => this._openSheet(b.dataset.txType)));
+
+    const form = $('#tx-form', overlay);
+
+    if (type === 'BUY') {
+      // Agorot are already shekel-denominated, so the FX field would be a
+      // second, conflicting conversion.
+      const cur = form.elements.namedItem('currency');
+      const fxWrap = $('#fx-wrap', overlay);
+      const fx = form.elements.namedItem('fxRate');
+      const sync = () => {
+        const agorot = cur.value === 'ILS-Agorot';
+        fxWrap.classList.toggle('hidden', agorot);
+        if (agorot) fx.value = '0.01';
+      };
+      cur.addEventListener('change', sync);
+      sync();
+
+      const allocSum = () => {
+        const total = $$('[data-alloc-kid]', overlay).reduce((a, i) => a + (parseFloat(i.value) || 0), 0);
+        const el = $('#alloc-sum', overlay);
+        el.textContent = `סה״כ ${total.toFixed(2)}%`;
+        el.className = `mt-2 text-xs ${Math.abs(total - 100) < 0.01 ? 'text-secondary' : 'text-red-400'}`;
+      };
+      $$('[data-alloc-kid]', overlay).forEach((i) => i.addEventListener('input', allocSum));
+      allocSum();
+    }
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const f = e.target;
+      const v = (n) => f.elements.namedItem(n)?.value;
+      const num = (n) => parseFloat(v(n));
+      try {
+        if (type === 'DEPOSIT') {
+          this.sm.recordDeposit({ date: v('date'), kidId: v('kidId'), amountIls: num('amountIls'), note: v('note') || '' });
+        } else if (type === 'BUY') {
+          const allocation = {};
+          $$('[data-alloc-kid]', overlay).forEach((i) => { allocation[i.dataset.allocKid] = parseFloat(i.value); });
+          this.sm.recordBuy({
+            date: v('date'), ticker: v('ticker').trim().toUpperCase(), company: (v('company') || '').trim(),
+            totalShares: num('totalShares'), kidsShares: num('kidsShares'), allocation,
+            price: num('price'), currency: v('currency') || 'USD', fxRate: num('fxRate'),
+            feesIls: num('feesIls') || 0,
+          });
+        } else if (type === 'SELL') {
+          this.sm.recordSell({ date: v('date'), ticker: v('ticker').trim().toUpperCase(), sharesSold: num('sharesSold'), netIls: num('netIls') });
+        } else {
+          this.sm.recordDividend({ date: v('date'), ticker: v('ticker').trim().toUpperCase(), netIlsTotal: num('netIlsTotal') });
+        }
+        this._closeSheet();
+        toast('נשמר');
+      } catch (err) {
+        toast(err.message, 6000);
+      }
+    });
+  }
+
+  // ---- Events -------------------------------------------------------------
+
+  _bind() {
+    document.addEventListener('click', (e) => {
+      const tab = e.target.closest('[data-tab]');
+      if (tab) { this.tab = tab.dataset.tab; this.render(); window.scrollTo({ top: 0 }); return; }
+
+      const toggle = e.target.closest('[data-toggle]');
+      if (toggle) { const t = toggle.dataset.toggle; this.expanded = this.expanded === t ? null : t; this.render(); return; }
+
+      if (e.target.closest('#v2-fab')) { this._openSheet('BUY'); return; }
+
+      const delTx = e.target.closest('[data-del-tx]');
+      if (delTx) {
+        if (confirm('למחוק את התנועה?')) {
+          try { this.sm.removeTx(delTx.dataset.delTx); toast('נמחק'); }
+          catch (err) { toast(err.message, 6000); }
+        }
+        return;
+      }
+
+      if (e.target.closest('#btn-add-kid')) {
+        const name = prompt('שם הילד/ה');
+        if (name && name.trim()) this.sm.addKid(name.trim());
+        return;
+      }
+
+      const rename = e.target.closest('[data-rename-kid]');
+      if (rename) {
+        const id = rename.dataset.renameKid;
+        const name = prompt('שם חדש', this.sm.getState().kids[id]?.name || '');
+        if (name && name.trim()) this.sm.renameKid(id, name.trim());
+        return;
+      }
+
+      const removeKid = e.target.closest('[data-remove-kid]');
+      if (removeKid) {
+        if (confirm('להסיר את הילד/ה?')) {
+          try { this.sm.removeKid(removeKid.dataset.removeKid); }
+          catch (err) { toast(err.message, 6000); }
+        }
+        return;
+      }
+
+      const rmQuote = e.target.closest('[data-remove-quote]');
+      if (rmQuote) { if (confirm('להסיר ציטוט?')) this.sm.removeQuote(rmQuote.dataset.removeQuote); return; }
+
+      if (e.target.closest('#btn-test-ticker')) { this._testTicker(); return; }
+      if (e.target.closest('#btn-export')) { this._export(); return; }
+      if (e.target.closest('#btn-import')) { $('#import-file')?.click(); return; }
+    });
+
+    document.addEventListener('change', (e) => {
+      const price = e.target.closest('[data-quote-price]');
+      if (price) {
+        const ticker = price.dataset.quotePrice;
+        const q = this.sm.getState().quotes[ticker];
+        this.sm.upsertQuote({
+          ticker, company: q?.company, price: parseFloat(price.value),
+          currency: q?.currency || 'USD', asOf: today(), source: 'manual',
+        });
+        return;
+      }
+      if (e.target.id === 'set-fx') { this.sm.setFxRate(parseFloat(e.target.value)); return; }
+      if (e.target.id === 'set-worker') {
+        setWorkerUrl((e.target.value || '').trim().replace(/\/+$/, ''));
+        toast(e.target.value.trim() ? 'נשמר Worker URL' : 'נמחק Worker URL');
+        return;
+      }
+      if (e.target.id === 'import-file') { this._import(e.target.files?.[0]); return; }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && this.sheetOpen) this._closeSheet();
+    });
+
+    // Pull to refresh. Only a drag that begins at the very top counts, and it
+    // is suppressed while the sheet is open so the form can scroll freely.
+    const start = (y) => {
+      if (this.refreshing || this.sheetOpen || window.scrollY > 0) return;
+      this.pullStart = y;
+    };
+    const move = (y, ev) => {
+      if (this.pullStart === null) return;
+      const d = y - this.pullStart;
+      if (d <= 0) return;
+      if (ev.cancelable) ev.preventDefault();
+      this._showPull(d * 0.6);
+    };
+    const end = (y) => {
+      if (this.pullStart === null) return;
+      const d = (y - this.pullStart) * 0.6;
+      this.pullStart = null;
+      if (d >= 64) this._refreshQuotes(); else this._resetPull();
+    };
+
+    document.addEventListener('touchstart', (e) => start(e.touches[0].clientY), { passive: true });
+    document.addEventListener('touchmove', (e) => move(e.touches[0].clientY, e), { passive: false });
+    document.addEventListener('touchend', (e) => end((e.changedTouches[0] || {}).clientY || 0));
+    // Mouse drag mirrors the gesture so the app is usable on a desktop too.
+    document.addEventListener('mousedown', (e) => start(e.clientY));
+    document.addEventListener('mousemove', (e) => { if (this.pullStart !== null) move(e.clientY, e); });
+    document.addEventListener('mouseup', (e) => end(e.clientY));
+  }
+
+  async _testTicker() {
+    const input = $('#test-ticker');
+    const out = $('#test-result');
+    const t = (input?.value || '').trim();
+    if (!t) return toast('הזן טיקר');
+    out.classList.remove('hidden');
+    out.textContent = `בודק ${t}…`;
+    const r = await testWorker(t);
+    out.textContent = r.msg;
+    out.className = `mt-2 whitespace-pre-wrap break-all font-data text-[11px] ${r.ok ? 'text-secondary' : 'text-red-400'}`;
+  }
+
+  _export() {
+    const blob = new Blob([this.sm.exportJson()], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `juniorinvest-${today()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  _import(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try { this.sm.importJson(reader.result); toast('הנתונים יובאו'); }
+      catch (err) { toast(`ייבוא נכשל: ${err.message}`, 7000); }
+    };
+    reader.readAsText(file);
+  }
 }
 
 // ---------------------------------------------------------------------------
-// Option 3 — pull to refresh
+// Toasts
 // ---------------------------------------------------------------------------
 
-const PULL_TRIGGER = 64;
-let pullStart = null;
-
-function showPull(dist, locked = false) {
-  const el = document.getElementById('pull-ind');
-  if (!el) return;
-  const y = Math.min(dist, 88);
-  el.style.transform = `translateY(${y}px) rotate(${locked ? 0 : dist * 2}deg)`;
-  el.style.opacity = String(Math.min(1, dist / PULL_TRIGGER));
-}
-
-function resetPull() {
-  const el = document.getElementById('pull-ind');
-  if (!el) return;
-  el.style.transition = 'transform .25s ease, opacity .25s ease';
-  el.style.transform = 'translateY(-3rem)';
-  el.style.opacity = '0';
-  setTimeout(() => { if (el) el.style.transition = ''; }, 260);
-}
-
-function onPullStart(y) {
-  // Only a drag that begins at the very top counts as a pull.
-  if (view.refreshOption !== 'pull' || view.refreshing || window.scrollY > 0) return;
-  pullStart = y;
-}
-
-function onPullMove(y, e) {
-  if (pullStart === null) return;
-  const d = y - pullStart;
-  if (d <= 0) return;
-  if (e.cancelable) e.preventDefault();
-  showPull(d * 0.6);
-}
-
-function onPullEnd(y) {
-  if (pullStart === null) return;
-  const d = (y - pullStart) * 0.6;
-  pullStart = null;
-  if (d >= PULL_TRIGGER) simulateRefresh(); else resetPull();
-}
-
-document.addEventListener('touchstart', (e) => onPullStart(e.touches[0].clientY), { passive: true });
-document.addEventListener('touchmove', (e) => onPullMove(e.touches[0].clientY, e), { passive: false });
-document.addEventListener('touchend', (e) => onPullEnd((e.changedTouches[0] || {}).clientY || 0));
-// Mouse drag mirrors the gesture so the option can be reviewed on a desktop.
-document.addEventListener('mousedown', (e) => onPullStart(e.clientY));
-document.addEventListener('mousemove', (e) => { if (pullStart !== null) onPullMove(e.clientY, e); });
-document.addEventListener('mouseup', (e) => onPullEnd(e.clientY));
-
-// ---------------------------------------------------------------------------
-// Mock interactions — presentation only, nothing is persisted.
-// ---------------------------------------------------------------------------
-
-document.addEventListener('click', (e) => {
-  const opt = e.target.closest('[data-opt]');
-  if (opt) {
-    view.refreshOption = opt.dataset.opt;
-    render();
-    return;
+function toastHost() {
+  let host = $('#v2-toasts');
+  if (!host) {
+    host = document.createElement('div');
+    host.id = 'v2-toasts';
+    host.dir = 'rtl';
+    host.className = 'pointer-events-none fixed inset-x-0 bottom-[calc(7rem+env(safe-area-inset-bottom))] z-[80] flex flex-col items-center gap-2 px-4';
+    document.body.appendChild(host);
   }
+  return host;
+}
 
-  if (e.target.closest('[data-refresh]')) { simulateRefresh(); return; }
+function makeToast(msg) {
+  const el = document.createElement('div');
+  el.className = 'toast max-w-sm rounded-xl px-4 py-2.5 text-center text-sm text-white';
+  el.textContent = msg;
+  toastHost().appendChild(el);
+  return el;
+}
 
-  const tab = e.target.closest('[data-tab]');
-  if (tab) {
-    view.tab = tab.dataset.tab;
-    render();
-    window.scrollTo({ top: 0 });
-    return;
-  }
+export function toast(msg, ms = 3000) {
+  const el = makeToast(msg);
+  setTimeout(() => el.remove(), ms);
+}
 
-  const toggle = e.target.closest('[data-toggle]');
-  if (toggle) {
-    const ticker = toggle.dataset.toggle;
-    view.expanded = view.expanded === ticker ? null : ticker;
-    render();
-    return;
-  }
-
-  if (e.target.closest('#v2-fab')) {
-    // Phase 2 hooks the real transaction form up here.
-    console.log('[ui-v2] FAB tapped — transaction sheet is not wired in the mockup');
-  }
-});
-
-render();
+// A toast that stays put while a long job runs, then reports its outcome.
+export function stickyToast(msg) {
+  const el = makeToast(msg);
+  return {
+    update: (m) => { el.textContent = m; },
+    finish: (m, ms = 4000) => { el.textContent = m; setTimeout(() => el.remove(), ms); },
+  };
+}

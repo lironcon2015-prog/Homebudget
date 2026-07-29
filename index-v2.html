@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport" />
 <meta http-equiv="Cache-Control" content="no-cache, must-revalidate" />
-<title>JuniorInvest — UI v2 (Mockup)</title>
+<title>הון ג'וניור</title>
 
 <link rel="icon" type="image/png" sizes="32x32" href="./icons/favicon-32.png" />
 <link rel="icon" type="image/png" sizes="16x16" href="./icons/favicon-16.png" />
@@ -219,11 +219,29 @@
     pointer-events: none;
   }
 
-  /* Review-only scaffolding: the option switcher is not part of the design. */
-  .opt-switch {
-    background: rgba(255, 255, 255, 0.04);
-    border-bottom: 0.5px dashed rgba(255, 255, 255, 0.18);
+  .sheet {
+    background: rgba(21, 18, 25, 0.96);
+    backdrop-filter: blur(28px);
+    -webkit-backdrop-filter: blur(28px);
+    border-top: 0.5px solid rgba(255, 255, 255, 0.16);
+    box-shadow: 0 -18px 50px rgba(0, 0, 0, 0.6);
+    padding-bottom: env(safe-area-inset-bottom);
+    animation: sheet-in .28s cubic-bezier(.16, 1, .3, 1);
   }
+  @keyframes sheet-in { from { transform: translateY(14%); opacity: .6; } to { transform: none; opacity: 1; } }
+
+  .toast {
+    background: rgba(34, 30, 38, 0.95);
+    border: 0.5px solid rgba(255, 255, 255, 0.14);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+
+  /* Native overscroll would fight the pull-to-refresh gesture on iOS. */
+  body { overscroll-behavior-y: contain; }
+
+  select, option { background-color: #100d14; color: #e8e0eb; }
 
   @media (prefers-reduced-motion: reduce) {
     .accordion, .chevron, .pressable, .tab-item { transition: none; }
@@ -251,11 +269,15 @@
   </script>
 
   <script type="module">
-    // Cache-bust while iterating on the design — but only over http(s).
-    // A file:// URL treats "?v=..." as part of the filename and 404s, which
-    // would break opening this mockup by double-clicking it.
+    // Cache-bust on every load — but only over http(s). A file:// URL treats
+    // "?v=..." as part of the filename and 404s, which would break opening
+    // this page by double-clicking it.
     const bust = location.protocol.startsWith('http') ? `?v=${Date.now()}` : '';
-    import(`./src/ui-v2.js${bust}`);
+    import(`./app-v2.js${bust}`).catch((e) => {
+      document.getElementById('v2-root').innerHTML =
+        '<pre dir="ltr" style="padding:1rem;color:#ffb4ab;white-space:pre-wrap;">'
+        + 'טעינה נכשלה\n' + (e && e.stack || e) + '</pre>';
+    });
   </script>
 </body>
 </html>
