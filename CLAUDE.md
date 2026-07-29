@@ -19,6 +19,26 @@ requirements rather than chatter:
 - **Keep code comments that explain non-obvious *why*.** Brevity applies to
   chat output, not to the codebase.
 
+## Mockups: ship a live HTML page, into the chat
+
+When a task calls for a mockup or design preview:
+
+1. **Build it as a working HTML page, not a screenshot.** The user reviews it
+   by tapping, expanding and scrolling it — a static image can't show whether
+   an accordion feels right or a tap target is reachable.
+2. **Deliver it into the chat, not only to the repo.** Publish it as an
+   Artifact and give the user the link in the reply. Merging the file to `main`
+   is not delivery on its own; the user should not have to go find it.
+3. Committing the source as well is fine, but the chat link is the deliverable.
+
+An Artifact is served under a strict CSP that blocks every external host, so
+inline the CSS and embed assets as data URIs — a page relying on the Tailwind
+CDN or Google Fonts renders unstyled. Build the Tailwind CSS locally
+(`npx tailwindcss`) and inline it.
+
+Screenshots are a supplement, never the substitute: attach them only when the
+user is away from a browser or to point at one specific detail.
+
 ## Auto-merge policy (MANDATORY — follow without being asked)
 
 After creating any pull request in this repository:
