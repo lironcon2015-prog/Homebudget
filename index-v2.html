@@ -198,9 +198,36 @@
     box-shadow: inset 0 0 0 0.5px rgba(206, 189, 255, 0.3);
   }
 
+  @keyframes ji-spin { to { transform: rotate(360deg); } }
+  .spinning { animation: ji-spin .9s linear infinite; }
+
+  /* Pull-to-refresh indicator (option 3). Sits above the content and is
+     translated down as the drag progresses. */
+  .pull-ind {
+    position: fixed; top: 0; left: 50%;
+    margin-left: -1.25rem;
+    width: 2.5rem; height: 2.5rem;
+    display: grid; place-items: center;
+    border-radius: 9999px;
+    background: rgba(34, 30, 38, 0.9);
+    border: 0.5px solid rgba(255, 255, 255, 0.14);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+    color: #cebdff;
+    z-index: 45;
+    opacity: 0;
+    transform: translateY(-3rem);
+    pointer-events: none;
+  }
+
+  /* Review-only scaffolding: the option switcher is not part of the design. */
+  .opt-switch {
+    background: rgba(255, 255, 255, 0.04);
+    border-bottom: 0.5px dashed rgba(255, 255, 255, 0.18);
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .accordion, .chevron, .pressable, .tab-item { transition: none; }
-    .animate-pulse { animation: none; }
+    .animate-pulse, .spinning { animation: none; }
   }
 </style>
 </head>

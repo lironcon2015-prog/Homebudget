@@ -133,7 +133,44 @@ const view = {
   tab: 'dashboard',
   // One holding starts expanded so the accordion state is visible on load.
   expanded: 'VOO',
+  // Review-only: which quote-refresh treatment is being demonstrated.
+  // 'header' = freshness chip, 'fab' = mini FAB, 'pull' = pull-to-refresh.
+  refreshOption: 'header',
+  refreshing: false,
+  lastUpdated: '07:12',
 };
+
+const REFRESH_OPTIONS = [
+  { id: 'header', label: '1 · ציפור טריות' },
+  { id: 'fab',    label: '2 · FAB קטן' },
+  { id: 'pull',   label: '3 · משיכה' },
+];
+
+// Stands in for QuoteFetcher.fetchQuotes so each treatment can be felt with
+// real latency and a real busy state.
+function simulateRefresh() {
+  if (view.refreshing) return;
+  view.refreshing = true;
+  render();
+  setTimeout(() => {
+    view.refreshing = false;
+    const d = new Date();
+    view.lastUpdated = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    render();
+  }, 1800);
+}
+
+// Option 1 — the freshness chip that is also the control.
+function freshnessChip() {
+  if (view.refreshOption !== 'header') return '';
+  const busy = view.refreshing;
+  return `
+    <button type="button" data-refresh
+            class="pressable mt-2 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-on-surface-variant active:bg-white/[0.08]">
+      ${icon('sync', `text-[15px] text-primary ${busy ? 'spinning' : ''}`)}
+      <span>${busy ? 'מרענן שערים…' : `עודכן ${ltr(view.lastUpdated)}`}</span>
+    </button>`;
+}
 
 // ---------------------------------------------------------------------------
 // Shared building blocks
@@ -146,6 +183,7 @@ const screenHeader = (title, subtitle) => `
   <header class="px-5 pb-1 pt-8">
     <h1 class="text-2xl font-bold tracking-tight text-white">${title}</h1>
     ${subtitle ? `<p class="mt-1.5 text-sm text-on-surface-variant">${subtitle}</p>` : ''}
+    ${freshnessChip()}
   </header>`;
 
 // ---------------------------------------------------------------------------
@@ -447,15 +485,43 @@ function renderNav() {
 }
 
 // Bottom-left mirrors the conventional bottom-right FAB under RTL.
-const renderFab = () => `
+// Option 2 stacks a smaller refresh button directly above it.
+const renderFab = () => {
+  const mini = view.refreshOption !== 'fab' ? '' : `
+    <button type="button" data-refresh aria-label="רענן שערים"
+            class="pressable fixed bottom-[calc(11rem+env(safe-area-inset-bottom))] left-[1.55rem] z-50 grid h-11 w-11 place-items-center rounded-full border border-primary/30 bg-surface-container/90 text-primary backdrop-blur-xl shadow-[0_6px_20px_rgba(0,0,0,0.5)]">
+      ${icon('sync', `text-[20px] ${view.refreshing ? 'spinning' : ''}`)}
+    </button>`;
+
+  return `${mini}
   <button type="button" id="v2-fab" aria-label="תנועה חדשה"
           class="fab-neon fixed bottom-[calc(6.75rem+env(safe-area-inset-bottom))] left-5 z-50 grid h-14 w-14 place-items-center rounded-2xl transition-all">
     ${icon('add', 'text-[26px] fill')}
   </button>`;
+};
+
+// Review-only scaffolding — remove once a treatment is chosen.
+const renderOptionSwitch = () => `
+  <div class="opt-switch sticky top-0 z-[60] flex items-center gap-2 px-4 py-2">
+    <span class="shrink-0 text-[10px] font-bold uppercase tracking-[0.15em] text-outline">רענון</span>
+    <div class="flex flex-1 gap-1">
+      ${REFRESH_OPTIONS.map((o) => `
+        <button type="button" data-opt="${o.id}"
+                class="flex-1 rounded-lg px-2 py-1.5 text-[11px] font-semibold transition-colors ${
+                  view.refreshOption === o.id
+                    ? 'bg-primary/20 text-primary'
+                    : 'bg-white/[0.04] text-on-surface-variant'}">${o.label}</button>`).join('')}
+    </div>
+  </div>`;
 
 function render() {
   const root = document.getElementById('v2-root');
+  const pull = view.refreshOption !== 'pull' ? '' :
+    `<div id="pull-ind" class="pull-ind">${icon('sync', `text-[20px] ${view.refreshing ? 'spinning' : ''}`)}</div>`;
+
   root.innerHTML = `
+    ${renderOptionSwitch()}
+    ${pull}
     <div class="ambient-orb"><div class="orb-violet"></div><div class="orb-emerald"></div></div>
     <!-- Bottom padding clears the floating bar *and* the FAB, so the last row
          of a list is never parked underneath either at the end of a scroll. -->
@@ -464,13 +530,77 @@ function render() {
     </div>
     ${renderFab()}
     ${renderNav()}`;
+
+  if (view.refreshing && view.refreshOption === 'pull') showPull(56, true);
 }
+
+// ---------------------------------------------------------------------------
+// Option 3 — pull to refresh
+// ---------------------------------------------------------------------------
+
+const PULL_TRIGGER = 64;
+let pullStart = null;
+
+function showPull(dist, locked = false) {
+  const el = document.getElementById('pull-ind');
+  if (!el) return;
+  const y = Math.min(dist, 88);
+  el.style.transform = `translateY(${y}px) rotate(${locked ? 0 : dist * 2}deg)`;
+  el.style.opacity = String(Math.min(1, dist / PULL_TRIGGER));
+}
+
+function resetPull() {
+  const el = document.getElementById('pull-ind');
+  if (!el) return;
+  el.style.transition = 'transform .25s ease, opacity .25s ease';
+  el.style.transform = 'translateY(-3rem)';
+  el.style.opacity = '0';
+  setTimeout(() => { if (el) el.style.transition = ''; }, 260);
+}
+
+function onPullStart(y) {
+  // Only a drag that begins at the very top counts as a pull.
+  if (view.refreshOption !== 'pull' || view.refreshing || window.scrollY > 0) return;
+  pullStart = y;
+}
+
+function onPullMove(y, e) {
+  if (pullStart === null) return;
+  const d = y - pullStart;
+  if (d <= 0) return;
+  if (e.cancelable) e.preventDefault();
+  showPull(d * 0.6);
+}
+
+function onPullEnd(y) {
+  if (pullStart === null) return;
+  const d = (y - pullStart) * 0.6;
+  pullStart = null;
+  if (d >= PULL_TRIGGER) simulateRefresh(); else resetPull();
+}
+
+document.addEventListener('touchstart', (e) => onPullStart(e.touches[0].clientY), { passive: true });
+document.addEventListener('touchmove', (e) => onPullMove(e.touches[0].clientY, e), { passive: false });
+document.addEventListener('touchend', (e) => onPullEnd((e.changedTouches[0] || {}).clientY || 0));
+// Mouse drag mirrors the gesture so the option can be reviewed on a desktop.
+document.addEventListener('mousedown', (e) => onPullStart(e.clientY));
+document.addEventListener('mousemove', (e) => { if (pullStart !== null) onPullMove(e.clientY, e); });
+document.addEventListener('mouseup', (e) => onPullEnd(e.clientY));
 
 // ---------------------------------------------------------------------------
 // Mock interactions — presentation only, nothing is persisted.
 // ---------------------------------------------------------------------------
 
 document.addEventListener('click', (e) => {
+  const opt = e.target.closest('[data-opt]');
+  if (opt) {
+    view.refreshOption = opt.dataset.opt;
+    render();
+    return;
+  }
+
+  if (e.target.closest('[data-refresh]')) { simulateRefresh(); return; }
+
   const tab = e.target.closest('[data-tab]');
   if (tab) {
     view.tab = tab.dataset.tab;
