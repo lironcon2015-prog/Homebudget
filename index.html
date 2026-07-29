@@ -264,7 +264,7 @@ try {
 </head>
 
 <body class="font-sans min-h-screen antialiased" dir="rtl">
-  <!-- Everything below is injected by src/ui-v2.js (mock data only). -->
+  <!-- The app renders into this root; see the bootstrap below. -->
   <div id="v2-root"></div>
 
   <script>
@@ -281,16 +281,86 @@ try {
       .catch(() => {});
   </script>
 
-  <script type="module">
-    // Cache-bust on every load — but only over http(s). A file:// URL treats
-    // "?v=..." as part of the filename and 404s, which would break opening
-    // this page by double-clicking it.
-    const bust = location.protocol.startsWith('http') ? `?v=${Date.now()}` : '';
-    import(`./app-v2.js${bust}`).catch((e) => {
+  <script>
+  // Cache-busting bootstrap.
+  //
+  // Two separate staleness problems, both of which bit after the v1 -> v2 swap:
+  //
+  // 1. Busting only the entry module leaves every module it imports on the
+  //    cached copy, so a fresh app-v2.js would still pull an old ui-v2.js.
+  //    An importmap rewrites the whole graph at once.
+  // 2. The shell document itself is cached — an iOS home-screen webapp will
+  //    serve it indefinitely, so nothing inside it ever runs to fix anything.
+  //    Comparing the deployed version against the one in our own URL and
+  //    replacing the URL forces a fetch under a cache key the stale entry
+  //    doesn't occupy.
+  //
+  // A "no-cache" <meta http-equiv> does not do this: browsers ignore it for
+  // HTTP caching decisions.
+  (async () => {
+    const MODULES = [
+      './app-v2.js',
+      './src/ui-v2.js',
+      './src/state/LocalStoragePersistence.js',
+      './src/state/StateManager.js',
+      './src/view/Selectors.js',
+      './src/ledger/LedgerEngine.js',
+      './src/ledger/FifoEngine.js',
+      './src/ledger/DividendEngine.js',
+      './src/math/Xirr.js',
+      './src/io/QuoteFetcher.js',
+      './src/util/MathUtils.js',
+      './src/util/EventBus.js',
+      './src/util/IdGen.js'
+    ];
+
+    const showError = (msg, detail) => {
       document.getElementById('v2-root').innerHTML =
         '<pre dir="ltr" style="padding:1rem;color:#ffb4ab;white-space:pre-wrap;">'
-        + 'טעינה נכשלה\n' + (e && e.stack || e) + '</pre>';
-    });
+        + msg + '\n' + (detail || '') + '</pre>';
+    };
+
+    const http = location.protocol.startsWith('http');
+    let deployed = null;
+    if (http) {
+      try {
+        const r = await fetch('./version.json?_=' + Date.now(), { cache: 'no-store' });
+        deployed = (await r.json()).version;
+      } catch (e) { /* offline: keep whatever is cached rather than looping */ }
+    }
+
+    // Only redirect when we actually know the deployed version. Falling back to
+    // a timestamp here would never match and would reload forever.
+    if (deployed) {
+      const seen = new URLSearchParams(location.search).get('v');
+      if (seen !== deployed) {
+        location.replace(location.pathname + '?v=' + encodeURIComponent(deployed));
+        return;
+      }
+    }
+
+    const v = deployed || String(Date.now());
+    try {
+      if (http) {
+        const map = { imports: Object.fromEntries(MODULES.map((p) => [p, p + '?v=' + v])) };
+        const el = document.createElement('script');
+        el.type = 'importmap';
+        el.textContent = JSON.stringify(map);
+        document.head.appendChild(el);
+      }
+
+      window.JI_APP_VERSION = v;
+      const app = document.createElement('script');
+      app.type = 'module';
+      // A file:// URL treats "?v=..." as part of the filename and 404s, so the
+      // query is only ever added over http(s).
+      app.src = http ? './app-v2.js?v=' + v : './app-v2.js';
+      app.onerror = (e) => showError('כשל בטעינת app-v2.js (גרסה ' + v + ')', String(e));
+      document.body.appendChild(app);
+    } catch (e) {
+      showError('כשל בבוטסטרפ:', (e && e.stack) || String(e));
+    }
+  })();
   </script>
 </body>
 </html>
