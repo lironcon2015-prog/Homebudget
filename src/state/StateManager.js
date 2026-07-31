@@ -252,6 +252,18 @@ export class StateManager {
     return { added, updated, total: list.length };
   }
 
+  // Records that the automatic monthly pull already landed new returns for
+  // `month` (YYYY-MM), so it stops retrying on every app open until the next
+  // month begins. Persisted rather than in-memory: "once a month" has to
+  // survive the reload it is throttling.
+  markGemelReturnsFetched(month) {
+    const key = String(month).slice(0, 7);
+    if (!/^\d{4}-\d{2}$/.test(key)) return;
+    this.state.settings.gemelAutoFetchMonth = key;
+    this.state.settings.gemelAutoFetchAt = new Date().toISOString();
+    this._commit();
+  }
+
   setGemelReturn(id, { month, pct }) {
     const f = this._fund(id);
     const key = String(month).slice(0, 7);

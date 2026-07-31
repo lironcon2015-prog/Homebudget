@@ -52,6 +52,19 @@ const formatDateHe = (iso) => {
   return isNaN(d) ? String(iso) : d.toLocaleDateString('he-IL', { day: 'numeric', month: 'long', year: 'numeric' });
 };
 
+// Mixed field: a ticker must be isolated LTR, a Hebrew name must not be — a
+// multi-word Hebrew string inside an LTR bdi comes out with its words reversed.
+const autoLtr = (s, cls = '') => (/[֐-׿]/.test(String(s)) ? String(s) : ltr(s, cls));
+
+// Month keys are stored as YYYY-MM. Shown raw they read year-first, which in a
+// Hebrew screen looks like a reversed date; "יוני 2026" is what a date says here.
+const formatMonthHe = (key) => {
+  const m = /^(\d{4})-(\d{2})/.exec(String(key || ''));
+  if (!m) return key ? String(key) : '—';
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, 1));
+  return isNaN(d) ? String(key) : d.toLocaleDateString('he-IL', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+};
+
 const icon = (name, cls = '') => `<span class="material-symbols-outlined ${cls}">${name}</span>`;
 
 // Glowing pill — the app's signature indicator.
@@ -124,6 +137,56 @@ export class UIv2 {
     this.sm.on('state:changed', () => this.render());
     this._bind();
     this.render();
+    // Background, after the first paint — the app must be usable while the
+    // network call is in flight, and a failure must cost the user nothing.
+    setTimeout(() => this._autoUpdateGemel(), 1200);
+  }
+
+  // ---- Automatic monthly gemel update -------------------------------------
+
+  // גמל-נט publishes a month's return weeks after that month closes, so there
+  // is no single day on which the pull is guaranteed to succeed. The rule is
+  // therefore "keep trying on every entry until one lands": the marker is only
+  // written once a pull actually brought returns in, and it names the calendar
+  // month it landed in — so a new month on the 1st clears the throttle by
+  // itself, without a scheduled job.
+  //
+  // Deposits need no refresh: the standing order is derived from the fund's
+  // own schedule, so only the published returns come from outside.
+  async _autoUpdateGemel() {
+    if (this.autoGemelRan) return;
+    this.autoGemelRan = true;
+
+    const state = this.sm.getState();
+    const funds = (state.gemelFunds || []).filter((f) => String(f.fundNumber || '').trim());
+    if (!funds.length) return;
+
+    const month = today().slice(0, 7);
+    if (state.settings?.gemelAutoFetchMonth === month) return;
+
+    let added = 0;
+    let updated = 0;
+    for (const f of funds) {
+      try {
+        const res = await fetchGemelReturns(String(f.fundNumber).trim());
+        if (res.error) continue;
+        const r = this.sm.mergeGemelReturns(f.id, res.returns);
+        added += r.added;
+        updated += r.updated;
+      } catch {
+        // Offline, blocked proxy, or a schema change at the source. Silent by
+        // design — the next entry retries, and the manual pull in the fund
+        // sheet is the path that reports why it failed.
+      }
+    }
+
+    // Nothing new means the month is not published yet, so the throttle stays
+    // open and the next entry tries again.
+    if (added + updated === 0) return;
+
+    this.sm.markGemelReturnsFetched(month);
+    const parts = [added ? `${added} חדשים` : '', updated ? `${updated} עודכנו` : ''].filter(Boolean);
+    toast(`תשואות קופ״ג עודכנו — ${parts.join(', ')}`, 5000);
   }
 
   // ---- Derived helpers ----------------------------------------------------
@@ -436,11 +499,15 @@ export class UIv2 {
   }
 
   // Shared by the holdings and kid-portfolio accordions so the two can't drift.
-  _detailRow(label, value, tone = 'text-white') {
+  //
+  // `isolate` forces the value into an LTR run, which is right for money and
+  // tickers and wrong for a Hebrew date: "4 ביוני 2026" laid out left-to-right
+  // reads back to a Hebrew reader as "2026 ביוני 4". Dates pass isolate=false.
+  _detailRow(label, value, tone = 'text-white', isolate = true) {
     return `
       <div class="flex items-center justify-between border-b border-gray-800 py-2 text-sm last:border-b-0">
         <span class="text-gray-400">${escapeHtml(label)}</span>
-        <span class="font-semibold ${tone}">${ltr(value)}</span>
+        <span class="font-semibold ${tone}">${isolate ? ltr(value) : value}</span>
       </div>`;
   }
 
@@ -494,7 +561,7 @@ export class UIv2 {
         </div>
       </button>`;
 
-    const row = (label, value, valueTone) => this._detailRow(label, value, valueTone);
+    const row = (label, value, valueTone, isolate) => this._detailRow(label, value, valueTone, isolate);
 
     const split = r.perKid.map((k) => {
       const kidValue = r.price != null
@@ -519,7 +586,7 @@ export class UIv2 {
             ${row('מחיר קנייה ממוצע', cost?.avgPrice != null ? `${sym}${numFmt.format(cost.avgPrice)}` : '—')}
             ${row('מחיר נוכחי', r.priceFmt)}
             ${row('רווח/הפסד', signedIls(profit), tone)}
-            ${row('עודכן', r.asOf)}
+            ${row('עודכן', escapeHtml(formatDateHe(r.asOf)), 'text-white', false)}
 
             <p class="pb-1 pt-5 text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant">חלוקה בין הילדים</p>
             ${split}
@@ -621,10 +688,10 @@ export class UIv2 {
             ${this._detailRow('תשואה', pct != null ? signedRatio(pct) : '—', tone)}
             ${!kidId ? this._detailRow('תשואה שנתית', f.xirr != null ? ratioAsPct(f.xirr) : '—') : ''}
             ${this._detailRow('הפקדה חודשית', fund ? ils(fund.monthlyAmount) : '—')}
-            ${this._detailRow('הפקדה אחרונה', last ? formatDateHe(last.date) : '—')}
-            ${f.anchorAsOf ? this._detailRow('עוגן מהדוח', formatDateHe(f.anchorAsOf)) : ''}
-            ${f.revaluedFrom ? this._detailRow('משוערך מ-', f.revaluedFrom) : ''}
-            ${f.measuredThrough ? this._detailRow('משוערך עד', formatDateHe(f.measuredThrough)) : ''}
+            ${this._detailRow('הפקדה אחרונה', last ? escapeHtml(formatDateHe(last.date)) : '—', 'text-white', false)}
+            ${f.anchorAsOf ? this._detailRow('עוגן מהדוח', escapeHtml(formatDateHe(f.anchorAsOf)), 'text-white', false) : ''}
+            ${f.revaluedFrom ? this._detailRow('משוערך מ-', escapeHtml(formatMonthHe(f.revaluedFrom)), 'text-white', false) : ''}
+            ${f.measuredThrough ? this._detailRow('משוערך עד', escapeHtml(formatDateHe(f.measuredThrough)), 'text-white', false) : ''}
             ${split}
             ${tailNote}
             ${editBtn}
@@ -671,7 +738,7 @@ export class UIv2 {
           <div class="min-w-0 flex-1">
             <div class="flex items-center gap-2">
               <span class="text-sm font-bold text-white">${escapeHtml(t.label)}</span>
-              <span class="truncate text-xs text-on-surface-variant">${ltr(escapeHtml(t.who))}</span>
+              <span class="truncate text-xs text-on-surface-variant">${autoLtr(escapeHtml(t.who))}</span>
             </div>
             <div class="mt-1 truncate text-xs text-outline">${escapeHtml(t.details)}</div>
           </div>
@@ -1195,7 +1262,7 @@ export class UIv2 {
     const returnRows = (fund?.returns || []).length ? `
       <div class="max-h-48 overflow-y-auto">${(fund.returns).map((r) => `
         <div class="flex items-center gap-3 border-b border-white/5 py-2 text-sm last:border-b-0">
-          <span class="flex-1 text-gray-400">${ltr(escapeHtml(r.month))}
+          <span class="flex-1 text-gray-400">${escapeHtml(formatMonthHe(r.month))}
             ${r.source === 'manual' ? '<span class="text-[10px] text-outline">ידני</span>' : ''}</span>
           <span class="font-semibold ${r.pct < 0 ? 'text-red-400' : 'text-secondary'}">${ltr(signedPoints(r.pct))}</span>
           <button type="button" data-del-gemel-ret="${escapeHtml(r.month)}" class="pressable shrink-0 text-outline active:text-red-400">${icon('close', 'text-[16px]')}</button>
