@@ -1079,18 +1079,28 @@ export class UIv2 {
       const failed = stock.filter((t) => !results[t]);
       const fx = results['ILS=X'] ? ` · USD/ILS ${results['ILS=X'].price.toFixed(3)}` : '';
       status.finish(
-        `✓ ${ok.length}/${stock.length} עודכנו${fx}` + (failed.length ? ` | ✗ נכשלו: ${failed.join(', ')}` : ''),
+        `✓ ${ok.length}/${stock.length} עודכנו${fx}` + (failed.length ? ` | ✗ נכשלו: ${failed.join(', ')}` : '') + this._quoteFailureHint(ok.length),
         ok.length ? 4000 : 7000,
       );
     } catch (e) {
-      status.finish(e?.message === 'timeout'
+      status.finish((e?.message === 'timeout'
         ? 'הזמן עבר 45 שניות — כל הפרוקסים נכשלו. נסה שוב מאוחר יותר.'
-        : 'שגיאה בעת משיכת השערים', 7000);
+        : 'שגיאה בעת משיכת השערים') + this._quoteFailureHint(0), 7000);
     } finally {
       this.refreshing = false;
       this.render();
       this._resetPull();
     }
+  }
+
+  // Without a Worker URL, proxyFetch silently falls back to public CORS
+  // proxies that are slow and frequently down — so a refresh that fetched
+  // nothing reads as "the app is broken" when the actual cause is a setting
+  // nobody was told about. Only shown when nothing came back at all; with even
+  // one success the proxy is plainly working and this would be noise.
+  _quoteFailureHint(okCount) {
+    if (okCount || getWorkerUrl()) return '';
+    return ' — לא מוגדרת כתובת Worker (הגדרות ← שערים), והפרוקסים הציבוריים לא ענו';
   }
 
   // ---- Transaction sheet --------------------------------------------------

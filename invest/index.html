@@ -312,6 +312,14 @@ try {
      specificity Tailwind wins on source order, and a plain `.app-shell` rule
      silently loses to `max-w-lg` with nothing in the console to show for it. */
 
+  /* Toasts sit above the bottom navigation, which is right under the user's
+     thumb on a phone. Embedded in the budget app's desktop shell the frame is
+     far taller than its content, so that same position puts the result of a
+     refresh hundreds of pixels below the button that triggered it — easily
+     read as "nothing happened". Anchored to the top there instead, next to
+     the header the button lives in. */
+  html.embedded #v2-toasts { top: 1rem; bottom: auto; }
+
   /* A drag gesture has no affordance with a mouse, so the header carries a
      refresh button instead — but only where there is a pointer to click it.
      On a phone the gesture is the better control and the button is noise.
