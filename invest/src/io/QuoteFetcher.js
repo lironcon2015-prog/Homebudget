@@ -1,4 +1,8 @@
 const TIMEOUT_MS = 6000;
+// Public fallback proxies get a tighter budget than the user's own worker:
+// they are the slow path, and four of them at the worker's timeout is most of
+// a minute spent proving they are still down.
+const PUBLIC_TIMEOUT_MS = 3500;
 const MAX_PARALLEL = 5;
 const WORKER_URL_KEY = 'juniorinvest:quoteProxy';
 const SYMBOL_MAP_KEY = 'juniorinvest:symbolMap';
@@ -42,29 +46,65 @@ function fetchWithTimeout(url, timeoutMs = TIMEOUT_MS) {
   return fetch(url, { signal: ctrl.signal }).finally(() => clearTimeout(id));
 }
 
-export async function proxyFetch(targetUrl) {
+// Consecutive failures per proxy, for the lifetime of the page. A dead public
+// proxy used to cost its full timeout on EVERY lookup: the first ticker
+// discovered it was down and the next twenty rediscovered it. Two strikes and
+// it sits out the rest of the session; any success clears its record.
+const proxyStrikes = new Map();
+const PROXY_STRIKE_LIMIT = 2;
+
+const benched = (id) => (proxyStrikes.get(id) || 0) >= PROXY_STRIKE_LIMIT;
+// A timeout counts as a full bench on its own: a proxy that never answers is
+// unreachable, and making the next ticker prove that again costs it the whole
+// budget. An HTTP error is weaker evidence — a single 500 or a rate-limit
+// should not disable a proxy that otherwise works — so it takes two.
+const strike = (id, weight = 1) => proxyStrikes.set(id, (proxyStrikes.get(id) || 0) + weight);
+const absolve = (id) => proxyStrikes.delete(id);
+
+export function resetProxyHealth() { proxyStrikes.clear(); }
+
+/**
+ * @param {string} targetUrl
+ * @param {{deadline?: number}} opts  Absolute Date.now() cut-off. Attempts stop
+ *        once it passes and each timeout is clamped to what remains, which is
+ *        what makes a caller's budget an actual bound instead of something
+ *        checked between phases while one phase runs for a minute.
+ */
+export async function proxyFetch(targetUrl, { deadline } = {}) {
   const workerUrl = getWorkerUrl();
   const attempts = [];
   if (workerUrl) {
     // Cache-bust so a stale Cloudflare edge response doesn't poison future calls.
     const bust = '&_=' + Date.now();
-    attempts.push({ url: workerUrl + '/?url=' + encodeURIComponent(targetUrl) + bust, json: false });
+    attempts.push({ id: 'worker', url: workerUrl + '/?url=' + encodeURIComponent(targetUrl) + bust, json: false, ms: TIMEOUT_MS });
   }
+  // Public proxies exist for users who have not deployed a worker. They are
+  // slower and far less reliable, so they get a shorter leash than the worker.
   attempts.push(
-    { url: 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(targetUrl), json: false },
-    { url: 'https://api.allorigins.win/raw?url=' + encodeURIComponent(targetUrl), json: false },
-    { url: 'https://api.allorigins.win/get?url=' + encodeURIComponent(targetUrl), json: true },
-    { url: 'https://corsproxy.io/?url=' + encodeURIComponent(targetUrl), json: false },
+    { id: 'codetabs', url: 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(targetUrl), json: false, ms: PUBLIC_TIMEOUT_MS },
+    { id: 'allorigins-raw', url: 'https://api.allorigins.win/raw?url=' + encodeURIComponent(targetUrl), json: false, ms: PUBLIC_TIMEOUT_MS },
+    { id: 'allorigins-get', url: 'https://api.allorigins.win/get?url=' + encodeURIComponent(targetUrl), json: true, ms: PUBLIC_TIMEOUT_MS },
+    { id: 'corsproxy', url: 'https://corsproxy.io/?url=' + encodeURIComponent(targetUrl), json: false, ms: PUBLIC_TIMEOUT_MS },
   );
-  for (const { url, json } of attempts) {
+
+  for (const { id, url, json, ms } of attempts) {
+    if (benched(id)) continue;
+    const left = deadline ? deadline - Date.now() : Infinity;
+    if (left <= 0) { console.warn('[proxyFetch] out of budget before', id); break; }
     try {
-      const res = await fetchWithTimeout(url);
-      if (!res.ok) { console.warn('[proxyFetch] HTTP', res.status, url); continue; }
+      const res = await fetchWithTimeout(url, Math.min(ms, left));
+      if (!res.ok) { console.warn('[proxyFetch] HTTP', res.status, url); strike(id); continue; }
       const raw = await res.text();
       const text = json ? (JSON.parse(raw).contents ?? raw) : raw;
-      if (text && text.length > 50) return text;
+      if (text && text.length > 50) { absolve(id); return text; }
       console.warn('[proxyFetch] short body', text?.length, url);
-    } catch (e) { console.warn('[proxyFetch] err', e.name, e.message, url); }
+      // A short body is the upstream saying "no data", not this proxy failing.
+      // Benching it over that would disable a route that works.
+      absolve(id);
+    } catch (e) {
+      console.warn('[proxyFetch] err', e.name, e.message, url);
+      strike(id, e?.name === 'AbortError' ? PROXY_STRIKE_LIMIT : 1);
+    }
   }
   return null;
 }
@@ -102,12 +142,15 @@ export async function testWorker(testTicker = 'AAPL') {
     // Yahoo spells differently (DLAS -> DLAS.TA) is visible rather than just
     // "failed".
     const lines = [];
-    const direct = await yahooChart(testTicker);
+    // The diagnostic is bounded like a real lookup — an unbounded one used to
+    // sit for over a minute, which is its own bug report.
+    const probeDeadline = Date.now() + RESOLVE_BUDGET_MS;
+    const direct = await yahooChart(testTicker, ['query1', 'query2'], probeDeadline);
     lines.push(direct
       ? `  ✓ ${testTicker} (ישיר): ${direct.price} ${direct.currency || ''}`
       : `  ✗ ${testTicker} (ישיר): אין נתונים ב-Yahoo`);
 
-    const matches = await yahooSearch(testTicker);
+    const matches = await yahooSearch(testTicker, probeDeadline);
     if (matches.length) {
       lines.push(`  חיפוש Yahoo מצא ${matches.length} התאמות:`);
       for (const m of matches) lines.push(`    · ${m.symbol} — ${m.name} (${m.exchange})`);
@@ -289,11 +332,12 @@ export function clearSymbolCache() {
 // One Yahoo chart lookup. Returns { price, currency, symbol } or null.
 // Speculative candidates pass hosts=['query1'] — mirroring a guess across both
 // Yahoo hosts doubles the round-trips without improving the odds.
-async function yahooChart(symbol, hosts = ['query1', 'query2']) {
+async function yahooChart(symbol, hosts = ['query1', 'query2'], deadline) {
   for (const host of hosts) {
+    if (deadline && Date.now() > deadline) return null;
     const url = `https://${host}.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}`;
     try {
-      const text = await proxyFetch(url);
+      const text = await proxyFetch(url, { deadline });
       if (!text) continue;
       const meta = JSON.parse(text)?.chart?.result?.[0]?.meta;
       const price = meta?.regularMarketPrice;
@@ -309,12 +353,17 @@ async function yahooChart(symbol, hosts = ['query1', 'query2']) {
 // base symbol (the part before the exchange suffix) equals the typed ticker
 // are accepted — a fuzzy *name* match must never end up pricing a different
 // security than the one the user holds.
-async function yahooSearch(ticker) {
-  const base = ticker.toUpperCase();
+async function yahooSearch(ticker, deadline) {
+  // Compare base symbol to base symbol. Taking the typed ticker whole meant a
+  // user who entered an already-qualified symbol could never match: searching
+  // "DLEKG.TA" returns the symbol DLEKG.TA, whose base is DLEKG, which is not
+  // equal to the string "DLEKG.TA" — so every candidate was filtered out and
+  // the security reported as missing from every source.
+  const base = ticker.toUpperCase().split('.')[0];
   const url = 'https://query1.finance.yahoo.com/v1/finance/search'
     + `?q=${encodeURIComponent(ticker)}&quotesCount=10&newsCount=0&listsCount=0`;
   try {
-    const text = await proxyFetch(url);
+    const text = await proxyFetch(url, { deadline });
     if (!text) return [];
     const quotes = JSON.parse(text)?.quotes || [];
     return quotes
@@ -332,11 +381,12 @@ async function yahooSearch(ticker) {
 
 // Stooq CSV — an independent free source that covers a number of listings
 // Yahoo is missing. Format: Symbol,Date,Time,Open,High,Low,Close,Volume
-async function stooqQuote(ticker) {
+async function stooqQuote(ticker, deadline) {
   const base = ticker.toLowerCase();
   for (const s of [`${base}.us`, base]) {
+    if (deadline && Date.now() > deadline) return null;
     try {
-      const text = await proxyFetch(`https://stooq.com/q/l/?s=${encodeURIComponent(s)}&f=sd2t2ohlcv&h&e=csv`);
+      const text = await proxyFetch(`https://stooq.com/q/l/?s=${encodeURIComponent(s)}&f=sd2t2ohlcv&h&e=csv`, { deadline });
       if (!text) continue;
       const row = text.trim().split('\n')[1];
       if (!row) continue;
@@ -356,20 +406,23 @@ async function getForeignQuote(ticker) {
   const deadline = Date.now() + RESOLVE_BUDGET_MS;
   const outOfTime = () => Date.now() > deadline;
 
-  // The literal spelling (and any symbol we resolved on a previous run) is
-  // tried first and is never skipped for budget — this is the common path.
+  // The literal spelling (and any symbol resolved on a previous run) is the
+  // common path, so it goes first. It still carries the deadline: exempting it
+  // was what let a single lookup run for over a minute — two hosts, each
+  // walking five proxies at six seconds apiece, with the budget only consulted
+  // once the phase was already over.
   for (const sym of known) {
-    const hit = await yahooChart(sym);
+    const hit = await yahooChart(sym, ['query1', 'query2'], deadline);
     if (hit) return { ...hit, source: 'yahoo' };
   }
 
   // Nothing under the literal spelling — ask Yahoo which symbol this is.
   if (!outOfTime()) {
-    const matches = await yahooSearch(ticker);
+    const matches = await yahooSearch(ticker, deadline);
     for (const m of matches) {
       if (seen.has(m.symbol.toUpperCase()) || outOfTime()) continue;
       push(m.symbol);
-      const hit = await yahooChart(m.symbol, ['query1']);
+      const hit = await yahooChart(m.symbol, ['query1'], deadline);
       if (hit) {
         console.log(`[QuoteFetcher] resolved ${ticker} -> ${hit.symbol} (${m.exchange} ${m.name})`);
         return { ...hit, source: 'yahoo-search' };
@@ -378,20 +431,23 @@ async function getForeignQuote(ticker) {
   }
 
   // Search itself can come back empty behind a flaky proxy; guess the common
-  // exchange suffix directly before giving up on Yahoo.
-  for (const sfx of SUFFIX_GUESSES) {
-    const sym = ticker.toUpperCase() + sfx;
-    if (seen.has(sym) || outOfTime()) continue;
-    push(sym);
-    const hit = await yahooChart(sym, ['query1']);
-    if (hit) {
-      console.log(`[QuoteFetcher] resolved ${ticker} -> ${hit.symbol} by suffix guess`);
-      return { ...hit, source: 'yahoo-suffix' };
+  // exchange suffix directly before giving up on Yahoo. Skipped when the user
+  // already typed a qualified symbol — "DLEKG.TA" + ".TA" is not a ticker.
+  if (!ticker.includes('.')) {
+    for (const sfx of SUFFIX_GUESSES) {
+      const sym = ticker.toUpperCase() + sfx;
+      if (seen.has(sym) || outOfTime()) continue;
+      push(sym);
+      const hit = await yahooChart(sym, ['query1'], deadline);
+      if (hit) {
+        console.log(`[QuoteFetcher] resolved ${ticker} -> ${hit.symbol} by suffix guess`);
+        return { ...hit, source: 'yahoo-suffix' };
+      }
     }
   }
 
   if (!outOfTime()) {
-    const stooq = await stooqQuote(ticker);
+    const stooq = await stooqQuote(ticker, deadline);
     if (stooq) return { ...stooq, source: 'stooq' };
   }
 
@@ -407,7 +463,7 @@ async function getIsraeliQuote(rawId) {
   }
   // Scraped pages can change markup or omit the security entirely; Yahoo
   // carries many TASE listings under "<id>.TA" and answers with clean JSON.
-  const y = await yahooChart(`${rawId}.TA`, ['query1']);
+  const y = await yahooChart(`${rawId}.TA`, ['query1'], Date.now() + RESOLVE_BUDGET_MS);
   if (y) return { price: y.price, currency: y.currency || 'ILS-Agorot', symbol: y.symbol, source: 'yahoo' };
   return null;
 }
