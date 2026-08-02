@@ -1,7 +1,11 @@
 const TIMEOUT_MS = 6000;
-// Public fallback proxies get a tighter budget than the user's own worker:
-// they are the slow path, and four of them at the worker's timeout is most of
-// a minute spent proving they are still down.
+// The user's own worker fetches the upstream page server-side, and the Israeli
+// scrape targets are slow to render. Six seconds was cutting off responses that
+// were simply on their way, which reads as "no source has this price".
+const WORKER_TIMEOUT_MS = 12000;
+// Public fallback proxies get a much tighter budget: they are the slow path,
+// and four of them at the worker's timeout is most of a minute spent proving
+// they are still down.
 const PUBLIC_TIMEOUT_MS = 3500;
 const MAX_PARALLEL = 5;
 const WORKER_URL_KEY = 'juniorinvest:quoteProxy';
@@ -46,19 +50,30 @@ function fetchWithTimeout(url, timeoutMs = TIMEOUT_MS) {
   return fetch(url, { signal: ctrl.signal }).finally(() => clearTimeout(id));
 }
 
-// Consecutive failures per proxy, for the lifetime of the page. A dead public
-// proxy used to cost its full timeout on EVERY lookup: the first ticker
+// Consecutive failures per PUBLIC proxy, for the lifetime of the page. A dead
+// one used to cost its full timeout on EVERY lookup: the first ticker
 // discovered it was down and the next twenty rediscovered it. Two strikes and
 // it sits out the rest of the session; any success clears its record.
+//
+// The user's own worker is never benched, whatever it does. It is the primary
+// and usually the ONLY source that works — the public proxies are a courtesy
+// for people who never deployed one. Benching it turned a slow worker into no
+// worker at all: fetchIsraeliCandidates fires five requests in parallel, so a
+// single slow page timed out all five at once and disabled the worker for the
+// session, after which every lookup reported "no source has this".
 const proxyStrikes = new Map();
 const PROXY_STRIKE_LIMIT = 2;
+const UNBENCHABLE = new Set(['worker']);
 
 const benched = (id) => (proxyStrikes.get(id) || 0) >= PROXY_STRIKE_LIMIT;
-// A timeout counts as a full bench on its own: a proxy that never answers is
-// unreachable, and making the next ticker prove that again costs it the whole
+// A timeout benches a public proxy on its own: one that never answers is
+// unreachable, and making the next ticker prove that again costs a whole
 // budget. An HTTP error is weaker evidence — a single 500 or a rate-limit
 // should not disable a proxy that otherwise works — so it takes two.
-const strike = (id, weight = 1) => proxyStrikes.set(id, (proxyStrikes.get(id) || 0) + weight);
+const strike = (id, weight = 1) => {
+  if (UNBENCHABLE.has(id)) return;
+  proxyStrikes.set(id, (proxyStrikes.get(id) || 0) + weight);
+};
 const absolve = (id) => proxyStrikes.delete(id);
 
 export function resetProxyHealth() { proxyStrikes.clear(); }
@@ -76,7 +91,7 @@ export async function proxyFetch(targetUrl, { deadline } = {}) {
   if (workerUrl) {
     // Cache-bust so a stale Cloudflare edge response doesn't poison future calls.
     const bust = '&_=' + Date.now();
-    attempts.push({ id: 'worker', url: workerUrl + '/?url=' + encodeURIComponent(targetUrl) + bust, json: false, ms: TIMEOUT_MS });
+    attempts.push({ id: 'worker', url: workerUrl + '/?url=' + encodeURIComponent(targetUrl) + bust, json: false, ms: WORKER_TIMEOUT_MS });
   }
   // Public proxies exist for users who have not deployed a worker. They are
   // slower and far less reliable, so they get a shorter leash than the worker.
