@@ -59,9 +59,11 @@
 - **בדסקטופ** היא מוטמעת ב-iframe same-origin (`invest.js`, מסך `invest`).
   **בנייד** היא PWA מותקנת נפרדת — פריט הניווט מוסתר ו-`navigate()` מחזיר
   `#invest` ללוח הבקרה. אל תוסיפו לה renderer מובייל כאן; ההפרדה מכוונת.
-- **המפתחות שלה (`juniorinvest:*`) נכללים בגיבוי** — נבחרים לפי prefix
-  (`collectInvestKeys`) ומועתקים verbatim כמחרוזות. אל תעבירו אותם דרך
-  `DB.set` ואל תעשו להם parse/serialize: אחד מהם מחזיק URL ולא JSON.
+- **המפתחות שלה (`juniorinvest:*`) *לא* נכללים בגיבוי שלנו.** היא מסנכרנת את
+  עצמה לקובץ Drive נפרד (`kids-portfolio.json`), ואנחנו ל-`finance-app-backup.json`.
+  זו הפרדה מכוונת: שתי אפליקציות שדוחפות מסמך אחד היו דורסות זו את זו בכל
+  עריכה. אל תוסיפו אותם ל-`collectBackupData` ואל תרחיבו את `_isBackupKey` —
+  זה נוסה, וזו הסיבה שזה הוסר.
 - **`/invest/` מוחרג מה-Service Worker** (`sw.js`). היא בתוך ה-scope שלנו אבל
   מנקה cache דרך importmap מגורסן משלה.
 - **מחזור גרסאות נפרד.** ל-`invest/` יש `version.json` משלה, שה-workflow

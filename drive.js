@@ -270,11 +270,14 @@ async function _driveAutoPull() {
   if (typeof navigate === 'function') navigate(cur)
 }
 
-// Whether a localStorage key belongs in the backup payload. The portfolio app
-// under /invest/ owns an open-ended namespace rather than a fixed key list, so
-// it is matched by prefix — see collectInvestKeys() in app.js.
+// Whether a localStorage key belongs in this app's backup payload.
+//
+// Deliberately does NOT match the portfolio's juniorinvest:* keys. That app
+// shares our origin and localStorage but syncs itself, to its own Drive file —
+// picking its writes up here too would make two apps push one document and
+// silently undo each other. See the note in app.js.
 function _isBackupKey(key) {
-  return _DRIVE_BACKUP_KEYS.has(key) || key.startsWith(INVEST_KEY_PREFIX)
+  return _DRIVE_BACKUP_KEYS.has(key)
 }
 
 // Hook called from DB.set — schedules a debounced push when the changed key
@@ -287,19 +290,6 @@ function _onBackupKeyWrite(key) {
   if (_driveDebounceTimer) clearTimeout(_driveDebounceTimer)
   _driveDebounceTimer = setTimeout(_drivePush, 5000)
 }
-
-// The portfolio app has its own persistence layer and writes localStorage
-// directly, so its saves never reach DB.set and the hook above. They do reach
-// us as `storage` events: the browser fires those in every context on the
-// origin EXCEPT the one that made the write — which covers both the embedded
-// frame on this page and the portfolio running in its own tab.
-//
-// Note the gap this does not close: when the portfolio PWA is open on a phone
-// and this app is not, nothing on that device is listening, so the push waits
-// until the budget app is next opened there.
-window.addEventListener('storage', e => {
-  if (e.key && e.key.startsWith(INVEST_KEY_PREFIX)) _onBackupKeyWrite(e.key)
-})
 
 async function _drivePush() {
   if (_drivePushing) return

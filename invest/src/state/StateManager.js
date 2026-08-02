@@ -46,10 +46,15 @@ export class StateManager {
 
   on(event, fn) { return this.bus.on(event, fn); }
 
+  // Set by app-v2.js once Drive sync is wired up. Kept as a plain callback so
+  // the engine keeps no knowledge of syncing, networks or Google.
+  onCommit = null;
+
   _commit() {
     this._derived = null;
     this.persistence.save(this.state);
     this.bus.emit('state:changed', { state: this.state, derived: this.getDerived() });
+    this.onCommit?.();
   }
 
   getState() { return this.state; }
@@ -398,5 +403,20 @@ export class StateManager {
     this.state = parsed;
     this._idGen = createIdGen(this.state.ledger);
     this._commit();
+  }
+
+  // Re-read persistence and re-render, WITHOUT writing back. Used after a Drive
+  // pull has replaced the stored keys underneath us: going through _commit()
+  // would save the state we just loaded and, through the sync hook, bounce it
+  // straight back up to Drive as if it were a local edit.
+  reloadFromPersistence() {
+    const loaded = this.persistence.load();
+    if (!loaded) return false;
+    if (!Array.isArray(loaded.gemelFunds)) loaded.gemelFunds = [];
+    this.state = loaded;
+    this._idGen = createIdGen(this.state.ledger);
+    this._derived = null;
+    this.bus.emit('state:changed', { state: this.state, derived: this.getDerived() });
+    return true;
   }
 }

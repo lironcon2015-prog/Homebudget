@@ -1,4 +1,4 @@
-const APP_VERSION = '1.45.0'
+const APP_VERSION = '1.45.1'
 
 // ===== STORAGE =====
 // Hot keys are cached as parsed objects: getTransactions() etc. used to
@@ -340,43 +340,20 @@ function collectBackupData() {
     feedback:            DB.get('finFeedback', []),
     reconciliation:      DB.getObj('finReconciliation', {}),
     dismissedAnomalies:  DB.get('finDismissedAnomalies', []),
-    invest:              collectInvestKeys(),
     exportedAt:          new Date().toISOString(),
   }
 }
 
 // ===== PORTFOLIO (/invest/) =====
-// The portfolio app shares this origin, so it shares this localStorage and
-// therefore this backup — one Drive file and one JSON export cover both apps.
-// It is a separate codebase with its own persistence layer, so we treat its
-// keys as opaque: copied verbatim as raw strings, selected by prefix.
+// The portfolio app shares this origin and therefore this localStorage, but it
+// does NOT ride along in this backup. It owns its juniorinvest:* keys end to
+// end and syncs them to its own Drive file.
 //
-// Verbatim matters. `juniorinvest:quoteProxy` holds a bare URL rather than
-// JSON, so a parse-everything approach throws on it; and round-tripping the
-// ledger through parse/serialize risks silently reshaping data this app has no
-// business understanding.
+// That split is deliberate. Carrying them here as well would put two
+// independent apps behind one document: every portfolio edit made while the
+// budget app was open would race the portfolio's own upload, and whichever
+// pushed last would quietly roll the other back. One writer per file instead.
 const INVEST_KEY_PREFIX = 'juniorinvest:'
-
-function collectInvestKeys() {
-  const out = {}
-  for (let i = 0; i < localStorage.length; i++) {
-    const k = localStorage.key(i)
-    if (k && k.startsWith(INVEST_KEY_PREFIX)) out[k] = localStorage.getItem(k)
-  }
-  return out
-}
-
-function applyInvestKeys(invest) {
-  for (const [k, v] of Object.entries(invest)) {
-    // Written straight to localStorage, not through DB.set: these are not DB
-    // keys, and routing them through it would bump revisions the budget app's
-    // caches key off and bounce the write straight back out as a Drive push.
-    if (k.startsWith(INVEST_KEY_PREFIX) && typeof v === 'string') localStorage.setItem(k, v)
-  }
-  // The portfolio reads its state once, at construction — an already-open frame
-  // would otherwise keep showing pre-restore data until manually reloaded.
-  if (typeof reloadInvestFrame === 'function') reloadInvestFrame()
-}
 
 // Structural validation shared by EVERY restore path (JSON import, Drive
 // restore/auto-pull, local snapshot). Restoring replaces the whole dataset —
@@ -391,7 +368,10 @@ function validateBackupData(data) {
   }
   if (Array.isArray(data.transactions) && data.transactions.some(t => !t || typeof t !== 'object')) return false
   if (Array.isArray(data.accounts) && data.accounts.some(a => !a || typeof a !== 'object' || !a.id)) return false
-  // Portfolio keys, when present, must be a flat key → raw-string map.
+  // Backups written while the portfolio briefly rode along in this payload
+  // still carry an `invest` map. We no longer restore it, but such a file must
+  // still validate — rejecting it would lock the user out of their own backup
+  // over a field we chose to stop reading.
   if (data.invest !== undefined) {
     if (!data.invest || typeof data.invest !== 'object' || Array.isArray(data.invest)) return false
     if (Object.values(data.invest).some(v => typeof v !== 'string')) return false
@@ -430,7 +410,6 @@ function applyBackupData(data) {
     const merged = new Set([...DB.get('finDismissedAnomalies', []), ...data.dismissedAnomalies])
     DB.set('finDismissedAnomalies', [...merged])
   }
-  if (data.invest && typeof data.invest === 'object') applyInvestKeys(data.invest)
   if (typeof invalidatePLCache === 'function')            invalidatePLCache()
   if (typeof invalidateSavingsCache === 'function')       invalidateSavingsCache()
   if (typeof invalidateCapitalIncomeCache === 'function') invalidateCapitalIncomeCache()

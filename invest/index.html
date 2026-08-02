@@ -303,6 +303,40 @@ try {
     .accordion, .chevron, .pressable, .tab-item { transition: none; }
     .animate-pulse, .spinning { animation: none; }
   }
+
+  /* A drag gesture has no affordance with a mouse, so the header carries a
+     refresh button instead — but only where there is a pointer to click it.
+     On a phone the gesture is the better control and the button is noise. */
+  .pointer-fine-only { display: none; }
+  @media (pointer: fine) { .pointer-fine-only { display: grid; } }
+
+  /* ===== WIDE LAYOUT =====
+     This app is phone-first: one 32rem column, everything stacked. That column
+     is also what the budget app's desktop shell embeds, where it turns into a
+     narrow strip of content between two empty margins and far more scrolling
+     than the screen needs.
+     The breakpoint is on the VIEWPORT, which inside an iframe means the frame's
+     own width — so the layout follows the space actually available rather than
+     the size of the device behind it. */
+  @media (min-width: 900px) {
+    .app-shell { max-width: 72rem; }
+
+    /* auto-fill rather than a fixed column count: the same rule then serves a
+       half-width window and a full-screen desktop without a second breakpoint. */
+    .wide-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(23rem, 1fr));
+      gap: 1rem;
+      align-items: start;
+    }
+    /* Tailwind's space-y-* puts margin on every child but the first. Inside a
+       grid that stacks on top of the gap and knocks the rows out of line. */
+    .wide-grid > * + * { margin-top: 0; }
+
+    /* The ledger is chronological — splitting it into columns would break the
+       one thing its order is for. It gets the width it can use and no more. */
+    .wide-cap { max-width: 46rem; margin-inline: auto; }
+  }
 </style>
 </head>
 
@@ -354,6 +388,7 @@ try {
       './src/math/Xirr.js',
       './src/io/QuoteFetcher.js',
       './src/io/GemelFetcher.js',
+      './src/io/DriveSync.js',
       './src/util/MathUtils.js',
       './src/util/EventBus.js',
       './src/util/IdGen.js'
