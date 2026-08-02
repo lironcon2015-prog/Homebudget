@@ -850,7 +850,11 @@ export class UIv2 {
     const inputCls = 'w-full rounded-xl border border-primary/20 bg-white/[0.03] px-3 py-2.5 text-sm text-white outline-none focus:border-primary/60';
 
     return `
-      ${this._header('הגדרות')}
+      <!-- This app versions independently of the budget app it is embedded in,
+           and until now showed that number nowhere — leaving the host's version
+           indicator as the only one on screen, and no way to tell whether the
+           portfolio itself had picked up a release. -->
+      ${this._header('הגדרות', `גרסה ${escapeHtml(String(window.JI_APP_VERSION || '?'))}`)}
       <section class="space-y-6 px-5 pt-4 wide-grid">
         <div>
           ${this._sectionTitle('ילדים')}
