@@ -49,6 +49,25 @@
 
 לוגיקת העדכון: ה-SW ב-`sw.js` מחזיר network-first ל-HTML ול-`version.json`. רישום ה-SW ב-`index.html` מאזין ל-`updatefound` ומציג `#updateToast`. כפתור "בדוק עדכון" בהגדרות קורא ל-`checkForUpdate()` שמשווה ל-`APP_VERSION` ודוחף SKIP_WAITING + reload.
 
+## אפליקציית המשנה `invest/` — תיק ההשקעות של הילדים
+
+תת-אפליקציה עצמאית (ES modules, שפת עיצוב משלה) שמוגשת מ-`/invest/` ומשתפת עם
+האפליקציה הזו **origin, ולכן גם `localStorage`**. זו הסיבה שהיא הועברה לכאן:
+בלי origin משותף העותק בדסקטופ והעותק בנייד לא יכולים לראות אותם נתונים.
+הכללים המלאים שלה ב-`invest/CLAUDE.md`. מה שחשוב מהצד הזה:
+
+- **בדסקטופ** היא מוטמעת ב-iframe same-origin (`invest.js`, מסך `invest`).
+  **בנייד** היא PWA מותקנת נפרדת — פריט הניווט מוסתר ו-`navigate()` מחזיר
+  `#invest` ללוח הבקרה. אל תוסיפו לה renderer מובייל כאן; ההפרדה מכוונת.
+- **המפתחות שלה (`juniorinvest:*`) נכללים בגיבוי** — נבחרים לפי prefix
+  (`collectInvestKeys`) ומועתקים verbatim כמחרוזות. אל תעבירו אותם דרך
+  `DB.set` ואל תעשו להם parse/serialize: אחד מהם מחזיק URL ולא JSON.
+- **`/invest/` מוחרג מה-Service Worker** (`sw.js`). היא בתוך ה-scope שלנו אבל
+  מנקה cache דרך importmap מגורסן משלה.
+- **מחזור גרסאות נפרד.** ל-`invest/` יש `version.json` משלה, שה-workflow
+  `invest-offline.yml` מבמפ אוטומטית. `APP_VERSION` וה-`?v=` כאן לא נוגעים בה
+  ולהפך — אל "תתקנו" את זה לכדי מספר גרסה אחד.
+
 ## Architecture notes
 
 - Vanilla JS, scripts קלאסיים (לא modules). משתנים ברמת הקובץ חשופים גלובלית — שימו לב להתנגשויות שמות.
