@@ -331,13 +331,61 @@ try {
     /* Competes with `max-w-lg` on the same element. */
     html .app-shell { max-width: 72rem; }
 
-    /* auto-fill rather than a fixed column count: the same rule then serves a
-       half-width window and a full-screen desktop without a second breakpoint. */
+    /* auto-FIT, not auto-fill: empty tracks collapse, so two kids get half the
+       row each instead of two-thirds and a gap.
+       The max here has to stay `1fr`. Track COUNT is computed from the max
+       track sizing function whenever that is definite, so a `minmax(18rem,
+       24rem)` caps the count as if every track were 24rem — which is what
+       silently left three kids on two rows. `1fr` is indefinite, so the count
+       falls back to the 18rem minimum and three fit. The cap that keeps a lone
+       card from spanning the whole row belongs on the card, below. */
     html .wide-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(23rem, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
       gap: 1rem;
       align-items: start;
+      justify-items: center;
+    }
+    html .wide-grid > * { width: 100%; max-width: 30rem; }
+
+    /* The total-value card was a lot of empty space with a number in the
+       corner. Across the width it reads better as a band: the headline value
+       anchored at the start, the figures that qualify it lined up after. */
+    html .summary-band {
+      display: flex;
+      align-items: center;
+      gap: 2.5rem;
+    }
+    html .summary-hero { flex: 0 0 auto; }
+    html .summary-value { font-size: 3rem; line-height: 1.1; }
+    html .summary-stats {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 2rem;
+    }
+    /* Spread the figures through the band rather than parking them at the far
+       edge — grouped at one end they leave a dead gap in the middle of a card
+       this wide. */
+    html .summary-pills {
+      margin-top: 0;
+      flex: 1;
+      justify-content: space-evenly;
+    }
+    /* The stacked spacing and the rule above the FX row belong to the phone
+       layout; side by side they would be a stray line through the middle. */
+
+    html .summary-fx {
+      margin-top: 0;
+      padding-top: 0;
+      border-top: 0;
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: center;
+      gap: .25rem;
+      border-inline-start: 1px solid rgba(255, 255, 255, .1);
+      padding-inline-start: 2rem;
     }
     /* Tailwind's space-y-* puts margin on every child but the first. Inside a
        grid that stacks on top of the gap and knocks the rows out of line.

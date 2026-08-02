@@ -287,26 +287,34 @@ export class UIv2 {
 
     const summary = `
       <section class="px-5 pt-4">
-        <div class="glass-card rounded-2xl p-5">
+        <!-- Two groups, so the same markup can stack on a phone and run as a
+             band across the width on a desktop. The wrappers are inert here:
+             on a phone they are plain blocks and the children keep their own
+             margins, so the stacked layout is unchanged. -->
+        <div class="glass-card summary-band rounded-2xl p-5">
           <div class="card-glow" style="background: ${cardGlow(KID_PALETTE[0])};"></div>
 
-          <p class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-tertiary">
-            <span class="h-1.5 w-1.5 rounded-full bg-tertiary shadow-[0_0_12px_#f9bd22] animate-pulse"></span>
-            שווי תיק כולל (ילדים)
-          </p>
+          <div class="summary-hero">
+            <p class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-tertiary">
+              <span class="h-1.5 w-1.5 rounded-full bg-tertiary shadow-[0_0_12px_#f9bd22] animate-pulse"></span>
+              שווי תיק כולל (ילדים)
+            </p>
 
-          <h2 class="mt-3 text-4xl font-black tracking-tight text-white drop-shadow-[0_2px_15px_rgba(255,255,255,0.22)]">
-            ${ltr(ils(vm.totalKidsValue))}
-          </h2>
-
-          <div class="mt-4 flex flex-wrap items-center gap-2">
-            ${pill(up ? 'secondary' : 'red', `${signedIls(vm.totalProfit)} (${signedPoints(vm.totalReturnPct)})`)}
-            ${vm.totalKidsXirr != null ? pill('primary', `שנתית ${ratioAsPct(vm.totalKidsXirr)}`) : ''}
+            <h2 class="summary-value mt-3 text-4xl font-black tracking-tight text-white drop-shadow-[0_2px_15px_rgba(255,255,255,0.22)]">
+              ${ltr(ils(vm.totalKidsValue))}
+            </h2>
           </div>
 
-          <div class="mt-5 flex items-center justify-between border-t border-white/10 pt-3">
-            <span class="text-[10px] font-bold uppercase tracking-[0.15em] text-on-surface-variant">USD/ILS</span>
-            <span class="text-sm font-semibold text-white">${ltr(numFmt.format(vm.fxRate))}</span>
+          <div class="summary-stats">
+            <div class="summary-pills mt-4 flex flex-wrap items-center gap-2">
+              ${pill(up ? 'secondary' : 'red', `${signedIls(vm.totalProfit)} (${signedPoints(vm.totalReturnPct)})`)}
+              ${vm.totalKidsXirr != null ? pill('primary', `שנתית ${ratioAsPct(vm.totalKidsXirr)}`) : ''}
+            </div>
+
+            <div class="summary-fx mt-5 flex items-center justify-between border-t border-white/10 pt-3">
+              <span class="text-[10px] font-bold uppercase tracking-[0.15em] text-on-surface-variant">USD/ILS</span>
+              <span class="text-sm font-semibold text-white">${ltr(numFmt.format(vm.fxRate))}</span>
+            </div>
           </div>
         </div>
       </section>`;

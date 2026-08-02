@@ -1902,8 +1902,11 @@ select option { background-color: #141417; color: var(--text-primary); }
 .invest-frame {
   display: block;
   width: 100%;
-  /* Tall enough that the app's fixed bottom navigation is not crowding its
-     content, with a floor for short laptop screens. */
-  height: max(560px, calc(100vh - 15rem));
+  /* Takes the viewport it is given, less this screen's own header and padding.
+     The portfolio pins its navigation to the bottom of whatever height it gets,
+     so a short frame spends most of that height on chrome rather than on
+     holdings. The floor keeps it usable on a short laptop, at the cost of
+     scrolling the host page there. */
+  height: max(680px, calc(100vh - 10rem));
   border: 0;
 }
