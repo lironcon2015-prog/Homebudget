@@ -10,6 +10,10 @@
 <link rel="icon" type="image/png" sizes="16x16" href="./icons/favicon-16.png" />
 <link rel="shortcut icon" href="./icons/favicon.ico" />
 <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png" />
+<!-- scope/start_url of "./" resolve to /invest/, which is what makes this
+     install as its own app — separate icon, separate shell — even though it
+     shares an origin with the budget app at the site root. -->
+<link rel="manifest" href="./manifest.webmanifest" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Kids Portfolio" />

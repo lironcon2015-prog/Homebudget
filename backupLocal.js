@@ -121,8 +121,7 @@ async function _snapGetPayload(id) {
 
 // Debounced auto-snapshot — wired into DB.set via _onLocalSnapshotKeyWrite.
 function _onLocalSnapshotKeyWrite(key) {
-  const keys = (typeof _DRIVE_BACKUP_KEYS !== 'undefined') ? _DRIVE_BACKUP_KEYS : null
-  if (keys && !keys.has(key)) return
+  if (typeof _isBackupKey === 'function' && !_isBackupKey(key)) return
   if (_snapDebounceTimer) clearTimeout(_snapDebounceTimer)
   _snapDebounceTimer = setTimeout(() => { _snapDebounceTimer = null; writeLocalSnapshot('auto') }, SNAP_DEBOUNCE_MS)
 }

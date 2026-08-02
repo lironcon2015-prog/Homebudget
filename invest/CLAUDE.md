@@ -63,16 +63,10 @@ CDN or Google Fonts renders unstyled. Build the Tailwind CSS locally
 Screenshots are a supplement, never the substitute: attach them only when the
 user is away from a browser or to point at one specific detail.
 
-## Auto-merge policy (MANDATORY — follow without being asked)
+## Git workflow
 
-After creating any pull request in this repository:
-1. Immediately merge it to `main` using `mcp__github__merge_pull_request` (squash method).
-2. Sync the local repo: `git fetch origin main && git pull origin main` on the feature branch is fine; reset local `main` to `origin/main` if needed.
-3. Do **not** wait for the user to request the merge — do it automatically every time.
-
-## Development branch
-
-All new work goes on `claude/juniorinvest-architecture-plan-2uPS2` (or a new branch if that one is already merged).  Never push directly to `main` — always PR → auto-merge.
+This app is a sub-directory of the `homebudget` repository — follow the git
+and release workflow in the repository-root `CLAUDE.md`, not a separate one.
 
 ## Repository purpose
 
@@ -88,4 +82,29 @@ A multi-kid stock portfolio tracker: parent buys shares in one brokerage account
 - No WITHDRAW in v1.
 - Quote source: manual `quotes` map; optional API refresh later.
 - Persistence: `LocalStoragePersistence`, key `juniorinvest:v1`.
-- `index.html` lives at repo root so GitHub Pages serves the app at the custom subdomain `https://invest.lironcon.com` (configured via the `CNAME` file at repo root). The apex `lironcon.com` is reserved for other sites on other subdomains.
+
+## Hosting — shared origin with the budget app
+
+The app is served from `https://homebudget.lironcon.com/invest/`, i.e. the same
+origin as the budget app at the site root. That is deliberate and load-bearing:
+`localStorage` is per-origin, so a shared origin is the only way the portfolio
+reads the same data whether it is opened standalone on a phone or inside the
+budget app's desktop shell. Its former subdomain `invest.lironcon.com` now only
+serves a hand-off page that migrates old data here.
+
+Consequences to respect when editing this app:
+
+- **Never touch origin-wide APIs.** No `serviceWorker.getRegistrations()`
+  teardown, no `caches.keys()` sweep — both would take down the host app's
+  service worker and update mechanism, not just ours. Cache invalidation here
+  goes through the versioned importmap in `index.html`, which only covers our
+  own module graph.
+- **Keep `manifest.webmanifest` paths relative.** `start_url` and `scope` of
+  `./` resolve to `/invest/`, which is what makes this install as its own PWA —
+  a separate icon and shell from the budget app — despite the shared origin.
+- **Prefix every storage key with `juniorinvest:`.** The key namespace is shared
+  with the budget app's `fin*` keys, and the host's Drive backup selects ours by
+  that prefix.
+- **Assume the app may be embedded.** Inside the host's desktop shell it runs in
+  a same-origin iframe with `?embed=1`, which sets `.embedded` on `<html>`.
+  Layout must not assume it owns the viewport.

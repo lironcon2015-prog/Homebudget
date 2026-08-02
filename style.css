@@ -1886,3 +1886,24 @@ select option { background-color: #141417; color: var(--text-primary); }
   .report tr { page-break-inside: avoid; }
   .report-foot { margin-top: 18px; font-size: 10px; color: #888; }
 }
+
+/* ===== PORTFOLIO SCREEN (embedded /invest/ app) ===== */
+/* The portfolio is a separate app in a same-origin iframe, so it brings its own
+   dark theme regardless of ours. Rather than fight that, the host frames it as
+   a distinct panel: our border and radius around its surface, so it reads as
+   embedded content rather than as a page that failed to pick up the theme. */
+.invest-host {
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: #0F0C13;   /* the portfolio's own background, so the frame edge
+                            does not flash a mismatched colour while loading */
+}
+.invest-frame {
+  display: block;
+  width: 100%;
+  /* Tall enough that the app's fixed bottom navigation is not crowding its
+     content, with a floor for short laptop screens. */
+  height: max(560px, calc(100vh - 15rem));
+  border: 0;
+}

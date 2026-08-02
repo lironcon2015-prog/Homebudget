@@ -1,4 +1,4 @@
-const APP_VERSION = '1.44.3'
+const APP_VERSION = '1.45.0'
 
 // ===== STORAGE =====
 // Hot keys are cached as parsed objects: getTransactions() etc. used to
@@ -103,13 +103,17 @@ function hashTx(tx, accountId) {
 }
 
 // ===== NAVIGATION =====
-const SCREENS = ['dashboard', 'transactions', 'import', 'analysis', 'recurring', 'budget', 'property', 'settings']
+const SCREENS = ['dashboard', 'transactions', 'import', 'analysis', 'recurring', 'budget', 'property', 'invest', 'settings']
 let _currentScreen = null
 
 // `fromHash` is true when invoked by the hashchange listener — used to skip a
 // redundant re-render when the URL hash merely echoes the screen we just set.
 function navigate(screen, fromHash = false) {
   if (!SCREENS.includes(screen)) screen = 'dashboard'
+  // The portfolio deliberately has no mobile shell here — on phones it is a
+  // separate installed app. Catches a bookmarked or shared #invest link, which
+  // would otherwise land on a screen with no mobile renderer behind it.
+  if (screen === 'invest' && document.documentElement.classList.contains('m-ui')) screen = 'dashboard'
   if (fromHash && screen === _currentScreen) return
   _currentScreen = screen
 
@@ -127,6 +131,7 @@ function navigate(screen, fromHash = false) {
   if (screen === 'recurring') renderRecurring()
   if (screen === 'budget') renderBudgetScreen()
   if (screen === 'property') renderProperty()
+  if (screen === 'invest') mountInvest()
   if (screen === 'settings') renderSettings()
 
   // Keep the URL hash in sync for deep-linking + browser back/forward.
@@ -335,8 +340,42 @@ function collectBackupData() {
     feedback:            DB.get('finFeedback', []),
     reconciliation:      DB.getObj('finReconciliation', {}),
     dismissedAnomalies:  DB.get('finDismissedAnomalies', []),
+    invest:              collectInvestKeys(),
     exportedAt:          new Date().toISOString(),
   }
+}
+
+// ===== PORTFOLIO (/invest/) =====
+// The portfolio app shares this origin, so it shares this localStorage and
+// therefore this backup — one Drive file and one JSON export cover both apps.
+// It is a separate codebase with its own persistence layer, so we treat its
+// keys as opaque: copied verbatim as raw strings, selected by prefix.
+//
+// Verbatim matters. `juniorinvest:quoteProxy` holds a bare URL rather than
+// JSON, so a parse-everything approach throws on it; and round-tripping the
+// ledger through parse/serialize risks silently reshaping data this app has no
+// business understanding.
+const INVEST_KEY_PREFIX = 'juniorinvest:'
+
+function collectInvestKeys() {
+  const out = {}
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i)
+    if (k && k.startsWith(INVEST_KEY_PREFIX)) out[k] = localStorage.getItem(k)
+  }
+  return out
+}
+
+function applyInvestKeys(invest) {
+  for (const [k, v] of Object.entries(invest)) {
+    // Written straight to localStorage, not through DB.set: these are not DB
+    // keys, and routing them through it would bump revisions the budget app's
+    // caches key off and bounce the write straight back out as a Drive push.
+    if (k.startsWith(INVEST_KEY_PREFIX) && typeof v === 'string') localStorage.setItem(k, v)
+  }
+  // The portfolio reads its state once, at construction — an already-open frame
+  // would otherwise keep showing pre-restore data until manually reloaded.
+  if (typeof reloadInvestFrame === 'function') reloadInvestFrame()
 }
 
 // Structural validation shared by EVERY restore path (JSON import, Drive
@@ -352,6 +391,11 @@ function validateBackupData(data) {
   }
   if (Array.isArray(data.transactions) && data.transactions.some(t => !t || typeof t !== 'object')) return false
   if (Array.isArray(data.accounts) && data.accounts.some(a => !a || typeof a !== 'object' || !a.id)) return false
+  // Portfolio keys, when present, must be a flat key → raw-string map.
+  if (data.invest !== undefined) {
+    if (!data.invest || typeof data.invest !== 'object' || Array.isArray(data.invest)) return false
+    if (Object.values(data.invest).some(v => typeof v !== 'string')) return false
+  }
   return true
 }
 
@@ -386,6 +430,7 @@ function applyBackupData(data) {
     const merged = new Set([...DB.get('finDismissedAnomalies', []), ...data.dismissedAnomalies])
     DB.set('finDismissedAnomalies', [...merged])
   }
+  if (data.invest && typeof data.invest === 'object') applyInvestKeys(data.invest)
   if (typeof invalidatePLCache === 'function')            invalidatePLCache()
   if (typeof invalidateSavingsCache === 'function')       invalidateSavingsCache()
   if (typeof invalidateCapitalIncomeCache === 'function') invalidateCapitalIncomeCache()
