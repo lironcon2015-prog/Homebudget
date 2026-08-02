@@ -907,6 +907,11 @@ export class UIv2 {
         </div>
 
         <div>
+          ${this._sectionTitle('גרסה')}
+          <div class="glass-card rounded-2xl">${this._versionRow()}</div>
+        </div>
+
+        <div>
           ${this._sectionTitle('נתונים')}
           <div class="glass-card rounded-2xl">
             <button type="button" id="btn-export" class="pressable flex w-full items-center gap-4 px-5 py-4 text-right">
@@ -932,6 +937,71 @@ export class UIv2 {
           </div>
         </div>
       </section>`;
+  }
+
+  // ---- Version ------------------------------------------------------------
+
+  // This app releases on its own cycle, so the host's version indicator says
+  // nothing about it — a release that touches only this app leaves that number
+  // untouched, and there was no way to tell whether this one had picked it up.
+  _versionRow() {
+    const v = escapeHtml(String(window.JI_APP_VERSION || '?'));
+    // The offline single-file build has no server to ask, so the check could
+    // only ever fail there. The number alone is still worth showing.
+    const canCheck = location.protocol.startsWith('http');
+    const m = this.updateMsg || { text: 'תיק ההשקעות מתעדכן בנפרד מאפליקציית הכספים', tone: 'text-outline' };
+    return `
+      <div class="flex items-center gap-4 px-5 py-4">
+        <div class="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-primary/20 bg-white/5 text-primary">
+          ${icon('info', 'text-[18px]')}
+        </div>
+        <div class="min-w-0 flex-1">
+          <p class="text-sm font-medium text-white">גרסה ${v}</p>
+          <p class="mt-0.5 text-xs ${m.tone}">${escapeHtml(m.text)}</p>
+        </div>
+        ${canCheck ? `<button type="button" id="btn-check-update" ${this.checkingUpdate ? 'disabled' : ''}
+                 class="pressable shrink-0 rounded-xl bg-primary/20 px-4 py-2 text-sm font-semibold text-primary disabled:opacity-45">בדוק עדכון</button>` : ''}
+      </div>`;
+  }
+
+  // Status lives in instance state rather than being written straight into the
+  // node. Anything that re-renders mid-check — a sync status change, a state
+  // event — would otherwise replace the row and take the message with it,
+  // leaving the button looking like it did nothing.
+  _setUpdateMsg(text, tone) {
+    this.updateMsg = { text, tone };
+    if (this.tab === 'settings' && !this.sheetOpen) this.render();
+  }
+
+  async _checkForUpdate() {
+    if (this.checkingUpdate) return;
+    const current = String(window.JI_APP_VERSION || '');
+    this.checkingUpdate = true;
+    this._setUpdateMsg('בודק…', 'text-on-surface-variant');
+    try {
+      const res = await fetch('./version.json?t=' + Date.now(), { cache: 'no-store' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const deployed = (await res.json()).version;
+      if (!deployed) throw new Error('version.json חסר version');
+
+      if (deployed === current) {
+        this._setUpdateMsg(`מעודכן (גרסה ${deployed})`, 'text-secondary');
+        return;
+      }
+
+      this._setUpdateMsg(`נמצאה גרסה ${deployed} — טוען מחדש…`, 'text-tertiary');
+      // Reuses the bootstrap's own mechanism rather than a plain reload: the
+      // document is then fetched under a cache key the stale copy does not
+      // occupy, and the importmap it builds re-versions the whole module
+      // graph. Other params are preserved so an embedded frame stays embedded.
+      const params = new URLSearchParams(location.search);
+      params.set('v', deployed);
+      setTimeout(() => location.replace(location.pathname + '?' + params.toString()), 1400);
+    } catch (e) {
+      this._setUpdateMsg('בדיקת העדכון נכשלה: ' + ((e && e.message) || e), 'text-red-400');
+    } finally {
+      this.checkingUpdate = false;
+    }
   }
 
   // ---- Sync ---------------------------------------------------------------
@@ -2140,6 +2210,7 @@ export class UIv2 {
         this.drive?.pullIfIdle().then(() => this.drive?.push()).catch(() => {});
         return;
       }
+      if (e.target.closest('#btn-check-update')) { this._checkForUpdate(); return; }
       if (e.target.closest('#btn-refresh-quotes')) { this._refreshQuotes(); return; }
       if (e.target.closest('#btn-export')) { this._export(); return; }
       if (e.target.closest('#btn-import')) { $('#import-file')?.click(); return; }
