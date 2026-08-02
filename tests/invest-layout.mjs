@@ -56,13 +56,15 @@ async function context(opts) {
   return ctx
 }
 
-// Two kids, so "did the cards land side by side" is answerable at all.
+// Three kids: the count that actually pins the grid down. Two would sit side
+// by side even in a two-column layout, so it cannot tell the two apart.
 const SEED = {
   schemaVersion: 1,
   settings: { baseCurrency: 'ILS', locale: 'he-IL', lastFxRate: 3.7, lastFxRateAsOf: '2026-08-01' },
   kids: {
     k_a: { id: 'k_a', name: 'ילד/ה 1', createdAt: '2026-01-01' },
     k_b: { id: 'k_b', name: 'ילד/ה 2', createdAt: '2026-01-01' },
+    k_c: { id: 'k_c', name: 'ילד/ה 3', createdAt: '2026-01-01' },
   },
   quotes: {}, gemelFunds: [], ledger: [],
 }
@@ -84,6 +86,8 @@ async function measure(label, opts) {
     const grid = document.querySelector('.wide-grid')
     const kids = grid ? [...grid.children] : []
     const btn = document.querySelector('#btn-refresh-quotes')
+    const hero = document.querySelector('.summary-hero')
+    const stats = document.querySelector('.summary-stats')
     return {
       tailwindPresent: !![...document.styleSheets].some((s) => {
         try { return [...s.cssRules].some((r) => r.selectorText === '.max-w-lg') } catch { return false }
@@ -94,6 +98,13 @@ async function measure(label, opts) {
       cards: kids.length,
       secondMarginTop: kids[1] ? getComputedStyle(kids[1]).marginTop : null,
       refreshVisible: btn ? !!btn.offsetParent : false,
+      // Same row means the band laid out horizontally; stacked means it did not.
+      summaryBandHorizontal: hero && stats
+        ? Math.abs(hero.getBoundingClientRect().top - stats.getBoundingClientRect().top) < 60
+        : null,
+      fxHasStackRule: document.querySelector('.summary-fx')
+        ? getComputedStyle(document.querySelector('.summary-fx')).borderTopWidth !== '0px'
+        : null,
     }
   })
   await ctx.close()
@@ -107,17 +118,22 @@ const desktop = await measure('desktop 1400', { viewport: { width: 1400, height:
 check('tailwind actually loaded (otherwise this test is blind)', desktop.tailwindPresent)
 check('shell widens past the phone column on desktop', desktop.shellWidth > 900, `${desktop.shellWidth}px`)
 check('cards become a grid', desktop.gridDisplay === 'grid', String(desktop.gridDisplay))
-check('two cards share one row', desktop.cards === 2 && desktop.rows === 1, `${desktop.cards} cards, ${desktop.rows} rows`)
+check('three cards share one row', desktop.cards === 3 && desktop.rows === 1, `${desktop.cards} cards, ${desktop.rows} rows`)
+check('summary lays out as a band, not a stack', desktop.summaryBandHorizontal)
+check('summary drops its stacked divider', desktop.fxHasStackRule === false)
 check('space-y margin does not survive inside the grid', desktop.secondMarginTop === '0px', String(desktop.secondMarginTop))
 check('refresh button is offered on a pointer device', desktop.refreshVisible)
 
 // The width that actually matters: what the budget app's shell gives the frame.
 const framed = await measure('host frame 1058', { viewport: { width: 1058, height: 900 } })
 check('shell widens at the embedded frame width', framed.shellWidth > 900, `${framed.shellWidth}px`)
+check('three cards share one row in the frame too', framed.cards === 3 && framed.rows === 1, `${framed.rows} rows`)
 
 const phone = await measure('phone 390 touch', { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
 check('phone keeps the single column', phone.shellWidth <= 520, `${phone.shellWidth}px`)
 check('phone keeps stacked cards', phone.gridDisplay === 'block', String(phone.gridDisplay))
+check('phone keeps the summary stacked', phone.summaryBandHorizontal === false)
+check('phone keeps the summary divider', phone.fxHasStackRule === true)
 check('refresh button stays out of the way on touch', !phone.refreshVisible)
 
 await browser.close()
