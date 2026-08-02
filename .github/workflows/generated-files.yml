@@ -1,0 +1,51 @@
+name: Generated files
+
+# invest/dist/ and invest/version.json are written by invest-offline.yml after
+# every push to main. Committing them from a branch as well puts two writers on
+# one generated file, and the offline bundle encodes the whole source tree — so
+# a rebuild from a stale base silently reverts other people's work inside it,
+# which no diff review will catch. It has also produced merge conflicts on a
+# file nobody edits by hand, and version numbers bumped twice for one release.
+#
+# A CLAUDE.md rule alone did not hold. This runs on pull_request so it cannot be
+# skipped by a fresh clone that never installed a local hook, and it never sees
+# the bot's own pushes, which go straight to main.
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    # Escape hatch for the rare deliberate case — a minor or major version bump,
+    # which CI only ever does at the patch level.
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'allow-generated') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reject changes to CI-owned files
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "${{ github.base_ref }}"
+          base=$(git merge-base "origin/${{ github.base_ref }}" HEAD)
+          offenders=$(git diff --name-only "$base" HEAD -- invest/dist invest/version.json)
+          if [ -n "$offenders" ]; then
+            echo "::error::This PR changes files that CI owns:"
+            echo "$offenders" | sed 's/^/  /'
+            echo ""
+            echo "Drop them and push again:"
+            echo "  git checkout origin/${{ github.base_ref }} -- invest/dist invest/version.json"
+            echo ""
+            echo "invest-offline.yml rebuilds the bundle and bumps the version"
+            echo "after this merges. Build locally to check it compiles, but do"
+            echo "not commit the result."
+            echo ""
+            echo "For a deliberate minor/major bump, add the 'allow-generated' label."
+            exit 1
+          fi
+          echo "ok — no CI-owned files touched"
