@@ -49,6 +49,32 @@
 
 לוגיקת העדכון: ה-SW ב-`sw.js` מחזיר network-first ל-HTML ול-`version.json`. רישום ה-SW ב-`index.html` מאזין ל-`updatefound` ומציג `#updateToast`. כפתור "בדוק עדכון" בהגדרות קורא ל-`checkForUpdate()` שמשווה ל-`APP_VERSION` ודוחף SKIP_WAITING + reload.
 
+**הרשימה הזו חלה על אפליקציית הכספים בלבד.** ל-`invest/` יש מחזור גרסאות משלה שה-CI מנהל — ראו למטה.
+
+## קבצים שה-CI הוא הבעלים שלהם (אין לגעת)
+
+`invest/dist/KidsPortfolio-Offline.html` ו-`invest/version.json` נכתבים ע"י
+`invest-offline.yml` אחרי כל דחיפה ל-`main`. **אין לבמפ את הגרסה ואין לבצע commit
+ל-bundle מענף.** מותר ורצוי לבנות מקומית (`node tools/build-offline.js` מתוך
+`invest/`) כדי לוודא שהבנייה עוברת — אבל לזרוק את התוצר לפני ה-commit:
+
+```
+git checkout origin/main -- invest/dist invest/version.json
+```
+
+הסיבה היא לא סדר וניקיון. ה-bundle מקודד את כל עץ המקור, ולכן בנייה שלו מבסיס
+ישן **מוחקת בשקט את העבודה של אחרים בתוך קובץ אחד** — ושום review של diff לא
+יתפוס את זה. כשזה לא נאכף, זה כבר ייצר conflict על קובץ שאיש לא עורך ידנית,
+במפי גרסה כפולים לאותה מהדורה, ו-PR שכמעט החזיר לאחור מיזוג קודם.
+
+`generated-files.yml` מפיל PR שנוגע בהם. לבמפ minor/major מכוון — תווית
+`allow-generated`.
+
+## לפני פתיחת ענף
+
+`git fetch origin main` **לפני** יצירת הענף, לא אחרי. ה-CI דוחף ל-`main` תוך
+פחות מדקה מכל מיזוג, כך ש-`origin/main` המקומי מתיישן כמעט מיד.
+
 ## אפליקציית המשנה `invest/` — תיק ההשקעות של הילדים
 
 תת-אפליקציה עצמאית (ES modules, שפת עיצוב משלה) שמוגשת מ-`/invest/` ומשתפת עם

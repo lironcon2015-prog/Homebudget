@@ -68,6 +68,14 @@ user is away from a browser or to point at one specific detail.
 This app is a sub-directory of the `homebudget` repository — follow the git
 and release workflow in the repository-root `CLAUDE.md`, not a separate one.
 
+**Do not commit `dist/` or `version.json`.** CI rebuilds the offline bundle and
+bumps the version after every push to `main`. Build locally to check that it
+compiles, then throw the result away:
+`git checkout origin/main -- invest/dist invest/version.json`. The bundle
+encodes the whole source tree, so rebuilding it from a stale base silently
+reverts other people's work inside a single file. A PR that touches either path
+fails `generated-files.yml`.
+
 ## Repository purpose
 
 **Kids Portfolio** — Vanilla JS SPA, Hebrew RTL, dark Tailwind theme.  
