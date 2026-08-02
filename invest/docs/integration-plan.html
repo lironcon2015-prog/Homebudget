@@ -1,0 +1,442 @@
+<title>איחוד Junior-Invest לתוך אתר Homebudget — תכנון</title>
+
+<style>
+  /* ── Tokens ────────────────────────────────────────────────────────────
+     The two apps' own ground colours become the document's identity
+     colours, so "which app" is readable from hue alone; the teal accent is
+     reserved exclusively for what the two would come to SHARE. */
+  :root {
+    --ground:      #f6f4f8;
+    --surface:     #ffffff;
+    --surface-alt: #efecf2;
+    --line:        #dcd6e2;
+    --text:        #1a1620;
+    --text-soft:   #5d5568;
+    --text-faint:  #8a8195;
+    --budget:      #3d63d8;
+    --invest:      #8b46e0;
+    --join:        #0d8f84;
+    --warn:        #b0620d;
+    --shadow:      0 1px 2px rgba(26,22,32,.06), 0 8px 24px -16px rgba(26,22,32,.24);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground:      #0d0b12;
+      --surface:     #16131d;
+      --surface-alt: #1e1a28;
+      --line:        #2e2839;
+      --text:        #ece7f2;
+      --text-soft:   #a79eb5;
+      --text-faint:  #7d7389;
+      --budget:      #7fa0ff;
+      --invest:      #c08cff;
+      --join:        #4fd6c6;
+      --warn:        #e6a45c;
+      --shadow:      0 1px 2px rgba(0,0,0,.4), 0 12px 32px -20px rgba(0,0,0,.8);
+    }
+  }
+  :root[data-theme="light"] {
+    --ground:#f6f4f8; --surface:#fff; --surface-alt:#efecf2; --line:#dcd6e2;
+    --text:#1a1620; --text-soft:#5d5568; --text-faint:#8a8195;
+    --budget:#3d63d8; --invest:#8b46e0; --join:#0d8f84; --warn:#b0620d;
+    --shadow: 0 1px 2px rgba(26,22,32,.06), 0 8px 24px -16px rgba(26,22,32,.24);
+  }
+  :root[data-theme="dark"] {
+    --ground:#0d0b12; --surface:#16131d; --surface-alt:#1e1a28; --line:#2e2839;
+    --text:#ece7f2; --text-soft:#a79eb5; --text-faint:#7d7389;
+    --budget:#7fa0ff; --invest:#c08cff; --join:#4fd6c6; --warn:#e6a45c;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 12px 32px -20px rgba(0,0,0,.8);
+  }
+
+  /* Hebrew webfonts are far too heavy to inline as data URIs, and the CSP
+     blocks font CDNs — so this is a deliberately chosen system stack rather
+     than a link that would silently fall back. */
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--text);
+    font-family: "Assistant", "Heebo", "Rubik", system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 17px;
+    line-height: 1.72;
+    -webkit-text-size-adjust: 100%;
+  }
+  .doc { direction: rtl; max-width: 74ch; margin: 0 auto; padding: 4rem 1.5rem 7rem; }
+  @media (max-width: 640px) { .doc { padding: 2.5rem 1.15rem 5rem; } }
+
+  code, .mono, pre {
+    font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    font-size: .86em;
+    direction: ltr;
+    unicode-bidi: isolate;
+  }
+  code { background: var(--surface-alt); padding: .12em .42em; border-radius: 4px; color: var(--text); }
+  pre {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    padding: 1rem 1.15rem; overflow-x: auto; line-height: 1.6; text-align: left;
+    box-shadow: var(--shadow); font-size: .8rem;
+  }
+
+  /* ── Masthead ── */
+  .eyebrow {
+    font-size: .72rem; font-weight: 700; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--text-faint); margin: 0 0 .9rem;
+  }
+  h1 {
+    font-size: clamp(1.9rem, 5.5vw, 2.7rem); line-height: 1.18; font-weight: 800;
+    letter-spacing: -.02em; margin: 0 0 .8rem; text-wrap: balance;
+  }
+  .standfirst { font-size: 1.08rem; color: var(--text-soft); margin: 0; text-wrap: pretty; }
+  .rule { height: 1px; background: var(--line); border: 0; margin: 2.8rem 0; }
+
+  h2 {
+    font-size: 1.32rem; font-weight: 800; letter-spacing: -.012em;
+    margin: 3.4rem 0 1rem; text-wrap: balance;
+  }
+  h2:first-of-type { margin-top: 2.6rem; }
+  h3 { font-size: 1.02rem; font-weight: 700; margin: 2rem 0 .6rem; }
+  p { margin: 0 0 1.05rem; text-wrap: pretty; }
+  ul { margin: 0 0 1.05rem; padding-inline-start: 1.3rem; }
+  li { margin-bottom: .5rem; }
+  li::marker { color: var(--text-faint); }
+  strong { font-weight: 700; }
+  a { color: var(--join); }
+
+  /* ── The two apps, as chips ── */
+  .tag {
+    display: inline-block; font-size: .78rem; font-weight: 700; padding: .1em .6em;
+    border-radius: 999px; border: 1px solid currentColor; white-space: nowrap;
+  }
+  .tag-b { color: var(--budget); }
+  .tag-i { color: var(--invest); }
+
+  /* ── Callout: the single blocking constraint ── */
+  .blocker {
+    background: var(--surface); border: 1px solid var(--line);
+    border-inline-start: 3px solid var(--join);
+    border-radius: 10px; padding: 1.15rem 1.3rem; margin: 1.6rem 0;
+    box-shadow: var(--shadow);
+  }
+  .blocker p:last-child { margin-bottom: 0; }
+  .blocker .label {
+    font-size: .72rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--join); display: block; margin-bottom: .5rem;
+  }
+
+  /* ── Route cards: two tracks, side by side where there's room ── */
+  .routes { display: grid; gap: 1.15rem; margin: 1.6rem 0 0; }
+  @media (min-width: 760px) { .routes { grid-template-columns: 1fr 1fr; } }
+  .route {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    padding: 1.3rem 1.35rem; box-shadow: var(--shadow);
+    display: flex; flex-direction: column; gap: .1rem;
+  }
+  .route-key {
+    font-size: .72rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--text-faint); margin-bottom: .35rem;
+  }
+  .route h3 { margin: 0 0 .55rem; font-size: 1.08rem; }
+  .route p { font-size: .95rem; color: var(--text-soft); margin-bottom: .8rem; }
+  .route ul { font-size: .92rem; margin-bottom: 0; }
+  .verdict {
+    margin-top: 1rem; padding-top: .85rem; border-top: 1px dashed var(--line);
+    font-size: .88rem; font-weight: 600;
+  }
+  .verdict.good { color: var(--join); }
+  .verdict.mixed { color: var(--warn); }
+
+  /* ── Comparison table ── */
+  .tablewrap { overflow-x: auto; margin: 1.4rem 0; border-radius: 10px; border: 1px solid var(--line); box-shadow: var(--shadow); }
+  table { border-collapse: collapse; width: 100%; background: var(--surface); font-size: .93rem; }
+  th, td { padding: .7rem .9rem; text-align: start; border-bottom: 1px solid var(--line); vertical-align: top; }
+  thead th { background: var(--surface-alt); font-size: .8rem; font-weight: 700; letter-spacing: .02em; white-space: nowrap; }
+  tbody tr:last-child td { border-bottom: 0; }
+  td:first-child { font-weight: 600; white-space: nowrap; }
+
+  /* ── Numbered sequence: used ONLY for the migration, which really is ordered ── */
+  ol.steps { list-style: none; counter-reset: s; padding: 0; margin: 1.3rem 0; }
+  ol.steps > li {
+    counter-increment: s; position: relative; padding-inline-start: 2.6rem; margin-bottom: 1.1rem;
+  }
+  ol.steps > li::before {
+    content: counter(s); position: absolute; inset-inline-start: 0; top: .12rem;
+    width: 1.75rem; height: 1.75rem; border-radius: 50%;
+    background: var(--surface-alt); border: 1px solid var(--line);
+    color: var(--text-soft); font-size: .78rem; font-weight: 800;
+    display: grid; place-items: center; font-variant-numeric: tabular-nums;
+  }
+  ol.steps > li > strong { display: block; margin-bottom: .12rem; }
+  ol.steps p { font-size: .95rem; color: var(--text-soft); margin: 0; }
+
+  /* ── Hazards: not a sequence, so no numbers ── */
+  .hazard {
+    border-inline-start: 2px solid var(--warn); padding-inline-start: 1rem;
+    margin: 0 0 1.2rem;
+  }
+  .hazard h4 { margin: 0 0 .2rem; font-size: .98rem; font-weight: 700; }
+  .hazard p { font-size: .94rem; color: var(--text-soft); margin: 0; }
+  .hazard .src { font-size: .8rem; color: var(--text-faint); }
+  .crit { color: var(--warn); font-weight: 800; font-size: .78rem; letter-spacing: .06em; }
+
+  .open-q {
+    background: var(--surface-alt); border-radius: 10px; padding: 1.2rem 1.35rem; margin-top: 1.3rem;
+  }
+  .open-q ul { margin-bottom: 0; }
+
+  :focus-visible { outline: 2px solid var(--join); outline-offset: 3px; border-radius: 3px; }
+</style>
+
+<div class="doc">
+
+  <p class="eyebrow">תכנון ארכיטקטורה · אוגוסט 2026</p>
+  <h1>איחוד הפורטפוליו לתוך אתר הכספים</h1>
+  <p class="standfirst">
+    איך <span class="tag tag-i">Junior-Invest</span> נעשה חלק מ־<span class="tag tag-b">Homebudget</span>
+    בדסקטופ, נשאר אפליקציה נפרדת במובייל, ובכל זאת עובד מול אותם נתונים בדיוק.
+  </p>
+
+  <hr class="rule" />
+
+  <h2>הדרישה, כפי שהובהרה</h2>
+  <ul>
+    <li><strong>דסקטופ —</strong> שתי האפליקציות עובדות במקביל באותו אתר. הפורטפוליו הוא עוד מסך בתוך אתר הכספים.</li>
+    <li><strong>מובייל —</strong> ההפרדה נשמרת. שתי אפליקציות, שני אייקונים, שני shells.</li>
+    <li><strong>נתונים —</strong> הפורטפוליו־בדסקטופ והפורטפוליו־במובייל חייבים לקרוא ולכתוב <em>אותו</em> מאגר. עסקה שנרשמת בטלפון נראית מיד במחשב.</li>
+  </ul>
+  <p>
+    הדרישה השלישית היא זו שקובעת את כל השאר, והיא מתנגשת חזיתית עם המצב הקיים.
+  </p>
+
+  <div class="blocker">
+    <span class="label">החסם</span>
+    <p>
+      <code>homebudget.lironcon.com</code> ו־<code>invest.lironcon.com</code> הם שני
+      <strong>origins</strong> נפרדים. הדפדפן נותן לכל origin localStorage משלו, ואין
+      ביניהם גשר: iframe חוצה־origin נחסם ע"י storage partitioning בספארי וב־iOS —
+      כלומר בדיוק במכשירים שבהם אתה רוצה שהמובייל יעבוד.
+    </p>
+    <p>
+      מכאן שיש בדיוק שתי דרכים לקיים "אותו מאגר": או שמביאים את שתי הגישות לאותו
+      origin, או שמוותרים על אחסון משותף ומעבירים את תפקיד המאגר לענן.
+    </p>
+  </div>
+
+  <h2>שני המסלולים</h2>
+
+  <div class="routes">
+    <div class="route">
+      <p class="route-key">מסלול א׳</p>
+      <h3>origin משותף</h3>
+      <p>
+        קוד Junior-Invest עובר לריפו homebudget ומוגש מ־<code>/invest/</code>.
+        גם הדסקטופ וגם המובייל ניגשים דרך אותו דומיין; ההפרדה במובייל נעשית
+        ב־manifest ולא בדומיין.
+      </p>
+      <ul>
+        <li>אותו <code>localStorage</code> פיזית — אפס סנכרון, אפס latency, אפס קונפליקטים.</li>
+        <li>סנכרון Drive מגיע במתנה: הוספת המפתחות ל־<code>_DRIVE_BACKUP_KEYS</code> ותו לא.</li>
+        <li>גיבוי אחד, קובץ אחד, שחזור אחד לשתי האפליקציות.</li>
+        <li>מחיר: <code>invest.lironcon.com</code> הופך ל־redirect, ונדרשת מיגרציה חד־פעמית של נתונים קיימים.</li>
+      </ul>
+      <p class="verdict good">מקיים את הדרישה כלשונה.</p>
+    </div>
+
+    <div class="route">
+      <p class="route-key">מסלול ב׳</p>
+      <h3>שני origins, הענן הוא המאגר</h3>
+      <p>
+        הדומיינים נשארים כפי שהם. <code>drive.js</code> מופק למודול משותף,
+        ו־Junior-Invest מסנכרן את המפתחות שלו לאותו קובץ גיבוי ב־Drive.
+      </p>
+      <ul>
+        <li>אפס שינוי בכתובות, בסימניות ובאפליקציות שכבר מותקנות.</li>
+        <li>עקביות eventual בלבד — שינוי בטלפון מגיע למחשב אחרי push, pull ו־debounce.</li>
+        <li>מחייב התחברות ל־Google בשני האתרים בנפרד, ובלעדיה אין שיתוף כלל.</li>
+        <li>קונפליקטים אמיתיים בין המכשירים, עם דיאלוג הכרעה שכבר קיים ב־<code>_drivePush</code>.</li>
+      </ul>
+      <p class="verdict mixed">מקיים בערך, ומוסיף מצב תקלה חדש.</p>
+    </div>
+  </div>
+
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr><th>&nbsp;</th><th>מסלול א׳ — origin משותף</th><th>מסלול ב׳ — סנכרון Drive</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>זהות הנתונים</td><td>מיידית ומוחלטת</td><td>eventual, תלוית רשת</td></tr>
+        <tr><td>עבודה אופליין</td><td>מלאה בשני המכשירים</td><td>מלאה מקומית, מתפצלת עד לסנכרון</td></tr>
+        <tr><td>תלות בחשבון Google</td><td>רק לגיבוי</td><td>הכרחית לתפקוד הבסיסי</td></tr>
+        <tr><td>קונפליקטים</td><td>לא קיימים</td><td>קיימים, דורשים הכרעת משתמש</td></tr>
+        <tr><td>שינוי כתובות</td><td>נדרש redirect + מיגרציה</td><td>אין</td></tr>
+        <tr><td>היקף העבודה</td><td>בינוני וחד־פעמי</td><td>בינוני ומתמשך</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    <strong>ההמלצה: מסלול א׳.</strong> הדרישה שניסחת — "עסקה בטלפון נראית מיד במחשב" —
+    היא בדיוק מה שמסלול ב׳ לא יכול להבטיח. ומעבר לכך, מסלול א׳ פותר בדרך אגב בעיה
+    שקיימת היום: לפורטפוליו אין כרגע שום סנכרון ענן, וברגע שהוא יושב על אותו origin
+    הוא יורש את מנגנון ה־Drive של הכספים במלואו.
+  </p>
+  <p>
+    שים לב מה <em>לא</em> נפגע: ההפרדה במובייל נשמרת במלואה. מה שמפריד בין שתי
+    אפליקציות מותקנות הוא ה־<code>scope</code> וה־<code>start_url</code> ב־manifest, לא
+    הדומיין. שני אייקונים, שני שמות, שני shells — פשוט מאחורי אותה כתובת בסיס.
+  </p>
+
+  <hr class="rule" />
+
+  <h2>מסלול א׳ — איך זה בנוי</h2>
+
+  <h3>מבנה בריפו</h3>
+  <pre>homebudget/
+├── index.html          ← אתר הכספים (ללא שינוי מבני)
+├── app.js, core.js …   ← globals, scripts קלאסיים
+├── drive.js            ← מקבל את מפתחות הפורטפוליו לרשימת הגיבוי
+├── sw.js               ← scope "/"
+└── invest/             ← Junior-Invest, כפי שהוא
+    ├── index.html      ← + מצב embed
+    ├── app-v2.js
+    ├── src/…           ← ES modules, engine טהור
+    ├── manifest.webmanifest   ← scope "/invest/"
+    └── sw.js           ← scope "/invest/" (אופציונלי)</pre>
+  <p>
+    ההעברה נעשית ב־<code>git subtree</code> כדי לשמר את ההיסטוריה של Junior-Invest.
+    שתי בסיסי הקוד נשארות מבודדות: הכספים הם globals ו־scripts קלאסיים, הפורטפוליו הוא
+    ES modules — הן לא נוגעות זו בזו, רק חולקות origin.
+  </p>
+
+  <h3>דסקטופ — מסך חדש שטוען iframe</h3>
+  <p>
+    פריט ניווט חדש ב־sidebar, <code>screen-invest</code> חדש ב־<code>SCREENS[]</code>,
+    ובתוכו <code>&lt;iframe src="/invest/?embed=1"&gt;</code>. ה־iframe הוא same-origin, ולכן
+    הוא קורא וכותב בדיוק את אותו localStorage — אין כאן פשרה על הנתונים, רק על העיצוב.
+  </p>
+  <p>
+    <code>?embed=1</code> אומר לפורטפוליו להסתיר את הכותרת והניווט העליון שלו, כי המסגרת
+    מגיעה מהאתר המארח. הפורטפוליו שומר על שפת העיצוב שלו בשלב הזה — אם בהמשך תרצה מראה
+    אחיד, אפשר לכתוב את המסכים מחדש כ־<code>.screen</code> נייטיביים בלי לגעת שוב
+    בשכבת הנתונים.
+  </p>
+
+  <h3>מובייל — שתי אפליקציות, מאגר אחד</h3>
+  <ul>
+    <li><code>/invest/manifest.webmanifest</code> עם <code>scope</code> ו־<code>start_url</code> של <code>/invest/</code>, שם ואייקונים משלו. ההתקנה יוצרת אייקון נפרד לגמרי.</li>
+    <li>ה־gate הקיים <code>html.m-ui</code> בכספים פשוט לא מציג את פריט ההשקעות במובייל — הקוד לזה כבר קיים ועובד.</li>
+    <li>הפורטפוליו במובייל נטען ישירות ב־<code>/invest/</code>, בלי מסגרת ובלי iframe, בדיוק כמו היום.</li>
+  </ul>
+
+  <h3>שני service workers על origin אחד</h3>
+  <p>
+    ה־SW של הכספים רשום מהשורש ולכן ה־scope שלו הוא <code>/</code>, כולל
+    <code>/invest/</code>. הפתרון התקני: לרשום ל־<code>/invest/</code> service worker
+    משלו — הדפדפן בוחר תמיד את ה־scope הארוך ביותר שמתאים לדף, כך שהפורטפוליו מנוהל
+    ע"י ה־SW שלו והכספים ע"י שלו. לחלופין, אם הפורטפוליו לא צריך SW כלל, מספיק להחריג
+    את <code>/invest/</code> מה־fetch handler של הכספים.
+  </p>
+
+  <h3>מיגרציה של הנתונים הקיימים</h3>
+  <p>
+    זה החלק שאסור לפספס. נתונים שכבר יושבים ב־localStorage של
+    <code>invest.lironcon.com</code> <strong>לא</strong> עוברים לבד לדומיין החדש — מבחינת
+    הדפדפן אלה שני עולמות. לכן דף ה־redirect עושה גם העברה:
+  </p>
+  <ol class="steps">
+    <li>
+      <strong>הריפו הישן נשאר בחיים</strong>
+      <p><code>invest.lironcon.com</code> ממשיך להתארח, עם <code>CNAME</code> כפי שהוא, אבל <code>index.html</code> מוחלף בדף העברה קטן.</p>
+    </li>
+    <li>
+      <strong>הדף קורא את המצב המקומי</strong>
+      <p>קורא את <code>juniorinvest:v1</code>, <code>juniorinvest:quoteProxy</code> ו־<code>juniorinvest:symbolMap</code>. ה־ledger הוא כמה קילובייטים בלבד, כך שהוא נכנס בנוחות ל־URL.</p>
+    </li>
+    <li>
+      <strong>העברה דרך ה־fragment</strong>
+      <p>redirect ל־<code>homebudget.lironcon.com/invest/#import=…</code>. ה־fragment לא נשלח לשרת, כך שהנתונים הפיננסיים לא נרשמים באף לוג.</p>
+    </li>
+    <li>
+      <strong>הצד החדש קולט פעם אחת</strong>
+      <p>אם אין עדיין מצב מקומי — הוא נקלט; אם יש — מוצגת שאלה במקום דריסה שקטה. ה־hash מנוקה מיד אחרי.</p>
+    </li>
+    <li>
+      <strong>הדף הישן נשאר לתמיד</strong>
+      <p>אפליקציות שכבר מותקנות בטלפון וסימניות ישנות ממשיכות לעבוד ומגיעות ליעד הנכון. אין רגע שבו משהו נשבר.</p>
+    </li>
+  </ol>
+
+  <hr class="rule" />
+
+  <h2>מוקשים שמצאתי בקוד</h2>
+
+  <div class="hazard">
+    <h4><span class="crit">קריטי</span> · הפורטפוליו מוחק כל service worker ב־origin</h4>
+    <p>
+      <code>index.html</code> של Junior-Invest מבטל כל רישום SW ומוחק כל cache — ניקוי
+      שנועד לשרידי גרסת v1. על origin משותף זה יהרוג את ה־SW ואת ה־caches של הכספים
+      בכל טעינה של מסך הפורטפוליו, כולל מנגנון העדכונים שלהם.
+      <span class="src">מקור: <code>index.html:19–28</code> · חייב להימחק לפני ההעברה.</span>
+    </p>
+  </div>
+
+  <div class="hazard">
+    <h4>ה־bootstrap מוחק פרמטרים מה־URL</h4>
+    <p>
+      טעינת הפורטפוליו עושה <code>location.replace(location.pathname + '?v=' + …)</code>,
+      שמוחק כל פרמטר אחר — כולל <code>embed=1</code>. בלי תיקון, מצב ה־embed יאבד
+      בטעינה הראשונה עצמה.
+      <span class="src">מקור: <code>index.html:372</code></span>
+    </p>
+  </div>
+
+  <div class="hazard">
+    <h4>מכסת localStorage נעשית משותפת</h4>
+    <p>
+      כ־5MB לכל ה־origin, לשתי האפליקציות יחד. הכספים כבר מחזיקים עסקאות ומסמכי נכס
+      (<code>finPropertyDocs</code>), והפורטפוליו קטן — אבל שווה למדוד את הצריכה בפועל
+      לפני, ולא לגלות זאת מ־<code>DB.set failed</code>.
+    </p>
+  </div>
+
+  <div class="hazard">
+    <h4>שני מנגנוני גרסאות שלא מכירים זה את זה</h4>
+    <p>
+      הכספים: <code>APP_VERSION</code> + <code>CACHE_VERSION</code> + <code>?v=</code> ידני
+      בכל תג. הפורטפוליו: <code>version.json</code> + importmap שנבנה בזמן ריצה. הם יכולים
+      להתקיים במקביל, אבל צריך להחליט מפורשות שהם נפרדים ולתעד זאת — אחרת בומפ גרסה
+      בצד אחד ייראה כאילו הוא אמור לכסות את השני.
+    </p>
+  </div>
+
+  <div class="hazard">
+    <h4>לפורטפוליו אין ניתוב פנימי</h4>
+    <p>
+      אין שימוש ב־<code>location.hash</code> — יתרון, כי אין התנגשות עם ה־hash router של
+      הכספים. החיסרון: אי אפשר לקשר עמוק למסך ספציפי בפורטפוליו מתוך האתר המארח. לא חוסם, כדאי לזכור.
+    </p>
+  </div>
+
+  <hr class="rule" />
+
+  <h2>סדר ביצוע מוצע</h2>
+  <ol class="steps">
+    <li><strong>ניקוי מקדים</strong><p>הסרת מחיקת ה־SW, ושימור פרמטרים ב־bootstrap. שתי נקודות שחייבות לקרות לפני שהקוד חולק origin עם משהו.</p></li>
+    <li><strong>העברה</strong><p><code>git subtree</code> אל <code>invest/</code> בריפו homebudget, ובדיקה שהאפליקציה עולה תקין ב־<code>/invest/</code> לפני שנוגעים באתר המארח.</p></li>
+    <li><strong>הפרדת PWA</strong><p>manifest ו־service worker משלו ל־<code>/invest/</code>, ואימות שההתקנה במובייל יוצרת אייקון נפרד ושה־SW של הכספים לא נפגע.</p></li>
+    <li><strong>שילוב בדסקטופ</strong><p>פריט ניווט, מסך, iframe ומצב embed. עד כאן שום נתון עדיין לא זז.</p></li>
+    <li><strong>סנכרון וגיבוי</strong><p>הוספת מפתחות הפורטפוליו ל־<code>_DRIVE_BACKUP_KEYS</code> וללוגיקת הגיבוי המקומי, כך שגיבוי אחד מכסה את שתי האפליקציות.</p></li>
+    <li><strong>redirect ומיגרציה</strong><p>אחרון בכוונה — הכתובת הישנה מתחלפת רק אחרי שהחדשה הוכחה כעובדת.</p></li>
+  </ol>
+
+  <hr class="rule" />
+
+  <h2>מה עוד פתוח</h2>
+  <div class="open-q">
+    <ul>
+      <li>האם יש היום נתונים אמיתיים ב־<code>invest.lironcon.com</code> שצריך להעביר, או שהמאגר עדיין ריק? זה קובע אם שלב המיגרציה בכלל נחוץ.</li>
+      <li>האם הפורטפוליו במובייל צריך להישאר נגיש גם בכתובת הישנה לצמיתות, או שהעברה חד־פעמית מספיקה?</li>
+      <li>האם בהמשך תרצה גשר סמנטי בין האפליקציות — הפקדה לפורטפוליו שנרשמת גם כעסקה בתקציב — או שהן נשארות נפרדות לחלוטין מבחינת התוכן?</li>
+    </ul>
+  </div>
+
+</div>

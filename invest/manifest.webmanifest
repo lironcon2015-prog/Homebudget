@@ -1,0 +1,19 @@
+{
+  "name": "Kids Portfolio",
+  "short_name": "Kids Portfolio",
+  "description": "תיק השקעות לילדים בחשבון אחד עם הקצאה לפי אחוזים",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0F0C13",
+  "theme_color": "#151219",
+  "lang": "he",
+  "dir": "rtl",
+  "icons": [
+    { "src": "./icons/icon-192.png",  "sizes": "192x192",   "type": "image/png", "purpose": "any" },
+    { "src": "./icons/icon-512.png",  "sizes": "512x512",   "type": "image/png", "purpose": "any" },
+    { "src": "./icons/icon-1024.png", "sizes": "1024x1024", "type": "image/png", "purpose": "any" },
+    { "src": "./icons/icon-512.png",  "sizes": "512x512",   "type": "image/png", "purpose": "maskable" }
+  ]
+}
