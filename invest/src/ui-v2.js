@@ -112,8 +112,12 @@ const LEDGER_KIND = {
 // ---------------------------------------------------------------------------
 
 export class UIv2 {
-  constructor(sm) {
+  constructor(sm, drive = null) {
     this.sm = sm;
+    // Drive sync, or null when the app runs without it (offline single-file
+    // build). Every use is optional-chained so the UI degrades to local-only.
+    this.drive = drive;
+    this.syncStatus = drive?.status ?? 'off';
     this.tab = 'dashboard';
     // Drill-down from a dashboard kid card. Non-null means the kid screen is
     // showing; the dashboard tab stays lit because that is where it came from.
@@ -229,7 +233,7 @@ export class UIv2 {
       <div class="ambient-orb"><div class="orb-violet"></div><div class="orb-emerald"></div></div>
       <!-- Bottom padding clears the floating bar *and* the FAB, so the last row
            of a list is never parked underneath either at the end of a scroll. -->
-      <div class="safe-top relative z-10 mx-auto min-h-screen max-w-lg pb-[calc(11rem+env(safe-area-inset-bottom))]">
+      <div class="app-shell safe-top relative z-10 mx-auto min-h-screen max-w-lg pb-[calc(11rem+env(safe-area-inset-bottom))]">
         <main>${views[this.tab]()}</main>
       </div>
       ${this._fab()}
@@ -238,12 +242,29 @@ export class UIv2 {
     if (this.refreshing) this._showPull(56, true);
   }
 
-  _header(title, subtitle) {
+  // `action` is optional trailing chrome, laid out beside the title rather than
+  // above it so it costs no vertical space on a phone.
+  _header(title, subtitle, action = '') {
     return `
-      <header class="px-5 pb-1 pt-8">
-        <h1 class="text-2xl font-bold tracking-tight text-white">${escapeHtml(title)}</h1>
-        ${subtitle ? `<p class="mt-1.5 text-sm text-on-surface-variant">${subtitle}</p>` : ''}
+      <header class="flex items-start gap-3 px-5 pb-1 pt-8">
+        <div class="min-w-0 flex-1">
+          <h1 class="text-2xl font-bold tracking-tight text-white">${escapeHtml(title)}</h1>
+          ${subtitle ? `<p class="mt-1.5 text-sm text-on-surface-variant">${subtitle}</p>` : ''}
+        </div>
+        ${action}
       </header>`;
+  }
+
+  // Pull-to-refresh is the only way to update quotes, and a drag gesture is
+  // invisible with a mouse — on a pointer device the same action needs a
+  // control you can actually see.
+  _refreshButton() {
+    return `
+      <button type="button" id="btn-refresh-quotes" title="רענן שערים"
+              aria-label="רענן שערים"
+              class="pressable pointer-fine-only mt-1 grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/5 text-on-surface-variant">
+        ${icon('sync', `text-[20px] ${this.refreshing ? 'spinning' : ''}`)}
+      </button>`;
   }
 
   _sectionTitle(text) {
@@ -295,11 +316,11 @@ export class UIv2 {
       : this._empty('אין ילדים עדיין', 'הוסף ילד בהגדרות כדי להתחיל');
 
     return `
-      ${this._header('תיק ההשקעות', `עודכן ${formatDateHe(vm.fxRateAsOf || today())}`)}
+      ${this._header('תיק ההשקעות', `עודכן ${formatDateHe(vm.fxRateAsOf || today())}`, this._refreshButton())}
       ${summary}
       <section class="px-5 pt-6">
         ${this._sectionTitle('הילדים')}
-        <div class="space-y-4">${kids}</div>
+        <div class="space-y-4 wide-grid">${kids}</div>
       </section>`;
   }
 
@@ -530,10 +551,10 @@ export class UIv2 {
     if (fundCount) parts.push(`${fundCount} קופות גמל`);
 
     return `
-      ${this._header('החזקות', `${parts.join(' · ')} · הקש על כרטיס לפירוט`)}
+      ${this._header('החזקות', `${parts.join(' · ')} · הקש על כרטיס לפירוט`, this._refreshButton())}
       <section class="px-5 pt-4">
         ${gemel ? this._sectionTitle('ניירות ערך') : ''}
-        <div class="space-y-4">${cards}</div>
+        <div class="space-y-4 wide-grid">${cards}</div>
       </section>
       ${gemel}`;
   }
@@ -755,7 +776,7 @@ export class UIv2 {
 
     return `
       ${this._header('יומן', `${vm.rows.length} תנועות, מהחדשה לישנה`)}
-      <section class="px-5 pt-4"><div class="glass-card rounded-2xl">${rows}</div></section>`;
+      <section class="wide-cap px-5 pt-4"><div class="glass-card rounded-2xl">${rows}</div></section>`;
   }
 
   // ---- Settings -----------------------------------------------------------
@@ -822,7 +843,7 @@ export class UIv2 {
 
     return `
       ${this._header('הגדרות')}
-      <section class="space-y-6 px-5 pt-4">
+      <section class="space-y-6 px-5 pt-4 wide-grid">
         <div>
           ${this._sectionTitle('ילדים')}
           <div class="glass-card rounded-2xl">
@@ -869,6 +890,11 @@ export class UIv2 {
         </div>
 
         <div>
+          ${this._sectionTitle('סנכרון בין מכשירים')}
+          <div class="glass-card rounded-2xl">${this._syncRows()}</div>
+        </div>
+
+        <div>
           ${this._sectionTitle('נתונים')}
           <div class="glass-card rounded-2xl">
             <button type="button" id="btn-export" class="pressable flex w-full items-center gap-4 px-5 py-4 text-right">
@@ -894,6 +920,59 @@ export class UIv2 {
           </div>
         </div>
       </section>`;
+  }
+
+  // ---- Sync ---------------------------------------------------------------
+
+  setSyncStatus(status, detail) {
+    this.syncStatus = status;
+    this.syncError = status === 'error' ? detail : '';
+    // Settings is the only screen that shows this. Re-rendering anywhere else
+    // would throw away whatever the user is part-way through typing.
+    if (this.tab === 'settings' && !this.sheetOpen) this.render();
+  }
+
+  // The portfolio keeps its own Drive file rather than riding along in the
+  // budget app's: two apps writing one document would conflict on every edit,
+  // and this way each one restores independently.
+  _syncRows() {
+    if (!this.drive) {
+      return `<div class="px-5 py-4 text-sm text-on-surface-variant">סנכרון לא זמין בגרסה הזו.</div>`;
+    }
+
+    const STATES = {
+      off:          { text: 'לא מסונכרן',   tone: 'text-on-surface-variant', hint: 'הנתונים נשמרים במכשיר הזה בלבד' },
+      syncing:      { text: 'מסנכרן…',      tone: 'text-primary',            hint: '' },
+      idle:         { text: 'מסונכרן',      tone: 'text-secondary',          hint: 'שינויים עוברים בין הנייד למחשב' },
+      'signed-out': { text: 'נדרש חיבור',   tone: 'text-tertiary',           hint: 'הסנכרון פעיל אך החיבור פג' },
+      offline:      { text: 'לא מקוון',     tone: 'text-tertiary',           hint: 'נסנכרן כשהחיבור יחזור' },
+      error:        { text: 'שגיאת סנכרון', tone: 'text-red-400',            hint: this.syncError || '' },
+    };
+    const s = STATES[this.syncStatus] || STATES.off;
+    const connected = this.syncStatus !== 'off' && this.syncStatus !== 'signed-out';
+
+    const action = connected
+      ? `<button type="button" id="btn-sync-off" class="pressable shrink-0 rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-on-surface-variant">נתק</button>`
+      : `<button type="button" id="btn-sync-on" class="pressable shrink-0 rounded-xl bg-primary/20 px-4 py-2 text-sm font-semibold text-primary">חבר ל-Drive</button>`;
+
+    return `
+      <div class="flex items-center gap-4 px-5 py-4">
+        <div class="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-primary/20 bg-white/5 text-primary">
+          ${icon('cloud', `text-[18px] ${this.syncStatus === 'syncing' ? 'spinning' : ''}`)}
+        </div>
+        <div class="min-w-0 flex-1">
+          <p class="text-sm font-medium ${s.tone}">${escapeHtml(s.text)}</p>
+          ${s.hint ? `<p class="mt-0.5 truncate text-xs text-outline">${escapeHtml(s.hint)}</p>` : ''}
+        </div>
+        ${action}
+      </div>
+      ${connected ? `
+      <div class="border-t border-white/5"></div>
+      <button type="button" id="btn-sync-now" class="pressable flex w-full items-center gap-4 px-5 py-4 text-right">
+        <div class="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/5 text-on-surface-variant">${icon('sync', 'text-[18px]')}</div>
+        <span class="flex-1 text-sm font-medium text-white">סנכרן עכשיו</span>
+        ${icon('chevron_left', 'text-outline text-[20px]')}
+      </button>` : ''}`;
   }
 
   // ---- Chrome -------------------------------------------------------------
@@ -2030,6 +2109,16 @@ export class UIv2 {
       if (rmQuote) { if (confirm('להסיר ציטוט?')) this.sm.removeQuote(rmQuote.dataset.removeQuote); return; }
 
       if (e.target.closest('#btn-test-ticker')) { this._testTicker(); return; }
+      if (e.target.closest('#btn-sync-on')) { this.drive?.signIn(); return; }
+      if (e.target.closest('#btn-sync-off')) {
+        if (confirm('לנתק את הסנכרון? הנתונים יישארו במכשיר, אבל יפסיקו לעבור בין המכשירים.')) this.drive?.signOut();
+        return;
+      }
+      if (e.target.closest('#btn-sync-now')) {
+        this.drive?.pullIfIdle().then(() => this.drive?.push()).catch(() => {});
+        return;
+      }
+      if (e.target.closest('#btn-refresh-quotes')) { this._refreshQuotes(); return; }
       if (e.target.closest('#btn-export')) { this._export(); return; }
       if (e.target.closest('#btn-import')) { $('#import-file')?.click(); return; }
     });

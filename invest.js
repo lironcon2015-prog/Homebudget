@@ -18,7 +18,17 @@ let _investMounted = false
 // dashboard would be paid by everyone and used by almost no one.
 function mountInvest() {
   const host = document.getElementById('investFrameHost')
-  if (!host || _investMounted) return
+  if (!host) return
+
+  if (_investMounted) {
+    // Already loaded and kept alive across screen changes — which means its
+    // own visibilitychange never fires, so it has no idea another device may
+    // have pushed while the user was reading their budget. Returning to this
+    // screen is exactly when to check.
+    document.getElementById('investFrame')
+      ?.contentWindow?.postMessage({ type: 'ji:pull' }, location.origin)
+    return
+  }
   _investMounted = true
 
   const frame = document.createElement('iframe')
@@ -32,15 +42,3 @@ function mountInvest() {
   host.appendChild(frame)
 }
 
-// Called after any restore path overwrites the portfolio's keys (Drive pull,
-// JSON import, snapshot restore). Its StateManager reads persistence once at
-// construction, so an open frame would otherwise keep rendering pre-restore
-// data until the user reloaded the page by hand.
-function reloadInvestFrame() {
-  const frame = document.getElementById('investFrame')
-  if (!frame) return
-  // Re-assigning src rather than calling contentWindow.location.reload(): the
-  // frame may have navigated within itself (the app rewrites its own query
-  // string to bust module caches), and a plain reload would replay that URL.
-  frame.src = INVEST_SRC
-}

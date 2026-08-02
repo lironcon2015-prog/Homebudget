@@ -103,8 +103,18 @@ Consequences to respect when editing this app:
   `./` resolve to `/invest/`, which is what makes this install as its own PWA —
   a separate icon and shell from the budget app — despite the shared origin.
 - **Prefix every storage key with `juniorinvest:`.** The key namespace is shared
-  with the budget app's `fin*` keys, and the host's Drive backup selects ours by
-  that prefix.
+  with the budget app's `fin*` keys, and `DriveSync` selects ours by that
+  prefix. Anything under `juniorinvest:drive*` is sync bookkeeping and is
+  excluded from the payload on purpose — pushing our own file id and pull
+  timestamps would have each device overwrite the others' place in the sync.
+- **Sync is ours, not the host's.** `src/io/DriveSync.js` owns
+  `kids-portfolio.json`; the budget app owns `finance-app-backup.json` and does
+  not carry our keys. One writer per file. Do not "unify" the two backups — two
+  apps behind one document is exactly the race this split removes.
+- **A pull must never re-enter the write path.** It applies keys, then calls
+  `StateManager.reloadFromPersistence()`, which re-renders WITHOUT saving.
+  Routing it through `_commit()` would echo the pull straight back to Drive as
+  if the user had just made that edit.
 - **Assume the app may be embedded.** Inside the host's desktop shell it runs in
   a same-origin iframe with `?embed=1`, which sets `.embedded` on `<html>`.
   Layout must not assume it owns the viewport.
