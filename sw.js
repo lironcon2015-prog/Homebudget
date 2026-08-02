@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'finance-v1.44.3'
+const CACHE_VERSION = 'finance-v1.45.0'
 const ASSETS = [
   './',
   './index.html',
@@ -34,6 +34,7 @@ const ASSETS = [
   './detect.js',
   './property.js',
   './propertyDocs.js',
+  './invest.js',
   './reports.js',
   './feedback.js',
   './scrollMirror.js',
@@ -68,8 +69,16 @@ self.addEventListener('fetch', e => {
   if (e.request.url.includes('googleapis.com')) return
   if (e.request.url.includes('api.github.com')) return
 
-  // network-first for HTML and version.json
   const url = new URL(e.request.url)
+
+  // The portfolio app under /invest/ shares our origin, so it falls inside this
+  // worker's scope even though it is a separate app on its own release cycle.
+  // Hand it back to the network untouched: it busts its own module graph with a
+  // versioned importmap, and the cache-match branch below strips query params —
+  // which would serve it stale modules across one of its deploys.
+  if (url.pathname.startsWith('/invest/')) return
+
+  // network-first for HTML and version.json
   if (url.pathname.endsWith('.html') || url.pathname.endsWith('version.json') || url.pathname.endsWith('/')) {
     e.respondWith(fetch(e.request).catch(() => caches.match(e.request)))
     return
