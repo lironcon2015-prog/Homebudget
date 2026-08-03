@@ -16,6 +16,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   guard:
@@ -24,16 +25,20 @@ jobs:
     if: ${{ !contains(github.event.pull_request.labels.*.name, 'allow-generated') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
+      # No checkout. The question is only "which files does this PR touch",
+      # which the API answers directly — the first version cloned the entire
+      # history to run one git diff, and that clone is a lot of work to do for
+      # an answer already sitting in the event's own metadata.
       - name: Reject changes to CI-owned files
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          git fetch --no-tags origin "${{ github.base_ref }}"
-          base=$(git merge-base "origin/${{ github.base_ref }}" HEAD)
-          offenders=$(git diff --name-only "$base" HEAD -- invest/dist invest/version.json)
+          offenders=$(gh api --paginate \
+            "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" \
+            --jq '.[].filename' \
+            | grep -E '^invest/(dist/|version\.json$)' || true)
+
           if [ -n "$offenders" ]; then
             echo "::error::This PR changes files that CI owns:"
             echo "$offenders" | sed 's/^/  /'
