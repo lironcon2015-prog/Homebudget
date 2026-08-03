@@ -146,6 +146,23 @@ export async function proxyFetch(targetUrl, { deadline, trace } = {}) {
   return null;
 }
 
+// Did the worker answer at all? A no-cors request is exempt from the header
+// checks that reject the normal one, so it resolves — opaquely, unreadably —
+// whenever the server responded with anything. Used only by the diagnostic:
+// it costs an extra request and tells us nothing a successful lookup needs.
+async function workerReachable(workerUrl) {
+  if (!workerUrl) return 'unknown';
+  try {
+    await fetchWithTimeout(`${workerUrl}/?url=${encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/AAPL')}&_=${Date.now()}`, PUBLIC_TIMEOUT_MS);
+    return 'unknown';   // a readable response means it was never really failing
+  } catch {
+    try {
+      await fetch(`${workerUrl}/?url=${encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/AAPL')}&_=${Date.now()}`, { mode: 'no-cors' });
+      return 'opaque';
+    } catch { return 'unreachable'; }
+  }
+}
+
 // Whether this ran standalone or inside the budget app's frame. The two
 // differ in ways that matter to a network request — a framed page is a
 // third-party context to content blockers — so a report that does not say
@@ -209,13 +226,22 @@ export async function testWorker(testTicker = 'AAPL') {
     const workerAttempt = trace.find((a) => a.id === 'worker');
     const reachedNetwork = trace.some((a) => /HTTP|timeout|ok,|גוף ריק/.test(a.outcome));
     if (workerAttempt && /נחסם/.test(workerAttempt.outcome)) {
-      // Distinguishing these two is the whole point: everything blocked means
-      // the browser; the worker alone failing while others reach the network
-      // means the address, and a wrong host fails in a couple hundred ms
-      // exactly like a blocked one.
-      lines.push(reachedNetwork
-        ? '    ⚠ רק ה-Worker נכשל, בעוד מקורות אחרים הגיעו לרשת — בדוק את הכתובת למעלה (שם מארח שגוי נכשל בדיוק ככה)'
-        : '    ⚠ אף בקשה לא יצאה — חוסם פרסומות/הרחבה או הגנת מעקב');
+      // A cors fetch reports the same TypeError whether nothing answered or
+      // something answered without the headers that let us read it — a wrong
+      // host, a blocked request and a worker returning an error page are
+      // indistinguishable from here. A no-cors retry separates them: an opaque
+      // response means the server DID answer, so the address and the network
+      // are fine and the problem is the response's CORS headers.
+      const reach = await workerReachable(wUrl);
+      lines.push(
+        reach === 'opaque'
+          ? '    ⚠ ה-Worker כן עונה, אבל התשובה נדחית ע"י הדפדפן — כותרות CORS חסרות. סימן מובהק לשגיאה בתוך ה-Worker (דף שגיאה של Cloudflare לא נושא אותן).'
+        : reach === 'unreachable'
+          ? '    ⚠ ה-Worker לא עונה בכלל — הכתובת, ה-DNS או חסימה מקומית'
+          : reachedNetwork
+            ? '    ⚠ רק ה-Worker נכשל, בעוד מקורות אחרים הגיעו לרשת'
+            : '    ⚠ אף בקשה לא יצאה — חוסם פרסומות/הרחבה או הגנת מעקב',
+      );
     } else if (trace.length && trace.every((a) => /נחסם/.test(a.outcome))) {
       lines.push('    ⚠ כל הבקשות נחסמו לפני שיצאו — חוסם פרסומות/הרחבה או הגנת מעקב');
     }
