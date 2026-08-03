@@ -80,12 +80,17 @@ export function resetProxyHealth() { proxyStrikes.clear(); }
 
 /**
  * @param {string} targetUrl
- * @param {{deadline?: number}} opts  Absolute Date.now() cut-off. Attempts stop
- *        once it passes and each timeout is clamped to what remains, which is
- *        what makes a caller's budget an actual bound instead of something
- *        checked between phases while one phase runs for a minute.
+ * @param {{deadline?: number, trace?: Array}} opts
+ *        deadline — absolute Date.now() cut-off. Attempts stop once it passes
+ *        and each timeout is clamped to what remains, which is what makes a
+ *        caller's budget an actual bound instead of something checked between
+ *        phases while one phase runs for a minute.
+ *        trace — collects one entry per attempt for the settings diagnostic.
+ *        "No price found" has many causes that look identical from the outside
+ *        (blocked request, 403 from the proxy, upstream returning an empty
+ *        body) and the report was naming none of them.
  */
-export async function proxyFetch(targetUrl, { deadline } = {}) {
+export async function proxyFetch(targetUrl, { deadline, trace } = {}) {
   const workerUrl = getWorkerUrl();
   const attempts = [];
   if (workerUrl) {
@@ -103,25 +108,51 @@ export async function proxyFetch(targetUrl, { deadline } = {}) {
   );
 
   for (const { id, url, json, ms } of attempts) {
-    if (benched(id)) continue;
+    if (benched(id)) { trace?.push({ id, outcome: 'skipped (מנוטרל)' }); continue; }
     const left = deadline ? deadline - Date.now() : Infinity;
-    if (left <= 0) { console.warn('[proxyFetch] out of budget before', id); break; }
+    if (left <= 0) { console.warn('[proxyFetch] out of budget before', id); trace?.push({ id, outcome: 'לא נוסה — נגמר הזמן' }); break; }
+    const t0 = Date.now();
     try {
       const res = await fetchWithTimeout(url, Math.min(ms, left));
-      if (!res.ok) { console.warn('[proxyFetch] HTTP', res.status, url); strike(id); continue; }
+      if (!res.ok) {
+        console.warn('[proxyFetch] HTTP', res.status, url);
+        trace?.push({ id, outcome: `HTTP ${res.status}`, ms: Date.now() - t0 });
+        strike(id); continue;
+      }
       const raw = await res.text();
       const text = json ? (JSON.parse(raw).contents ?? raw) : raw;
-      if (text && text.length > 50) { absolve(id); return text; }
+      if (text && text.length > 50) {
+        trace?.push({ id, outcome: `ok, ${text.length}B`, ms: Date.now() - t0 });
+        absolve(id); return text;
+      }
       console.warn('[proxyFetch] short body', text?.length, url);
+      trace?.push({ id, outcome: `גוף ריק (${text?.length ?? 0}B)`, ms: Date.now() - t0 });
       // A short body is the upstream saying "no data", not this proxy failing.
       // Benching it over that would disable a route that works.
       absolve(id);
     } catch (e) {
+      trace?.push({
+        id,
+        // An AbortError is our own timeout; anything else is the browser
+        // refusing to make the request at all — an extension, a tracking
+        // blocker, or a CORS rejection. Naming which one is the whole point.
+        outcome: e?.name === 'AbortError' ? `timeout אחרי ${Math.min(ms, left)}ms` : `נחסם/שגיאת רשת (${e?.name || 'Error'})`,
+        ms: Date.now() - t0,
+      });
       console.warn('[proxyFetch] err', e.name, e.message, url);
       strike(id, e?.name === 'AbortError' ? PROXY_STRIKE_LIMIT : 1);
     }
   }
   return null;
+}
+
+// Whether this ran standalone or inside the budget app's frame. The two
+// differ in ways that matter to a network request — a framed page is a
+// third-party context to content blockers — so a report that does not say
+// which one it came from cannot be compared against the other.
+function where() {
+  try { return window.top !== window.self ? 'בתוך אפליקציית הכספים' : 'חלון עצמאי'; }
+  catch { return 'בתוך מסגרת' ; }
 }
 
 // Diagnostic for the settings "בדוק טיקר" button. Returns a human-readable
@@ -160,6 +191,20 @@ export async function testWorker(testTicker = 'AAPL') {
     // The diagnostic is bounded like a real lookup — an unbounded one used to
     // sit for over a minute, which is its own bug report.
     const probeDeadline = Date.now() + RESOLVE_BUDGET_MS;
+
+    // Probe the transport directly, before any Yahoo parsing, and report every
+    // attempt. "No data in Yahoo" was covering for causes that have nothing to
+    // do with Yahoo — a request the browser never made, a 403 from the proxy,
+    // an empty body — and they need telling apart.
+    const trace = [];
+    await proxyFetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(testTicker)}`,
+      { deadline: probeDeadline, trace });
+    lines.push(`  ${where()}, ${getWorkerUrl() ? 'Worker מוגדר' : 'ללא Worker'}:`);
+    for (const a of trace) lines.push(`    · ${a.id}: ${a.outcome}${a.ms != null ? ` (${a.ms}ms)` : ''}`);
+    if (trace.every((a) => /נחסם/.test(a.outcome))) {
+      lines.push('    ⚠ כל הבקשות נחסמו לפני שיצאו — חוסם פרסומות/הרחבה או הגנת מעקב');
+    }
+
     const direct = await yahooChart(testTicker, ['query1', 'query2'], probeDeadline);
     lines.push(direct
       ? `  ✓ ${testTicker} (ישיר): ${direct.price} ${direct.currency || ''}`
