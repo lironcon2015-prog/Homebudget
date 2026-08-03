@@ -199,9 +199,24 @@ export async function testWorker(testTicker = 'AAPL') {
     const trace = [];
     await proxyFetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(testTicker)}`,
       { deadline: probeDeadline, trace });
-    lines.push(`  ${where()}, ${getWorkerUrl() ? 'Worker מוגדר' : 'ללא Worker'}:`);
+    // Print the worker host, not just "configured". A typo in it fails exactly
+    // like a blocked request, and the settings field truncates the URL — so the
+    // one string that explains the failure was the one nowhere on screen.
+    const wUrl = getWorkerUrl();
+    lines.push(`  ${where()}, ${wUrl ? `Worker: ${wUrl}` : 'ללא Worker'}`);
     for (const a of trace) lines.push(`    · ${a.id}: ${a.outcome}${a.ms != null ? ` (${a.ms}ms)` : ''}`);
-    if (trace.every((a) => /נחסם/.test(a.outcome))) {
+
+    const workerAttempt = trace.find((a) => a.id === 'worker');
+    const reachedNetwork = trace.some((a) => /HTTP|timeout|ok,|גוף ריק/.test(a.outcome));
+    if (workerAttempt && /נחסם/.test(workerAttempt.outcome)) {
+      // Distinguishing these two is the whole point: everything blocked means
+      // the browser; the worker alone failing while others reach the network
+      // means the address, and a wrong host fails in a couple hundred ms
+      // exactly like a blocked one.
+      lines.push(reachedNetwork
+        ? '    ⚠ רק ה-Worker נכשל, בעוד מקורות אחרים הגיעו לרשת — בדוק את הכתובת למעלה (שם מארח שגוי נכשל בדיוק ככה)'
+        : '    ⚠ אף בקשה לא יצאה — חוסם פרסומות/הרחבה או הגנת מעקב');
+    } else if (trace.length && trace.every((a) => /נחסם/.test(a.outcome))) {
       lines.push('    ⚠ כל הבקשות נחסמו לפני שיצאו — חוסם פרסומות/הרחבה או הגנת מעקב');
     }
 
