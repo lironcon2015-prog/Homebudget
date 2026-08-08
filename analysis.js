@@ -170,12 +170,22 @@ function goToTransactionsByCategory(catId) {
 // the full list without re-computing on its own.
 let _expenseBreakdownAll = []
 
+// Share of the period's total expenses. Sub-0.1% rows would all read "0.0%",
+// so they collapse to a single "<0.1%" instead of looking like zero spending.
+function _catSharePct(total, totalForPct) {
+  if (!(totalForPct > 0)) return ''
+  const pct = total / totalForPct * 100
+  if (pct > 0 && pct < 0.1) return '<0.1%'
+  return pct.toFixed(1) + '%'
+}
+
 function _expenseBreakdownRowHtml(r, totalForPct) {
+  const share = _catSharePct(r.total, totalForPct)
   return `
     <div class="cat-bar-item cat-bar-clickable" onclick="goToTransactionsByCategory('${r.catId}')" title="לחץ כדי לראות עסקאות בקטגוריה זו">
       <div class="cat-bar-header">
         <span>${escHtml(r.name)}</span>
-        <span style="color:var(--expense);font-weight:600">${formatCurrency(r.total)}</span>
+        <span class="cat-bar-vals"><span class="cat-bar-pct">${share}</span><span style="color:var(--expense);font-weight:600">${formatCurrency(r.total)}</span></span>
       </div>
       <div class="cat-bar-track">
         <div class="cat-bar-fill" style="width:${totalForPct>0?Math.round(r.total/totalForPct*100):0}%;background:${r.color}"></div>
