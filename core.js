@@ -207,6 +207,85 @@ function analysisExpenseSavingsInvestIds() {
   return new Set(getAccounts().filter(a => a.type === 'savings' || a.type === 'investment').map(a => a.id))
 }
 
+// ===== ANALYSIS EXCLUSIONS ("what if I hadn't spent this?") =====
+// A view-level lens for the analysis screen: the user neutralizes whole expense
+// categories (the motivating case is savings/investments) and every analysis
+// number is recomputed as if that money had never gone out.
+//
+// Three deliberate limits:
+//   - It is a LENS, not a data change, and it lives only on the analysis
+//     screen. The dashboard stays the honest picture, so the analysis screen
+//     must announce the lens whenever it is on (see _renderAnalysisExcludeBanner).
+//   - INCOME rows are never dropped. A category can carry both signs (a refund
+//     year, a savings withdrawal), and zeroing the income side would move the
+//     savings rate for reasons the user never asked for.
+//   - Transfers are never dropped either — they are already outside every P&L
+//     sum, and removing them would only corrupt balance math downstream.
+const ANALYSIS_EXCL_UNCATEGORIZED = '__none__'
+
+function getAnalysisExcludedCats() {
+  const v = DB.get('finAnalysisExcludedCats', [])
+  return Array.isArray(v) ? v : []
+}
+function saveAnalysisExcludedCats(list) {
+  DB.set('finAnalysisExcludedCats', [...new Set(list)])
+}
+function analysisExcludedCatSet() { return new Set(getAnalysisExcludedCats()) }
+
+function _analysisCatIds() { return new Set(getCategories().map(c => c.id)) }
+
+// Bucket key for a transaction, matching how the expense breakdown groups it:
+// a categoryId left pointing at a deleted category renders there as "לא מסווג",
+// so it has to neutralize together with the genuinely uncategorized rows —
+// otherwise its money would sit in a bucket no picker row can reach.
+function analysisCatKey(t, knownCatIds) {
+  const id = t.categoryId
+  return (id && (knownCatIds || _analysisCatIds()).has(id)) ? id : ANALYSIS_EXCL_UNCATEGORIZED
+}
+
+function isAnalysisExcluded(t, excl, knownCatIds) {
+  if (!excl || excl.size === 0) return false
+  if (t.type === 'transfer') return false
+  if (!(t.amount < 0 || (t.type === 'refund' && t.amount > 0))) return false
+  return excl.has(analysisCatKey(t, knownCatIds))
+}
+
+function applyAnalysisExclusions(txs, excl) {
+  const set = excl || analysisExcludedCatSet()
+  if (set.size === 0) return txs
+  const known = _analysisCatIds()
+  return txs.filter(t => !isAnalysisExcluded(t, set, known))
+}
+
+// Per-category expense totals in the SAME scope as the analysis breakdown
+// (analysisExpenseAmount, not the PL-only sums), so the exclusion picker and
+// the banner quote the very numbers the user is reading off the screen when
+// they decide what to neutralize. Keyed by category id, uncategorized under
+// ANALYSIS_EXCL_UNCATEGORIZED.
+function analysisExcludableTotals(txs) {
+  const savingsInvestIds = analysisExpenseSavingsInvestIds()
+  const ccAccs = ccAccountsWithDetail(txs)
+  const known = _analysisCatIds()
+  const out = new Map()
+  for (const t of txs) {
+    if (t.type === 'transfer') continue
+    const ca = analysisExpenseAmount(t, savingsInvestIds, ccAccs)
+    if (ca === 0) continue
+    const key = analysisCatKey(t, known)
+    out.set(key, (out.get(key) || 0) + ca)
+  }
+  return out
+}
+
+// Expense total the exclusion removed from the breakdown.
+function sumAnalysisExcluded(txs, excl) {
+  const set = excl || analysisExcludedCatSet()
+  if (set.size === 0) return 0
+  let sum = 0
+  for (const [key, total] of analysisExcludableTotals(txs)) if (set.has(key)) sum += total
+  return sum
+}
+
 // ===== PERIOD PRESETS =====
 function _ym(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}` }
 function _iso(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` }

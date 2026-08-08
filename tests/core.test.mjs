@@ -251,3 +251,87 @@ test('getTxEffectiveMonth reads a charge date as its containing cycle', () => {
   const b = loadCore({ accounts: [{ id: 'b1', type: 'checking' }] })
   assert.equal(b.getTxEffectiveMonth({ accountId: 'b1', date: '2026-07-15', chargeDate: '2026-08-10' }), '2026-07')
 })
+
+// ===== ANALYSIS EXCLUSION LENS =====
+test('applyAnalysisExclusions drops only the expense side of an excluded category', () => {
+  const c = core()
+  const txs = [
+    { id: 'a', accountId: 'chk', amount: -500, type: 'expense',  categoryId: 'cat_invest_out' },
+    { id: 'b', accountId: 'chk', amount:  120, type: 'refund',   categoryId: 'cat_invest_out' },
+    { id: 'c', accountId: 'chk', amount:  900, type: 'income',   categoryId: 'cat_invest_out' },
+    { id: 'd', accountId: 'chk', amount: -300, type: 'transfer', categoryId: 'cat_invest_out' },
+    { id: 'e', accountId: 'chk', amount: -200, type: 'expense',  categoryId: 'cat_food' },
+  ]
+  const excl = new Set(['cat_invest_out'])
+  const kept = c.applyAnalysisExclusions(txs, excl).map(t => t.id)
+  // Expense and refund (a negative expense) go; income and transfer stay.
+  deepEq(kept, ['c', 'd', 'e'])
+})
+
+test('applyAnalysisExclusions with an empty set is a no-op', () => {
+  const c = core()
+  const txs = [{ accountId: 'chk', amount: -100, type: 'expense', categoryId: 'cat_food' }]
+  assert.equal(c.applyAnalysisExclusions(txs, new Set()), txs)
+})
+
+test('excluding an uncategorized expense uses the __none__ key', () => {
+  const c = core()
+  const NONE = c._eval('ANALYSIS_EXCL_UNCATEGORIZED')
+  const txs = [
+    { id: 'a', accountId: 'chk', amount: -100, type: 'expense' },
+    { id: 'b', accountId: 'chk', amount: -100, type: 'expense', categoryId: 'cat_food' },
+  ]
+  deepEq(c.applyAnalysisExclusions(txs, new Set([NONE])).map(t => t.id), ['b'])
+})
+
+test('analysisExcludableTotals reports the breakdown scope, not the P&L scope', () => {
+  const c = core()
+  const txs = [
+    { accountId: 'chk', amount: -200, type: 'expense', categoryId: 'cat_food' },
+    { accountId: 'cc',  amount: -300, type: 'expense', categoryId: 'cat_food' },  // CC detail: outside P&L, inside the breakdown
+    { accountId: 'sav', amount: -400, type: 'expense', categoryId: 'cat_food' },  // savings-account side: never in the breakdown
+    { accountId: 'chk', amount:   50, type: 'refund',  categoryId: 'cat_food' },
+  ]
+  const totals = c.analysisExcludableTotals(txs)
+  assert.equal(totals.get('cat_food'), 450)  // 200 + 300 − 50
+  assert.equal(c.sumAnalysisExcluded(txs, new Set(['cat_food'])), 450)
+  assert.equal(c.sumAnalysisExcluded(txs, new Set()), 0)
+})
+
+test('neutralizing savings moves expenses by exactly the hidden-savings amount', () => {
+  const c = core()
+  const txs = [
+    { accountId: 'chk', amount: 10000, type: 'income',  categoryId: 'cat_salary' },
+    { accountId: 'chk', amount: -3000, type: 'expense', categoryId: 'cat_food' },
+    { accountId: 'chk', amount: -2000, type: 'expense', categoryId: 'cat_invest_out' },
+  ]
+  const hidden = c.sumHiddenSavings(txs)
+  const lensed = c.applyAnalysisExclusions(txs, new Set(['cat_invest_out']))
+  assert.equal(c.sumExpenses(txs) - c.sumExpenses(lensed), hidden)
+  // Income is untouched, so the "true savings rate" the analysis screen shows
+  // (net + hiddenSavings) is the same number through the lens as without it.
+  assert.equal(c.sumNet(lensed), c.sumNet(txs) + hidden)
+  assert.equal(c.sumHiddenSavings(lensed), 0)
+})
+
+test('analysis exclusions round-trip through storage', () => {
+  const c = core()
+  deepEq(c.getAnalysisExcludedCats(), [])
+  c.saveAnalysisExcludedCats(['cat_food', 'cat_invest_out', 'cat_food'])
+  deepEq(c.getAnalysisExcludedCats(), ['cat_food', 'cat_invest_out'])  // deduped
+  assert.equal(c.analysisExcludedCatSet().has('cat_food'), true)
+})
+
+test('a dangling categoryId neutralizes with "לא מסווג", as the breakdown groups it', () => {
+  const c = core()
+  const NONE = c._eval('ANALYSIS_EXCL_UNCATEGORIZED')
+  const txs = [
+    { id: 'a', accountId: 'chk', amount: -700, type: 'expense', categoryId: 'cat_deleted' },
+    { id: 'b', accountId: 'chk', amount: -300, type: 'expense' },
+    { id: 'c', accountId: 'chk', amount: -100, type: 'expense', categoryId: 'cat_food' },
+  ]
+  // The picker only ever offers real categories plus "לא מסווג", so the
+  // deleted-category money must land in that bucket or be unreachable.
+  assert.equal(c.analysisExcludableTotals(txs).get(NONE), 1000)
+  deepEq(c.applyAnalysisExclusions(txs, new Set([NONE])).map(t => t.id), ['c'])
+})

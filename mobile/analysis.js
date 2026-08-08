@@ -11,6 +11,8 @@ function M_renderAnalysis() {
   host.innerHTML = `
     ${M_topbar('ניתוח ותזרים')}
     <div id="mAnPeriod" class="m-period"></div>
+    <div id="mAnExclBanner"></div>
+    <div class="m-excl-bar"><button class="btn-ghost" onclick="openAnalysisExcludeModal()">נטרול קטגוריות</button></div>
 
     <div id="mAnStats" class="m-stat-grid"></div>
 
@@ -45,18 +47,18 @@ function M_renderAnalysis() {
 // Re-render all analysis content for the active period. Routed from
 // _drawAnalysis() so alias/hide handlers refresh the native layout too.
 function M_anDraw() {
-  const period = getActivePeriod()
-  const all = getTransactions()
-  const periodTx = filterByEffectivePeriod(all, period)
+  const { period, excl, allRaw, rawPeriodTx, all, periodTx } = analysisTxSets()
   const income = sumIncome(periodTx)
 
+  if (typeof _renderAnalysisExcludeBanner === 'function') _renderAnalysisExcludeBanner('mAnExclBanner', rawPeriodTx, excl)
   M_anStats(periodTx)
   if (typeof _renderExpensePie === 'function') _renderExpensePie(periodTx)
   if (typeof _renderExpenseBreakdown === 'function') _renderExpenseBreakdown(periodTx)
   if (typeof _renderIncomeBreakdown === 'function') _renderIncomeBreakdown(periodTx, income)
   if (typeof _renderTrendChart === 'function') _renderTrendChart(all, period)
   M_anYoY(all, period)
-  if (typeof _renderCashFlowStatement === 'function') _renderCashFlowStatement(all, period)
+  // Raw set: the cash-flow statement reconciles real opening/closing balances.
+  if (typeof _renderCashFlowStatement === 'function') _renderCashFlowStatement(allRaw, period, excl.size > 0)
   M_anVendors(periodTx)
 }
 

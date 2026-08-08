@@ -848,6 +848,40 @@ select option { background-color: #141417; color: var(--text-primary); }
 .cf-expense span:last-child { color: var(--expense); font-weight: 600; }
 .cf-net { background: var(--bg-elevated); margin-top: .25rem; border-radius: 8px; padding: .75rem .85rem; font-weight: 700; border-bottom: none; }
 .cf-total { background: var(--accent-dim); margin-top: .5rem; border-radius: 8px; padding: .85rem .85rem; font-weight: 700; font-size: 1rem; border-bottom: none; }
+.cf-note { margin: .65rem .25rem 0; font-size: .78rem; color: var(--text-muted); }
+
+/* ===== ANALYSIS EXCLUSION LENS ===== */
+.excl-banner {
+  display: flex; align-items: center; flex-wrap: wrap; gap: .5rem;
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: 14px; padding: .6rem .85rem; margin-bottom: 1rem; font-size: .84rem;
+}
+.excl-banner-title { display: inline-flex; align-items: center; gap: .35rem; color: var(--text-muted); font-weight: 600; }
+.excl-banner-cats { display: flex; flex-wrap: wrap; gap: .35rem; }
+.excl-chip { background: var(--bg-hover); border-radius: 999px; padding: .15rem .6rem; font-size: .78rem; }
+.excl-banner-amt { margin-inline-start: auto; color: var(--expense); font-weight: 700; }
+.excl-banner-clear {
+  background: none; border: none; color: var(--accent); cursor: pointer;
+  font-size: .8rem; font-family: inherit; padding: .15rem .35rem;
+}
+.excl-banner-clear:hover { text-decoration: underline; }
+.excl-help { font-size: .82rem; color: var(--text-muted); line-height: 1.55; margin-bottom: .85rem; }
+.excl-presets { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: .75rem; }
+.excl-list { max-height: 45vh; overflow-y: auto; }
+.excl-group-title {
+  font-size: .74rem; font-weight: 700; color: var(--text-muted);
+  letter-spacing: .03em; padding: .8rem .3rem .3rem;
+}
+.excl-group-title:first-child { padding-top: .2rem; }
+.excl-row {
+  display: flex; align-items: center; gap: .6rem; padding: .45rem .3rem;
+  border-bottom: 1px solid var(--border); cursor: pointer; font-size: .87rem;
+}
+.excl-row:last-child { border-bottom: none; }
+.excl-row:hover { background: var(--bg-hover); }
+.excl-row input { width: auto; margin: 0; cursor: pointer; }
+.excl-row-name { flex: 1; }
+.excl-row-amt { color: var(--text-muted); font-size: .82rem; }
 .cf-savings span:last-child { color: var(--text-secondary); font-weight: 600; }
 
 /* ===== AUTO-CATEGORIZE MODAL ===== */

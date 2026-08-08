@@ -45,6 +45,11 @@ html.m-ui .m-iconbtn:active { transform: scale(.92); }
 
 /* ---- Period bar — one segmented container, raised lighter active pill ---- */
 html.m-ui .m-period { margin: 0 0 .9rem; }
+html.m-ui .m-excl-bar { margin: 0 0 .9rem; }
+html.m-ui .m-excl-bar .btn-ghost { width: 100%; font-size: .85rem; }
+/* Banner wraps to stacked rows on a phone — the amount can't share a line. */
+html.m-ui .excl-banner { font-size: .8rem; padding: .55rem .7rem; }
+html.m-ui .excl-banner-amt { margin-inline-start: 0; }
 html.m-ui .m-period-bar {
   display: flex; gap: .25rem; padding: .28rem; border-radius: 15px;
   background: var(--bg-surface); border: 1px solid rgba(255,255,255,.06);

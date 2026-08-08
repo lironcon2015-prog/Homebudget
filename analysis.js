@@ -8,13 +8,29 @@ function renderAnalysis() {
   _drawAnalysis()
 }
 
+// Shared entry point for the desktop and mobile analysis renderers: resolves
+// the period once and hands back both the lensed sets (exclusions applied) and
+// the raw ones. `rawPeriodTx` is what the exclusion picker and the banner
+// measure against — they have to show what was removed, so they cannot look at
+// a set it was already removed from.
+function analysisTxSets() {
+  const period = getActivePeriod()
+  const excl = analysisExcludedCatSet()
+  const allRaw = getTransactions()
+  const rawPeriodTx = filterByEffectivePeriod(allRaw, period)
+  _analysisRawPeriodTx = rawPeriodTx
+  return {
+    period, excl, allRaw, rawPeriodTx,
+    all: applyAnalysisExclusions(allRaw, excl),
+    periodTx: applyAnalysisExclusions(rawPeriodTx, excl),
+  }
+}
+
 function _drawAnalysis() {
   if (typeof IS_MOBILE_UI !== 'undefined' && IS_MOBILE_UI && typeof M_anDraw === 'function') return M_anDraw()
-  const period = getActivePeriod()
+  const { period, excl, allRaw, rawPeriodTx, all, periodTx } = analysisTxSets()
   document.getElementById('analysisPeriodLabel').textContent = period.label || `${period.start} → ${period.end}`
-
-  const all = getTransactions()
-  const periodTx = filterByEffectivePeriod(all, period)
+  _renderAnalysisExcludeBanner('analysisExcludeBanner', rawPeriodTx, excl)
 
   const income         = sumIncome(periodTx)
   const expenses       = sumExpenses(periodTx)
@@ -95,11 +111,134 @@ function _drawAnalysis() {
   // YoY comparison
   _renderYoY(all, period)
 
-  // Cash flow statement
-  _renderCashFlowStatement(all, period)
+  // Cash flow statement — deliberately on the RAW set. It reconciles opening
+  // and closing balances that came from real account data, so neutralizing an
+  // outflow here would leave a statement whose middle no longer explains its
+  // ends. It carries a note instead while the lens is on.
+  _renderCashFlowStatement(allRaw, period, excl.size > 0)
 
   // Top vendors
   _renderTopVendors(periodTx)
+}
+
+// ===== EXCLUSION LENS UI =====
+// Raw (un-lensed) period transactions from the last draw. The picker and the
+// banner must measure what the lens removed, so they read this rather than the
+// filtered set every other renderer gets.
+let _analysisRawPeriodTx = []
+
+function _analysisExclLabel(id) {
+  if (id === ANALYSIS_EXCL_UNCATEGORIZED) return 'לא מסווג'
+  const c = getCategoryById(id)
+  return c ? c.name : 'קטגוריה שנמחקה'
+}
+
+// An active lens must never be silent: the totals above this banner are not
+// the user's real totals, and a filter left on from last week would otherwise
+// read as a genuinely cheaper month.
+function _renderAnalysisExcludeBanner(elId, rawPeriodTx, excl) {
+  const el = document.getElementById(elId)
+  if (!el) return
+  if (!excl || excl.size === 0) { el.innerHTML = ''; return }
+  const removed = sumAnalysisExcluded(rawPeriodTx, excl)
+  const chips = [...excl].map(id => `<span class="excl-chip">${escHtml(_analysisExclLabel(id))}</span>`).join('')
+  el.innerHTML = `
+    <div class="excl-banner">
+      <span class="excl-banner-title">${uiIcon('eyeoff', 14)} מנוטרל מהניתוח</span>
+      <span class="excl-banner-cats">${chips}</span>
+      <span class="excl-banner-amt">${formatCurrency(removed)}</span>
+      <button class="excl-banner-clear" onclick="clearAnalysisExclusions()">בטל נטרול</button>
+    </div>`
+}
+
+function clearAnalysisExclusions() {
+  saveAnalysisExcludedCats([])
+  _drawAnalysis()
+}
+
+// Category id → checkbox id, so ids carrying Hebrew or punctuation never have
+// to survive an inline onclick (same reasoning as _recKeyMap elsewhere).
+let _exclRowMap = {}
+
+function openAnalysisExcludeModal() {
+  const modal = document.getElementById('analysisExcludeModal')
+  const body = document.getElementById('analysisExcludeModalBody')
+  if (!modal || !body) return
+  const excl = analysisExcludedCatSet()
+  const totals = analysisExcludableTotals(_analysisRawPeriodTx)
+
+  // Alphabetical by name (getCategoriesSorted) — this is a picker the user
+  // scans by name. The period amount rides along so the choice is informed.
+  const rows = getCategoriesSorted()
+    .filter(c => c.type === 'expense')
+    .map(c => ({ key: c.id, name: c.name, total: totals.get(c.id) || 0 }))
+  if (totals.has(ANALYSIS_EXCL_UNCATEGORIZED) || excl.has(ANALYSIS_EXCL_UNCATEGORIZED)) {
+    rows.push({ key: ANALYSIS_EXCL_UNCATEGORIZED, name: 'לא מסווג', total: totals.get(ANALYSIS_EXCL_UNCATEGORIZED) || 0 })
+  }
+  // A category deleted while still excluded would otherwise be un-uncheckable.
+  for (const id of excl) {
+    if (!rows.some(r => r.key === id)) rows.push({ key: id, name: _analysisExclLabel(id), total: totals.get(id) || 0 })
+  }
+
+  _exclRowMap = {}
+  const rowHtml = (r, i) => {
+    const cid = 'exclRow' + i
+    _exclRowMap[cid] = r.key
+    return `
+      <label class="excl-row" for="${cid}">
+        <input type="checkbox" id="${cid}" ${excl.has(r.key) ? 'checked' : ''}>
+        <span class="excl-row-name">${escHtml(r.name)}</span>
+        <span class="excl-row-amt">${r.total ? formatCurrency(r.total) : '—'}</span>
+      </label>`
+  }
+  // Two groups, each alphabetical by name: a category with no spend this
+  // period is not what the user came here to neutralize, but it still has to
+  // be listed — a category left checked from another period must always have a
+  // row to uncheck.
+  const spent = rows.filter(r => r.total !== 0)
+  const idle  = rows.filter(r => r.total === 0)
+  let n = 0
+  const section = (title, list) => list.length === 0 ? ''
+    : `<div class="excl-group-title">${title}</div>${list.map(r => rowHtml(r, n++)).join('')}`
+  const html = section('הוצאות בתקופה', spent) + section('ללא הוצאה בתקופה', idle)
+
+  body.innerHTML = `
+    <p class="excl-help">קטגוריות מסומנות יוצאו מכל חישובי הניתוח — כרטיסי הסיכום, הגרפים, הפירוט והמגמה — כאילו הכסף לא יצא. הנתונים עצמם לא משתנים, וגם לא לוח הבקרה.</p>
+    <div class="excl-presets">
+      <button class="btn-ghost" onclick="_exclSelectSavings()">סמן חסכונות והשקעות</button>
+      <button class="btn-ghost" onclick="_exclSelectNone()">נקה סימון</button>
+    </div>
+    <div class="excl-list">${html || '<p style="color:var(--text-muted);font-size:.85rem;text-align:center;padding:1.5rem">אין קטגוריות הוצאה</p>'}</div>`
+  modal.classList.add('open')
+}
+
+function closeAnalysisExcludeModal() {
+  const modal = document.getElementById('analysisExcludeModal')
+  if (modal) modal.classList.remove('open')
+}
+
+function _exclSetChecked(keys) {
+  const want = new Set(keys)
+  Object.entries(_exclRowMap).forEach(([cid, key]) => {
+    const el = document.getElementById(cid)
+    if (el) el.checked = want.has(key)
+  })
+}
+
+// The isSavings flag is already the app's definition of "money I kept, not
+// money I consumed" — reuse it instead of matching on category names.
+function _exclSelectSavings() {
+  _exclSetChecked(getCategories().filter(c => c.type === 'expense' && c.isSavings).map(c => c.id))
+}
+function _exclSelectNone() { _exclSetChecked([]) }
+
+function applyAnalysisExcludeModal() {
+  const picked = Object.entries(_exclRowMap)
+    .filter(([cid]) => { const el = document.getElementById(cid); return el && el.checked })
+    .map(([, key]) => key)
+  saveAnalysisExcludedCats(picked)
+  closeAnalysisExcludeModal()
+  _drawAnalysis()
 }
 
 function _renderExpensePie(periodTx) {
@@ -364,7 +503,7 @@ function _renderYoY(all, period) {
   })
 }
 
-function _renderCashFlowStatement(all, period) {
+function _renderCashFlowStatement(all, period, exclActive) {
   const periodTx = filterByEffectivePeriod(all, period)
   // Local-time date math — new Date('YYYY-MM-DD') parses as UTC midnight and
   // can land on the wrong calendar day in negative-offset timezones.
@@ -383,6 +522,7 @@ function _renderCashFlowStatement(all, period) {
     <div class="cf-row cf-expense"><span>− הוצאות</span><span>${formatCurrency(expense)}</span></div>
     <div class="cf-row cf-net"><span>תזרים תפעולי נטו</span><span>${netOp >= 0 ? '+' : ''}${formatCurrency(netOp)}</span></div>
     <div class="cf-row cf-total"><span>יתרת עו"ש/מזומן סוגרת (${formatDate(period.end)})</span><span>${formatCurrency(endBal)}</span></div>
+    ${exclActive ? '<p class="cf-note">תזרים מזומנים מוצג ללא נטרול — היתרות הן כסף שבאמת יצא ונכנס.</p>' : ''}
   `
 }
 
