@@ -79,24 +79,29 @@ function renderDashboard() {
       })
     }
   }
-  // Hero = net; rest go in the bento right column. Color alone signals sign —
-  // no manual "+" prefix (positive=green is enough); Intl.NumberFormat already
-  // places "-" to the left of the digits for negatives, matching the other
-  // bento cards (hidden-savings, recurring) which use formatCurrency directly.
+  // Hero = net, as a wide band; every other metric is a tile on the rail below
+  // (see .bento-rail — one auto-fit row, so the block height doesn't grow with
+  // the number of metrics). Color alone signals sign — no manual "+" prefix
+  // (positive=green is enough); Intl.NumberFormat already places "-" to the left
+  // of the digits for negatives, matching the tiles which use formatCurrency.
   const heroCard = cards[2] || cards[0]
   const otherCards = cards.filter(c => c !== heroCard)
   const trendPos = heroCard.value >= 0
   document.getElementById('dashStats').innerHTML = `
     <div class="bento-outer">
       <div class="bento-hero">
-        <div class="bento-hero-eyebrow">נטו התקופה</div>
-        <div class="bento-hero-amount" style="color:${heroCard.color}">${formatCurrency(heroCard.value)}</div>
-        <div class="bento-hero-trend" style="background:${trendPos?'rgba(16,185,129,.14)':'rgba(244,63,94,.14)'};color:${heroCard.color}">
-          ${trendPos?'▲':'▼'} ${trendPos?'תזרים חיובי':'תזרים שלילי'}
+        <div class="bento-hero-main">
+          <div class="bento-hero-eyebrow">נטו התקופה</div>
+          <div class="bento-hero-amount" style="color:${heroCard.color}">${formatCurrency(heroCard.value)}</div>
         </div>
-        <div class="bento-hero-sub">${refunds > 0 ? 'הכנסות פחות הוצאות, בתוספת החזרים' : 'הכנסות פחות הוצאות בתקופה הנבחרת'}</div>
+        <div class="bento-hero-mid">
+          <div class="bento-hero-trend" style="background:${trendPos?'rgba(16,185,129,.14)':'rgba(244,63,94,.14)'};color:${heroCard.color}">
+            ${trendPos?'▲':'▼'} ${trendPos?'תזרים חיובי':'תזרים שלילי'}
+          </div>
+          <div class="bento-hero-sub">${refunds > 0 ? 'הכנסות פחות הוצאות, בתוספת החזרים' : 'הכנסות פחות הוצאות בתקופה הנבחרת'}</div>
+        </div>
       </div>
-      <div class="bento-right">
+      <div class="bento-rail">
         ${otherCards.map(s => `
           <div class="bento-stat" ${s.tooltip?`title="${s.tooltip.replace(/"/g,'&quot;')}"`:''}>
             <div class="bento-stat-icon" style="background:${s.bg}">${s.icon}</div>

@@ -464,18 +464,34 @@ a { color: inherit; text-decoration: none; cursor: pointer; }
 .stat-value { font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 
 /* ===== BENTO GRID ===== */
-.bento-outer { display: grid; grid-template-columns: 1.5fr 1fr; gap: 1rem; margin-bottom: 1.5rem; align-items: stretch; }
-.bento-right { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; align-content: start; }
+/* ===== Dashboard metric rail =====
+   The stats block used to be a hero beside a rigid 2-column card grid, so every
+   metric past the second opened a new row of full-height cards: 240px at two
+   metrics, 300px at three (with one orphan card), 458px at five — the whole
+   first screen, pushing balances and charts below the fold. Now the hero is a
+   wide band and the metrics are one auto-fit row of compact tiles, so the block
+   height is constant whether the period has two metrics or six. */
+.bento-outer { display: flex; flex-direction: column; gap: .8rem; margin-bottom: 1.5rem; }
+/* Flex, not an auto-fit grid: tiles grow to share the row but stop at a cap, so
+   five metrics fill one row at ~200px each while two read as two chips packed at
+   the start instead of two half-width slabs with their content on one edge.
+   An auto-fit grid can only do one of those two. */
+.bento-rail { display: flex; flex-wrap: wrap; gap: .7rem; }
 .bento-hero {
   background: rgba(255, 255, 255, 0.025);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: var(--radius-lg);
-  padding: 1.75rem 2rem;
-  display: flex; flex-direction: column; justify-content: center; gap: .55rem;
-  position: relative; overflow: hidden; min-height: 240px;
+  padding: 1.15rem 1.6rem;
+  display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 1.5rem;
+  position: relative; overflow: hidden;
   backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
   box-shadow: inset 0 1px 1px rgba(255,255,255,0.07), 0 24px 64px rgba(0,0,0,0.6);
 }
+.bento-hero-main { position: relative; z-index: 1; display: flex; flex-direction: column; gap: .15rem; }
+/* Anchored to the band's inline-end: the number holds one end, the state and
+   caption the other, so the wide band reads as composed rather than as a short
+   card with dead space beside it. */
+.bento-hero-mid { position: relative; z-index: 1; display: flex; flex-direction: column; gap: .3rem; align-items: flex-end; text-align: end; }
 .bento-hero::before {
   content: '';
   position: absolute; top: -30%; right: -10%;
@@ -491,13 +507,11 @@ a { color: inherit; text-decoration: none; cursor: pointer; }
   border-radius: 50%; pointer-events: none;
 }
 .bento-hero-eyebrow {
-  position: absolute; top: 1.75rem; right: 2rem; z-index: 1;
   font-size: .68rem; color: rgba(148,163,184,0.6);
   text-transform: uppercase; letter-spacing: .12em;
 }
 .bento-hero-amount {
-  font-size: 3rem; font-weight: 800; letter-spacing: -0.05em; line-height: 1;
-  position: relative; z-index: 1;
+  font-size: 2.35rem; font-weight: 800; letter-spacing: -0.05em; line-height: 1.05;
   font-variant-numeric: tabular-nums;
 }
 .bento-hero-trend {
@@ -507,24 +521,28 @@ a { color: inherit; text-decoration: none; cursor: pointer; }
   width: fit-content; position: relative; z-index: 1;
 }
 .bento-hero-sub { font-size: .78rem; color: rgba(148,163,184,0.45); position: relative; z-index: 1; }
+/* Tile: icon on the inline-start edge spanning both text rows, so a long label
+   wraps under itself instead of pushing the value out of the tile. */
 .bento-stat {
+  flex: 1 1 150px; max-width: 240px; min-width: 0;
   background: rgba(255, 255, 255, 0.03);
   border: var(--glass-border);
-  border-radius: var(--radius-lg); padding: 1.5rem;
-  display: flex; flex-direction: column; gap: .35rem;
+  border-radius: var(--radius); padding: .7rem .85rem;
+  display: grid; grid-template-columns: 26px 1fr; gap: .1rem .55rem; align-items: center;
   backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
   box-shadow: var(--glass-shadow);
   transition: transform .2s ease, border-color .2s ease;
 }
 .bento-stat:hover { transform: translateY(-2px); border-color: rgba(255,255,255,0.08); }
 .bento-stat-icon {
-  width: 38px; height: 38px; border-radius: 10px;
+  grid-row: span 2;
+  width: 26px; height: 26px; border-radius: 8px;
   display: flex; align-items: center; justify-content: center;
-  font-size: 1.2rem; margin-bottom: .3rem;
 }
-.bento-stat-label { font-size: .75rem; color: var(--text-muted); letter-spacing: .02em; }
-.bento-stat-value { font-size: 1.3rem; font-weight: 700; letter-spacing: -0.025em; font-variant-numeric: tabular-nums; }
-.bento-stat-hint { font-size: .7rem; color: var(--text-muted); margin-top: .1rem; }
+.bento-stat-icon svg { width: 15px; height: 15px; }
+.bento-stat-label { font-size: .72rem; color: var(--text-muted); letter-spacing: .02em; line-height: 1.2; }
+.bento-stat-value { font-size: 1.08rem; font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.bento-stat-hint { grid-column: 2; font-size: .7rem; color: var(--text-muted); }
 
 /* ===== RICH AMOUNT ===== */
 .amt-sym { font-size: .7em; color: rgba(255,255,255,0.3); font-weight: 500; }
@@ -1358,17 +1376,14 @@ select option { background-color: #141417; color: var(--text-primary); }
   }
   .screen { max-width: 100%; }
 
-  /* ---- Bento grid collapses to single column ---- */
-  .bento-outer { grid-template-columns: 1fr; }
-  .bento-right { grid-template-columns: 1fr 1fr; }
+  /* ---- Narrow: hero stacks, rail keeps two tiles per row ---- */
   .bento-hero {
-    min-height: 160px; padding: 1.25rem 1.5rem; gap: .45rem;
-    /* The eyebrow stays absolute in the corner — center the rest so the
-       amount + trend + sub line up on the card's vertical axis. */
-    align-items: center; text-align: center;
+    grid-template-columns: 1fr; padding: 1.25rem 1.5rem; gap: .5rem;
+    text-align: center; justify-items: center;
   }
-  .bento-hero-eyebrow { top: 1.25rem; right: 1.5rem; }
+  .bento-hero-main, .bento-hero-mid { align-items: center; }
   .bento-hero-amount { font-size: 2rem; }
+  .bento-stat { flex-basis: 132px; max-width: none; }
 
   /* ---- Page header tighter ---- */
   .page-header { margin-bottom: 1rem; padding-inline-end: 4.5rem; }

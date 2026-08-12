@@ -25,9 +25,9 @@
     } catch (e) {}
   })();
   </script>
-  <link rel="stylesheet" href="style.css?v=1.47.0">
-  <link rel="stylesheet" href="mobile.css?v=1.47.0">
-  <script src="mobile/mobile-detect.js?v=1.47.0"></script>
+  <link rel="stylesheet" href="style.css?v=1.48.0">
+  <link rel="stylesheet" href="mobile.css?v=1.48.0">
+  <script src="mobile/mobile-detect.js?v=1.48.0"></script>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
@@ -36,6 +36,20 @@
   <meta name="theme-color" content="#0a0e1a">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- Two SheetJS builds on purpose. The plain one above READS the bank/credit
+       statements we import and stays the value of window.XLSX, untouched.
+       xlsx-js-style is the same 0.18.5 codebase plus a style writer (fonts,
+       fills, borders — the plain build silently drops cell.s), and it is used
+       only by the Excel export in reports.js. It also claims window.XLSX on
+       load, so we hand that back immediately; if its CDN is unreachable,
+       XLSX_STYLE stays undefined and the export falls back to the plain build
+       and comes out unstyled but correct. -->
+  <script>window.__XLSX_PLAIN = window.XLSX</script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+  <script>
+    if (window.XLSX && window.XLSX !== window.__XLSX_PLAIN) window.XLSX_STYLE = window.XLSX
+    if (window.__XLSX_PLAIN) window.XLSX = window.__XLSX_PLAIN
+  </script>
   <script src="https://accounts.google.com/gsi/client" async></script>
 </head>
 <body>
@@ -996,45 +1010,45 @@
   <button onclick="applyUpdate()">עדכן עכשיו</button>
 </div>
 
-<script>const _v = '1.47.0';</script>
-<script src="app.js?v=1.47.0"></script>
-<script src="core.js?v=1.47.0"></script>
-<script src="txmatch.js?v=1.47.0"></script>
-<script src="source.js?v=1.47.0"></script>
-<script src="ui.js?v=1.47.0"></script>
-<script src="uikit.js?v=1.47.0"></script>
-<script src="icons.js?v=1.47.0"></script>
-<script src="templates.js?v=1.47.0"></script>
-<script src="autocat.js?v=1.47.0"></script>
-<script src="detect.js?v=1.47.0"></script>
-<script src="budget.js?v=1.47.0"></script>
-<script src="budgetGen.js?v=1.47.0"></script>
-<script src="recurring.js?v=1.47.0"></script>
-<script src="dashboard.js?v=1.47.0"></script>
-<script src="transactions.js?v=1.47.0"></script>
-<script src="wizard.js?v=1.47.0"></script>
-<script src="import.js?v=1.47.0"></script>
-<script src="analysis.js?v=1.47.0"></script>
-<script src="settings.js?v=1.47.0"></script>
-<script src="drive.js?v=1.47.0"></script>
-<script src="backupLocal.js?v=1.47.0"></script>
-<script src="property.js?v=1.47.0"></script>
-<script src="propertyDocs.js?v=1.47.0"></script>
-<script src="invest.js?v=1.47.0"></script>
-<script src="reports.js?v=1.47.0"></script>
-<script src="feedback.js?v=1.47.0"></script>
-<script src="scrollMirror.js?v=1.47.0"></script>
-<script src="palette.js?v=1.47.0"></script>
-<script src="insights.js?v=1.47.0"></script>
-<script src="anomalies.js?v=1.47.0"></script>
+<script>const _v = '1.48.0';</script>
+<script src="app.js?v=1.48.0"></script>
+<script src="core.js?v=1.48.0"></script>
+<script src="txmatch.js?v=1.48.0"></script>
+<script src="source.js?v=1.48.0"></script>
+<script src="ui.js?v=1.48.0"></script>
+<script src="uikit.js?v=1.48.0"></script>
+<script src="icons.js?v=1.48.0"></script>
+<script src="templates.js?v=1.48.0"></script>
+<script src="autocat.js?v=1.48.0"></script>
+<script src="detect.js?v=1.48.0"></script>
+<script src="budget.js?v=1.48.0"></script>
+<script src="budgetGen.js?v=1.48.0"></script>
+<script src="recurring.js?v=1.48.0"></script>
+<script src="dashboard.js?v=1.48.0"></script>
+<script src="transactions.js?v=1.48.0"></script>
+<script src="wizard.js?v=1.48.0"></script>
+<script src="import.js?v=1.48.0"></script>
+<script src="analysis.js?v=1.48.0"></script>
+<script src="settings.js?v=1.48.0"></script>
+<script src="drive.js?v=1.48.0"></script>
+<script src="backupLocal.js?v=1.48.0"></script>
+<script src="property.js?v=1.48.0"></script>
+<script src="propertyDocs.js?v=1.48.0"></script>
+<script src="invest.js?v=1.48.0"></script>
+<script src="reports.js?v=1.48.0"></script>
+<script src="feedback.js?v=1.48.0"></script>
+<script src="scrollMirror.js?v=1.48.0"></script>
+<script src="palette.js?v=1.48.0"></script>
+<script src="insights.js?v=1.48.0"></script>
+<script src="anomalies.js?v=1.48.0"></script>
 
 <!-- MOBILE LAYER (Dark Glass) — activates only on mobile via IS_MOBILE_UI / html.m-ui -->
-<script src="mobile/shell.js?v=1.47.0"></script>
-<script src="mobile/dashboard.js?v=1.47.0"></script>
-<script src="mobile/transactions.js?v=1.47.0"></script>
-<script src="mobile/analysis.js?v=1.47.0"></script>
-<script src="mobile/recurring.js?v=1.47.0"></script>
-<script src="mobile/property.js?v=1.47.0"></script>
+<script src="mobile/shell.js?v=1.48.0"></script>
+<script src="mobile/dashboard.js?v=1.48.0"></script>
+<script src="mobile/transactions.js?v=1.48.0"></script>
+<script src="mobile/analysis.js?v=1.48.0"></script>
+<script src="mobile/recurring.js?v=1.48.0"></script>
+<script src="mobile/property.js?v=1.48.0"></script>
 
 <!-- SERVICE WORKER REGISTRATION & UPDATE LOGIC -->
 <script>
