@@ -5,6 +5,7 @@
   "scripts": {
     "build:offline": "node tools/build-offline.js",
     "test:gemel": "node tools/test-gemel.mjs",
+    "test:pricing": "node tools/test-pricing.mjs",
     "test:gemel-fetch": "node tools/test-gemel-fetch.mjs"
   },
   "devDependencies": {

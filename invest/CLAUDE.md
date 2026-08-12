@@ -123,6 +123,31 @@ Consequences to respect when editing this app:
   `StateManager.reloadFromPersistence()`, which re-renders WITHOUT saving.
   Routing it through `_commit()` would echo the pull straight back to Drive as
   if the user had just made that edit.
+- **Prices are merged by their own recorded time, not by who wrote last**
+  (`src/io/PricingMerge.js`). The cloud file is whichever device wrote most
+  recently, and that says nothing about quotes: a phone that added a transaction
+  ten minutes ago can be carrying week-old prices, and applying its file raw
+  walks the valuation backwards. So a pull takes the incoming ledger, kids and
+  funds whole, but each quote and the FX rate are decided per entry on
+  `asOfTs` — prices only ever move forward.
+  - `asOfTs` (full ISO) is written next to the date-only `asOf` on every
+    `upsertQuote`/`setFxRate`. `asOf` stays as-is: it is what the UI prints and
+    what older portfolios carry. A date-only value is read as **00:00 of that
+    day**, so a timestamped refresh from today outranks a legacy quote dated
+    today — end-of-day would have inverted that.
+  - **Which tickers exist is the base's call.** Only tickers present on both
+    sides are compared, so a merge can never resurrect a quote the other device
+    deleted, nor price a security the incoming state does not hold.
+  - A pull that kept local prices **pushes them back** — no commit happened, so
+    `schedulePush` would never fire and the cloud would stay stale. Two devices
+    that each refreshed different tickers converge on the union, and re-merging
+    is a no-op (there is a test for exactly that).
+  - The conflict branch where the user chooses to **overwrite** the cloud still
+    absorbs the cloud's newer prices first (`_absorbRemotePricing`). Choosing to
+    keep local edits is not a decision to keep stale prices, and quotes are
+    independent of the ledger so absorbing them cannot cost a transaction.
+  - `npm run test:pricing` covers the merge; it is a pure module precisely so
+    this logic is testable without a browser or a Google account.
 - **Assume the app may be embedded.** Inside the host's desktop shell it runs in
   a same-origin iframe with `?embed=1`, which sets `.embedded` on `<html>`.
   Layout must not assume it owns the viewport.

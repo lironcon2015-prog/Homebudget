@@ -15,6 +15,8 @@
 // second Google setup. The drive.file scope only grants access to files this
 // client created, which covers both apps' backups and nothing else of theirs.
 
+import { mergePricingJson } from './PricingMerge.js';
+
 const CLIENT_ID = '702808266000-m1gro990l5uflm9o5jj56ut6n0b760il.apps.googleusercontent.com';
 const SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const FILE_NAME = 'kids-portfolio.json';
@@ -29,6 +31,7 @@ const PULLED_AT_KEY = 'juniorinvest:driveLastPullAt';
 // overwrite the others' idea of where they are in the sync.
 const DATA_PREFIX = 'juniorinvest:';
 const BOOKKEEPING_PREFIX = 'juniorinvest:drive';
+const MAIN_KEY = DATA_PREFIX + 'v1';
 
 const PUSH_DEBOUNCE_MS = 4000;
 const SILENT_SIGNIN_TIMEOUT_MS = 5000;
@@ -226,6 +229,15 @@ export class DriveSync {
     const payload = await r.json();
     if (!validPayload(payload)) throw new Error('הקובץ ב-Drive לא בפורמט מוכר');
 
+    // The file we just downloaded is the LAST WRITE, which says nothing about
+    // whose prices are newest: a device that added a transaction minutes ago can
+    // be carrying week-old quotes. Applying it raw walks the valuation backwards.
+    // So every quote and the FX rate are decided on their own recorded time —
+    // prices only move forward — while the ledger and everything else still come
+    // from the incoming payload.
+    const merged = mergePricingJson(localStorage.getItem(MAIN_KEY), payload.keys[MAIN_KEY]);
+    payload.keys[MAIN_KEY] = merged.json;
+
     this._suppress = true;
     try {
       for (const [k, v] of Object.entries(payload.keys)) {
@@ -236,9 +248,49 @@ export class DriveSync {
       this._suppress = false;
     }
 
+    // A pull that kept local prices leaves the cloud copy stale, and nothing
+    // else would ever push them: no commit happened, so schedulePush never
+    // fires. Send them up so the next device to pull gets them too.
+    if (merged.keptQuotes.length || merged.keptFx) {
+      console.log('[DriveSync] kept fresher local pricing:', merged.keptQuotes.join(', ') || '(fx only)');
+      if (this.enabled) setTimeout(() => this.push().catch(() => {}), 0);
+    }
+
     if (this._pushTimer) { clearTimeout(this._pushTimer); this._pushTimer = null; }
     localStorage.setItem(PULLED_AT_KEY, file.modifiedTime);
     return true;
+  }
+
+  // Pulls ONLY the pricing out of a cloud file: any quote or FX rate recorded
+  // later than ours replaces ours, and nothing else in the payload is touched.
+  // Used on the "overwrite the cloud" branch of a conflict, where a full pull
+  // would be wrong (it would discard the local edits the user just chose to
+  // keep) but losing the other device's fresher prices is wrong too.
+  async _absorbRemotePricing(fileId) {
+    try {
+      const r = await this._req('GET', `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`);
+      if (!r.ok) return false;
+      const payload = await r.json();
+      if (!validPayload(payload)) return false;
+      // Same call, arguments swapped: here the LOCAL blob is the base and the
+      // remote one only contributes prices that are newer.
+      const merged = mergePricingJson(payload.keys[MAIN_KEY], localStorage.getItem(MAIN_KEY));
+      if (!merged.keptQuotes.length && !merged.keptFx) return false;
+      this._suppress = true;
+      try {
+        localStorage.setItem(MAIN_KEY, merged.json);
+        this.sm.reloadFromPersistence();
+      } finally {
+        this._suppress = false;
+      }
+      console.log('[DriveSync] absorbed fresher cloud pricing:', merged.keptQuotes.join(', ') || '(fx only)');
+      return true;
+    } catch (e) {
+      // Best effort: failing to enrich prices must never block the upload the
+      // user asked for.
+      console.warn('[DriveSync] absorb pricing failed:', e.message);
+      return false;
+    }
   }
 
   // ---- Push ---------------------------------------------------------------
@@ -276,6 +328,11 @@ export class DriveSync {
             this._setStatus('idle');
             return;
           }
+          // Overwriting the cloud is the user's call about THEIR EDITS, not a
+          // decision to throw away prices the other device fetched more
+          // recently. Take those before the upload — quotes are independent of
+          // the ledger, so absorbing them cannot cost a transaction.
+          await this._absorbRemotePricing(existing.id);
         }
       }
 

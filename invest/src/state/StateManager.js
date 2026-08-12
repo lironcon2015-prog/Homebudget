@@ -70,6 +70,11 @@ export class StateManager {
   setFxRate(rate, asOf) {
     this.state.settings.lastFxRate = Number(rate);
     this.state.settings.lastFxRateAsOf = asOf || new Date().toISOString().slice(0, 10);
+    // Full timestamp alongside the date: sync compares pricing freshness across
+    // devices, and two refreshes on the same day are indistinguishable by date.
+    // The date field stays as-is — it is what the UI shows and what old
+    // portfolios carry.
+    this.state.settings.lastFxRateAsOfTs = new Date().toISOString();
     this._commit();
   }
 
@@ -113,7 +118,13 @@ export class StateManager {
 
   // ---- Quotes ---------------------------------------------------------
 
-  upsertQuote({ ticker, company, price, priceUsd, currency = 'USD', asOf, source = 'manual' }) {
+  // asOfTs is the moment this price was recorded, in full ISO. `asOf` stays a
+  // plain date because that is what the UI prints and what portfolios saved
+  // before this field carry — but a date cannot rank two refreshes on the same
+  // day, and Drive sync has to know which device holds the newer price. An
+  // explicit asOfTs is honoured (a caller backdating a price says so); otherwise
+  // it is now.
+  upsertQuote({ ticker, company, price, priceUsd, currency = 'USD', asOf, asOfTs, source = 'manual' }) {
     if (!ticker) throw new Error('Quote needs a ticker');
     const resolvedPrice = price ?? priceUsd;        // backward compat
     const existingCurrency = this.state.quotes[ticker]?.currency;
@@ -123,6 +134,7 @@ export class StateManager {
       price: Number(resolvedPrice),
       currency: currency || existingCurrency || 'USD',
       asOf: asOf || new Date().toISOString().slice(0, 10),
+      asOfTs: asOfTs || new Date().toISOString(),
       source,
     };
     this._commit();
