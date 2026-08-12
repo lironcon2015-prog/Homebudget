@@ -9,7 +9,18 @@
 // balance tracking) but excluded from P&L totals to avoid double counting.
 //
 // Transfers never count in P&L (they're movements between owned accounts).
-// Refunds reduce expenses, never count as income.
+//
+// REFUNDS ARE A THIRD FLOW (since 1.47.0). They are neither income nor a
+// negative expense: they get their own line/bucket everywhere they surface.
+// The reason is that a refund almost never lands in the month (or the payment
+// plan) of the expense it refunds — a purchase split over six installments can
+// be refunded in cash next week. Netting it into the expense side therefore
+// made one month look expensive and another artificially cheap, and made a
+// category read as if the money had never gone out. Cash-flow attribution stays
+// honest: every row sits in the month its money actually moved, and the
+// PRESENTATION separates refunds instead.
+//   expenses = gross outflow · refunds = credits back · net = inc - exp + ref
+// Net is identical to what the old netting produced; only the two sides split.
 
 const PL_ACCOUNT_TYPES = new Set(['checking', 'cash'])
 
@@ -39,19 +50,32 @@ function invalidateAccountCache() { _accInfoCache = null }
 
 function isPLTransaction(t) { return _getPLAccountIds().has(t.accountId) }
 
+// The refunds bucket is a DISPLAY bucket, not a category: the refund row keeps
+// its own category (health, car…) so the drill-down can still say what was
+// refunded. Turning it into a real category would have thrown that away.
+const REFUND_BUCKET_ID = '__refunds__'
+const REFUND_BUCKET_NAME = 'החזרים'
+const REFUND_BUCKET_COLOR = '#38bdf8'
+
 function isCountedIncome(t)  { return isPLTransaction(t) && t.amount > 0 && t.type !== 'transfer' && t.type !== 'refund' }
-function isCountedExpense(t) { return isPLTransaction(t) && ((t.amount < 0 && t.type !== 'transfer') || (t.type === 'refund' && t.amount > 0)) }
+function isCountedExpense(t) { return isPLTransaction(t) && t.amount < 0 && t.type !== 'transfer' }
+function isCountedRefund(t)  { return isPLTransaction(t) && t.type === 'refund' && t.amount > 0 }
 
 function countedExpenseAmount(t) {
   if (!isPLTransaction(t)) return 0
-  if (t.type === 'refund' && t.amount > 0) return -t.amount
+  if (t.type === 'refund' && t.amount > 0) return 0
   if (t.amount < 0 && t.type !== 'transfer') return Math.abs(t.amount)
   return 0
 }
 
+// Positive = money that came back. A refund row with a NEGATIVE amount is a
+// mislabelled outflow and stays on the expense side (see countedExpenseAmount).
+function countedRefundAmount(t) { return isCountedRefund(t) ? t.amount : 0 }
+
 function sumIncome(txs)   { return txs.filter(isCountedIncome).reduce((s,t)=>s+t.amount,0) }
 function sumExpenses(txs) { return txs.reduce((s,t)=>s+countedExpenseAmount(t),0) }
-function sumNet(txs)      { return sumIncome(txs) - sumExpenses(txs) }
+function sumRefunds(txs)  { return txs.reduce((s,t)=>s+countedRefundAmount(t),0) }
+function sumNet(txs)      { return sumIncome(txs) - sumExpenses(txs) + sumRefunds(txs) }
 
 // ===== "HIDDEN SAVINGS" — expense categories tagged isSavings =====
 // A user can mark any expense category as isSavings=true via the category
@@ -78,8 +102,12 @@ function isHiddenSavings(t) {
   return t.categoryId && getSavingsCategoryIds().has(t.categoryId)
 }
 
+// Refunds stay NETTED here, unlike every other sum: this figure is "money the
+// user kept", and a refund of a savings deposit means that much was never put
+// aside. Splitting it out would have inflated the true-savings-rate numerator
+// by the refund while net stayed flat.
 function sumHiddenSavings(txs) {
-  return txs.reduce((s, t) => s + (isHiddenSavings(t) ? countedExpenseAmount(t) : 0), 0)
+  return txs.reduce((s, t) => s + (isHiddenSavings(t) ? countedExpenseAmount(t) - countedRefundAmount(t) : 0), 0)
 }
 
 // ===== "CAPITAL INCOME" — income categories tagged isSavingsReduction =====
@@ -193,18 +221,56 @@ function shouldDropCcLump(t, ccAccsWithDetail) {
 //     record of the spend.
 //   - skip savings/investment account rows — prefer the bank-side transfer
 //     (which already carries the "savings" category)
-//   - include negative amounts on bank (checking/cash) AND on CC accounts,
-//     treating refunds as a negative expense
+//   - include negative amounts on bank (checking/cash) AND on CC accounts
+//   - refunds go to their own bucket (analysisRefundAmount), NOT as a negative
+//     slice of the category they happen to carry — a negative pie slice is
+//     unrenderable, and the refund's category is usually the refunded thing,
+//     not this period's spending on it.
+function _inAnalysisScope(t, savingsInvestIds, ccAccsWithDetail) {
+  if (t.type === 'transfer') return false
+  if (shouldDropCcLump(t, ccAccsWithDetail)) return false
+  if (savingsInvestIds && savingsInvestIds.has(t.accountId)) return false
+  return true
+}
 function analysisExpenseAmount(t, savingsInvestIds, ccAccsWithDetail) {
-  if (t.type === 'transfer') return 0
-  if (shouldDropCcLump(t, ccAccsWithDetail)) return 0
-  if (savingsInvestIds && savingsInvestIds.has(t.accountId)) return 0
-  if (t.type === 'refund' && t.amount > 0) return -t.amount
+  if (!_inAnalysisScope(t, savingsInvestIds, ccAccsWithDetail)) return 0
+  if (t.type === 'refund' && t.amount > 0) return 0
   if (t.amount < 0) return Math.abs(t.amount)
   return 0
 }
+function analysisRefundAmount(t, savingsInvestIds, ccAccsWithDetail) {
+  if (!_inAnalysisScope(t, savingsInvestIds, ccAccsWithDetail)) return 0
+  return (t.type === 'refund' && t.amount > 0) ? t.amount : 0
+}
 function analysisExpenseSavingsInvestIds() {
   return new Set(getAccounts().filter(a => a.type === 'savings' || a.type === 'investment').map(a => a.id))
+}
+
+// Refund rows grouped by their own category — the shared source for every
+// "החזרים" bucket (dashboard, analysis, mobile, reports, budget). Same scope
+// guards as the expense breakdown so the two panels can't disagree.
+function refundBreakdownByCategory(txs) {
+  const savingsInvestIds = analysisExpenseSavingsInvestIds()
+  const ccAccsWithDetail = ccAccountsWithDetail(txs)
+  // Resolved from getCategories() rather than getCategoryById() so this stays
+  // inside core.js's dependency surface, and so a categoryId pointing at a
+  // deleted category falls into the same "לא מסווג" bucket the breakdown uses.
+  const byId = new Map(((typeof getCategories === 'function') ? getCategories() : []).map(c => [c.id, c]))
+  const byCat = {}
+  let total = 0
+  let count = 0
+  for (const t of txs) {
+    const ra = analysisRefundAmount(t, savingsInvestIds, ccAccsWithDetail)
+    if (ra <= 0) continue
+    const cat = t.categoryId ? byId.get(t.categoryId) : null
+    const key = cat ? cat.id : ANALYSIS_EXCL_UNCATEGORIZED
+    if (!byCat[key]) byCat[key] = { catId: key, name: cat ? cat.name : 'לא מסווג', color: cat?.color || REFUND_BUCKET_COLOR, total: 0, count: 0 }
+    byCat[key].total += ra
+    byCat[key].count++
+    total += ra
+    count++
+  }
+  return { total, count, rows: Object.values(byCat).sort((a, b) => b.total - a.total) }
 }
 
 // ===== ANALYSIS EXCLUSIONS ("what if I hadn't spent this?") =====

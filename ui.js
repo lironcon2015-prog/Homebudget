@@ -155,6 +155,57 @@ function v2ModalHero({ icon = uiIcon('file', 20), tileBg = 'rgba(79,139,255,.13)
     </div>`
 }
 
+// ===== REFUNDS BUCKET (shared presentation) =====
+// Refunds are not netted into expenses (see core.js) — they surface as one
+// credit line wherever a breakdown is shown. The line is a DISPLAY bucket, so
+// the drill-down still names the categories the refunds carry: that is how the
+// user reconnects an August refund to a purchase made in February, without the
+// app having to guess a link between them.
+let _refundBucketLast = null
+
+function refundBucketLineHTML(bucket, opts = {}) {
+  if (!bucket || !(bucket.total > 0)) return ''
+  _refundBucketLast = bucket
+  const { compact = false } = opts
+  const names = bucket.rows.slice(0, 3).map(r => r.name).join(' · ')
+  const more = bucket.rows.length > 3 ? ` +${bucket.rows.length - 3}` : ''
+  return `
+    <div class="refund-bucket ${compact ? 'refund-bucket-compact' : ''}" role="button" tabindex="0"
+         onclick="openRefundBucketSheet()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openRefundBucketSheet()}"
+         title="החזרים בתקופה. אינם מקטינים את ההוצאות — ההוצאות מוצגות ברוטו. לחץ לפירוט">
+      <div class="refund-bucket-head">
+        <span class="refund-bucket-name">${uiIcon('undo', 15)} ${REFUND_BUCKET_NAME}</span>
+        <span class="refund-bucket-amt">−${formatCurrency(bucket.total)}</span>
+      </div>
+      <div class="refund-bucket-sub">${bucket.count} ${bucket.count === 1 ? 'פעולה' : 'פעולות'}${names ? ' · ' + escHtml(names) + more : ''}</div>
+    </div>`
+}
+
+function openRefundBucketSheet() {
+  const bucket = _refundBucketLast
+  if (!bucket || typeof UK_sheet !== 'function') return
+  const rows = bucket.rows.map(r => `
+    <div class="refund-sheet-row" role="button" tabindex="0"
+         onclick="_refundSheetGo('${r.catId}')" onkeydown="if(event.key==='Enter'){_refundSheetGo('${r.catId}')}">
+      <span class="refund-sheet-cat">${escHtml(r.name)}</span>
+      <span class="refund-sheet-count">${r.count}</span>
+      <span class="refund-sheet-amt">${formatCurrency(r.total)}</span>
+    </div>`).join('')
+  UK_sheet({
+    title: `${REFUND_BUCKET_NAME} — ${formatCurrencyPlain(bucket.total)}`,
+    content: `
+      <p class="refund-sheet-note">הקטגוריה של כל החזר היא מה שהוחזר — לא בהכרח הוצאה מהתקופה הזו.
+      ההחזרים אינם מקוזזים מההוצאות: ההוצאות מוצגות ברוטו, וההחזרים נספרים בנטו ובתזרים.</p>
+      <div class="refund-sheet-list">${rows}</div>`,
+    actions: [{ label: 'סגור' }],
+  })
+}
+
+function _refundSheetGo(catId) {
+  document.querySelectorAll('.uk-sheet-overlay').forEach(o => o.remove())
+  if (typeof goToTransactionsByCategory === 'function') goToTransactionsByCategory(catId)
+}
+
 // Keeps Tab/Shift+Tab cycling inside `container` (focus trap for modals).
 function _trapFocus(e, container) {
   const focusables = container.querySelectorAll(
@@ -317,6 +368,8 @@ const CHART_COLORS = {
   expenseBg: 'rgba(244,63,94,.5)',
   accent:    '#3b82f6',
   accentBg:  'rgba(59,130,246,.65)',
+  refund:    '#38bdf8',
+  refundBg:  'rgba(56,189,248,.5)',
   muted:     '#64748b',
   mutedBg:   'rgba(100,116,139,.4)',
   grid:      'rgba(255,255,255,0.06)',

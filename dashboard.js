@@ -30,7 +30,8 @@ function renderDashboard() {
 
   const income         = sumIncome(periodTx)
   const expenses       = sumExpenses(periodTx)
-  const net            = income - expenses
+  const refunds        = sumRefunds(periodTx)
+  const net            = income - expenses + refunds
   const hiddenSavings  = sumHiddenSavings(periodTx)
   const capitalIncome  = sumCapitalIncome(periodTx)
   const netHidden      = hiddenSavings - capitalIncome
@@ -41,6 +42,14 @@ function renderDashboard() {
     { label: 'הוצאות התקופה', value: expenses, color: 'var(--expense)', icon: uiIcon('trendingdown', 18), bg: 'var(--expense-bg)' },
     { label: 'נטו התקופה',    value: net,      color: net >= 0 ? 'var(--income)' : 'var(--expense)', icon: uiIcon('chart', 18), bg: net >= 0 ? 'var(--income-bg)' : 'var(--expense-bg)' },
   ]
+  // Refunds card is appended (never spliced): the hero below reads cards[2].
+  if (refunds > 0) {
+    cards.push({
+      label: 'החזרים', value: refunds, color: 'var(--refund)',
+      icon: uiIcon('undo', 18), bg: 'var(--refund-bg)',
+      tooltip: 'כסף שחזר בתקופה. לא מנוכה מההוצאות — ההוצאות מוצגות ברוטו',
+    })
+  }
   if (hiddenSavings > 0 || capitalIncome > 0) {
     const parts = []
     if (hiddenSavings > 0) parts.push(`+${formatCurrency(hiddenSavings)} חסכונות חבויים`)
@@ -85,7 +94,7 @@ function renderDashboard() {
         <div class="bento-hero-trend" style="background:${trendPos?'rgba(16,185,129,.14)':'rgba(244,63,94,.14)'};color:${heroCard.color}">
           ${trendPos?'▲':'▼'} ${trendPos?'תזרים חיובי':'תזרים שלילי'}
         </div>
-        <div class="bento-hero-sub">הכנסות פחות הוצאות בתקופה הנבחרת</div>
+        <div class="bento-hero-sub">${refunds > 0 ? 'הכנסות פחות הוצאות, בתוספת החזרים' : 'הכנסות פחות הוצאות בתקופה הנבחרת'}</div>
       </div>
       <div class="bento-right">
         ${otherCards.map(s => `
@@ -196,10 +205,13 @@ function _renderMonthlyChart(all, period) {
       })()
     : months
 
-  const incomes = displayMonths.map(mo => sumIncome(all.filter(t => getTxEffectiveMonth(t) === mo)))
-  const exps    = displayMonths.map(mo => sumExpenses(all.filter(t => getTxEffectiveMonth(t) === mo)))
-  const nets    = incomes.map((v,i) => v - exps[i])
+  const monthTx  = displayMonths.map(mo => all.filter(t => getTxEffectiveMonth(t) === mo))
+  const incomes = monthTx.map(sumIncome)
+  const exps    = monthTx.map(sumExpenses)
+  const refs    = monthTx.map(sumRefunds)
+  const nets    = incomes.map((v,i) => v - exps[i] + refs[i])
   const labels  = displayMonths.map(mo => mo.slice(5) + '/' + mo.slice(2,4))
+  const hasRefunds = refs.some(v => v > 0)
 
   document.getElementById('monthlyChartTitle').textContent =
     displayMonths.length <= 6 ? `הכנסות מול הוצאות – ${displayMonths.length} חודשים`
@@ -216,6 +228,9 @@ function _renderMonthlyChart(all, period) {
       datasets: [
         { type: 'bar',  label: 'הכנסות', data: incomes, backgroundColor: CHART_COLORS.incomeBg,  borderRadius: 6, borderSkipped: false, yAxisID: 'y' },
         { type: 'bar',  label: 'הוצאות', data: exps,    backgroundColor: CHART_COLORS.expenseBg, borderRadius: 6, borderSkipped: false, yAxisID: 'y' },
+        // Only when the window actually has refunds — a permanent empty series
+        // would put a legend entry on every user's chart for nothing.
+        ...(hasRefunds ? [{ type: 'bar', label: 'החזרים', data: refs, backgroundColor: CHART_COLORS.refundBg, borderRadius: 6, borderSkipped: false, yAxisID: 'y' }] : []),
         { type: 'line', label: 'נטו',    data: nets,    borderColor: CHART_COLORS.accent, backgroundColor: netGrad,
           borderWidth: 2.5, tension: 0.45, fill: true, yAxisID: 'y', hidden: true,
           pointRadius: 4, pointBackgroundColor: CHART_COLORS.accent, pointBorderColor: CHART_COLORS.surface, pointBorderWidth: 2 },
@@ -252,7 +267,10 @@ function _renderCategoryBreakdown(periodTx, expenses) {
     pieTotal += ca
   })
   const sorted = Object.values(bycat).sort((a,b) => b.total - a.total).slice(0, 6)
-  document.getElementById('catBreakdown').innerHTML = sorted.length === 0
+  // Refunds get their own credit line under the bars instead of shrinking a
+  // category: the bars are gross spending, and the credit is stated separately.
+  const refundLine = refundBucketLineHTML(refundBreakdownByCategory(periodTx))
+  document.getElementById('catBreakdown').innerHTML = (sorted.length === 0 && !refundLine)
     ? '<p style="color:var(--text-muted);font-size:.85rem;text-align:center;padding:1.5rem">אין נתונים</p>'
     : sorted.map(c => `
       <div class="cat-bar-item">
@@ -263,7 +281,7 @@ function _renderCategoryBreakdown(periodTx, expenses) {
         <div class="cat-bar-track">
           <div class="cat-bar-fill" style="width:${pieTotal>0?Math.round(c.total/pieTotal*100):0}%;background:${c.color}"></div>
         </div>
-      </div>`).join('')
+      </div>`).join('') + refundLine
 }
 
 function _renderRecentTx(all) {
@@ -281,9 +299,10 @@ function _renderRecentTx(all) {
       })
     : recent.map(tx => {
         const cat = getCategoryById(tx.categoryId)
-        const isNonCounted = tx.type === 'transfer' || tx.type === 'refund'
-        const amountColor = isNonCounted ? 'var(--text-muted)' : (tx.amount > 0 ? 'var(--income)' : 'var(--expense)')
-        const badge = isNonCounted ? `<span class="type-badge type-${tx.type}" style="margin-inline-start:.4rem">${TYPE_LABEL[tx.type]||tx.type}</span>` : ''
+        const isRefundRow = tx.type === 'refund' && tx.amount > 0
+        const isNonCounted = tx.type === 'transfer'
+        const amountColor = isNonCounted ? 'var(--text-muted)' : isRefundRow ? 'var(--refund)' : (tx.amount > 0 ? 'var(--income)' : 'var(--expense)')
+        const badge = (isNonCounted || tx.type === 'refund') ? `<span class="type-badge type-${tx.type}" style="margin-inline-start:.4rem">${TYPE_LABEL[tx.type]||tx.type}</span>` : ''
         return `
         <div class="recent-tx-item">
           <div class="recent-tx-left">

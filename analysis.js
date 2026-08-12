@@ -34,9 +34,10 @@ function _drawAnalysis() {
 
   const income         = sumIncome(periodTx)
   const expenses       = sumExpenses(periodTx)
+  const refunds        = sumRefunds(periodTx)
   const hiddenSavings  = sumHiddenSavings(periodTx)
   const capitalIncome  = sumCapitalIncome(periodTx)
-  const net            = income - expenses
+  const net            = income - expenses + refunds
   // "True savings rate" treats hidden-savings expenses as kept money and
   // strips capital income (dividends, asset sales, savings withdrawals)
   // so it reflects only what we saved out of real earned income:
@@ -60,6 +61,13 @@ function _drawAnalysis() {
       bg: pnlPct>=0?'var(--income-bg)':'var(--expense-bg)', pct: true,
       tooltip: '(הכנסות − הוצאות) / הכנסות — רווח/הפסד מתוך סך ההכנסה' },
   ]
+  if (refunds > 0) {
+    cards.push({
+      label: 'החזרים', value: refunds, color: 'var(--refund)',
+      icon: uiIcon('undo', 18), bg: 'var(--refund-bg)',
+      tooltip: 'כסף שחזר בתקופה. ההוצאות מוצגות ברוטו — ההחזר נספר כאן ובנטו',
+    })
+  }
   if (showSavingsCard) {
     const parts = []
     if (hasHidden)  parts.push(`+ ${formatCurrency(hiddenSavings)} חסכונות חבויים`)
@@ -349,9 +357,13 @@ function _renderExpenseBreakdown(periodTx) {
   const rows = Object.values(expByCat).map((r, i) => ({ ...r, catId: Object.keys(expByCat)[i] })).sort((a,b) => b.total - a.total)
   _expenseBreakdownAll = { rows, totalForPct }
 
+  // Refund credits sit below the bars, outside the % base: the percentages
+  // describe how gross spending split, and a credit is not a share of it.
+  const refundLine = refundBucketLineHTML(refundBreakdownByCategory(periodTx))
   const container = document.getElementById('expenseBreakdown')
   if (rows.length === 0) {
-    container.innerHTML = '<p style="color:var(--text-muted);font-size:.85rem;text-align:center;padding:2rem">אין הוצאות לתקופה</p>'
+    container.innerHTML = refundLine ||
+      '<p style="color:var(--text-muted);font-size:.85rem;text-align:center;padding:2rem">אין הוצאות לתקופה</p>'
     return
   }
   const top = rows.slice(0, 10)
@@ -359,7 +371,7 @@ function _renderExpenseBreakdown(periodTx) {
   const expandBtn = more > 0
     ? `<button class="btn-ghost" style="width:100%;margin-top:.5rem;font-size:.85rem" onclick="openExpenseBreakdownModal()">הצג את כל ${rows.length} הקטגוריות (+${more})</button>`
     : ''
-  container.innerHTML = top.map(r => _expenseBreakdownRowHtml(r, totalForPct)).join('') + expandBtn
+  container.innerHTML = top.map(r => _expenseBreakdownRowHtml(r, totalForPct)).join('') + expandBtn + refundLine
 }
 
 function openExpenseBreakdownModal() {
@@ -410,10 +422,13 @@ function _renderTrendChart(all, period) {
       months.push(_ym(d))
     }
   }
-  const incomes = months.map(mo => sumIncome(all.filter(t => getTxEffectiveMonth(t) === mo)))
-  const exps    = months.map(mo => sumExpenses(all.filter(t => getTxEffectiveMonth(t) === mo)))
-  const nets    = incomes.map((v,i) => v - exps[i])
+  const monthTx = months.map(mo => all.filter(t => getTxEffectiveMonth(t) === mo))
+  const incomes = monthTx.map(sumIncome)
+  const exps    = monthTx.map(sumExpenses)
+  const refs    = monthTx.map(sumRefunds)
+  const nets    = incomes.map((v,i) => v - exps[i] + refs[i])
   const labels  = months.map(mo => mo.slice(5) + '/' + mo.slice(2,4))
+  const hasRefunds = refs.some(v => v > 0)
 
   if (_trendChart) _trendChart.destroy()
   const ctx = document.getElementById('trendChart').getContext('2d')
@@ -426,6 +441,7 @@ function _renderTrendChart(all, period) {
       datasets: [
         { type: 'bar',  label: 'הכנסות', data: incomes, backgroundColor: CHART_COLORS.incomeBg,  borderRadius: 6, borderSkipped: false },
         { type: 'bar',  label: 'הוצאות', data: exps,    backgroundColor: CHART_COLORS.expenseBg, borderRadius: 6, borderSkipped: false },
+        ...(hasRefunds ? [{ type: 'bar', label: 'החזרים', data: refs, backgroundColor: CHART_COLORS.refundBg, borderRadius: 6, borderSkipped: false }] : []),
         { type: 'line', label: 'נטו',    data: nets,    borderColor: CHART_COLORS.accent, backgroundColor: trendNetGrad,
           borderWidth: 2.5, tension: 0.45, fill: true, hidden: true,
           pointRadius: 4, pointBackgroundColor: CHART_COLORS.accent, pointBorderColor: CHART_COLORS.surface, pointBorderWidth: 2 },
@@ -450,12 +466,20 @@ function _renderYoY(all, period) {
 
   const curInc = sumIncome(curTx),  prvInc = sumIncome(prvTx)
   const curExp = sumExpenses(curTx), prvExp = sumExpenses(prvTx)
-  const curNet = curInc - curExp,    prvNet = prvInc - prvExp
+  const curRef = sumRefunds(curTx),  prvRef = sumRefunds(prvTx)
+  const curNet = curInc - curExp + curRef, prvNet = prvInc - prvExp + prvRef
 
   const delta = (c, p) => p === 0 ? (c === 0 ? 0 : 100) : ((c - p) / Math.abs(p) * 100)
   const dInc = delta(curInc, prvInc)
   const dExp = delta(curExp, prvExp)
+  const dRef = delta(curRef, prvRef)
   const dNet = delta(curNet, prvNet)
+  const refRow = (curRef > 0 || prvRef > 0) ? `
+      <div class="yoy-label">החזרים</div>
+      <div class="refund-color">${formatCurrency(curRef)}</div>
+      <div class="yoy-muted">${formatCurrency(prvRef)}</div>
+      <div class="${dRef>=0?'income-color':'expense-color'}">${dRef>=0?'+':''}${dRef.toFixed(1)}%</div>
+` : ''
 
   document.getElementById('yoyTable').innerHTML = `
     <div class="yoy-grid">
@@ -473,7 +497,7 @@ function _renderYoY(all, period) {
       <div class="expense-color">${formatCurrency(curExp)}</div>
       <div class="yoy-muted">${formatCurrency(prvExp)}</div>
       <div class="${dExp<=0?'income-color':'expense-color'}">${dExp>=0?'+':''}${dExp.toFixed(1)}%</div>
-
+${refRow}
       <div class="yoy-label">נטו</div>
       <div class="${curNet>=0?'income-color':'expense-color'}">${formatCurrency(curNet)}</div>
       <div class="yoy-muted">${formatCurrency(prvNet)}</div>
@@ -485,10 +509,10 @@ function _renderYoY(all, period) {
   _yoyChart = new Chart(ctx, {
     type: 'bar',
     data: {
-      labels: ['הכנסות', 'הוצאות', 'נטו'],
+      labels: refRow ? ['הכנסות', 'הוצאות', 'החזרים', 'נטו'] : ['הכנסות', 'הוצאות', 'נטו'],
       datasets: [
-        { label: 'שנה קודמת',    data: [prvInc, prvExp, prvNet], backgroundColor: CHART_COLORS.mutedBg, borderRadius: 6, borderSkipped: false },
-        { label: 'תקופה נוכחית', data: [curInc, curExp, curNet], backgroundColor: CHART_COLORS.accentBg, borderRadius: 6, borderSkipped: false },
+        { label: 'שנה קודמת',    data: refRow ? [prvInc, prvExp, prvRef, prvNet] : [prvInc, prvExp, prvNet], backgroundColor: CHART_COLORS.mutedBg, borderRadius: 6, borderSkipped: false },
+        { label: 'תקופה נוכחית', data: refRow ? [curInc, curExp, curRef, curNet] : [curInc, curExp, curNet], backgroundColor: CHART_COLORS.accentBg, borderRadius: 6, borderSkipped: false },
       ]
     },
     options: {
@@ -514,12 +538,17 @@ function _renderCashFlowStatement(all, period, exclActive) {
   const endBal   = getCheckingCashBalance(period.end)
   const income   = sumIncome(periodTx)
   const expense  = sumExpenses(periodTx)
-  const netOp    = income - expense
+  // Own line, not netted into the expense row: the expense row is what left the
+  // account this period, the refund row is what came back into it. Both sides
+  // are real cash movements, so the statement still reconciles to the balances.
+  const refunds  = sumRefunds(periodTx)
+  const netOp    = income - expense + refunds
 
   document.getElementById('cashFlowStatement').innerHTML = `
     <div class="cf-row"><span>יתרת עו"ש/מזומן פותחת (${formatDate(period.start)})</span><span style="font-weight:700">${formatCurrency(startBal)}</span></div>
     <div class="cf-row cf-income"><span>+ הכנסות</span><span>${formatCurrency(income)}</span></div>
     <div class="cf-row cf-expense"><span>− הוצאות</span><span>${formatCurrency(expense)}</span></div>
+    ${refunds > 0 ? `<div class="cf-row cf-refund"><span>+ החזרים</span><span>${formatCurrency(refunds)}</span></div>` : ''}
     <div class="cf-row cf-net"><span>תזרים תפעולי נטו</span><span>${netOp >= 0 ? '+' : ''}${formatCurrency(netOp)}</span></div>
     <div class="cf-row cf-total"><span>יתרת עו"ש/מזומן סוגרת (${formatDate(period.end)})</span><span>${formatCurrency(endBal)}</span></div>
     ${exclActive ? '<p class="cf-note">תזרים מזומנים מוצג ללא נטרול — היתרות הן כסף שבאמת יצא ונכנס.</p>' : ''}
@@ -867,9 +896,10 @@ function _buildChatContext(question) {
   for (const t of all) {
     const em = getTxEffectiveMonth(t)
     if (!em) continue
-    if (!byMonth[em]) byMonth[em] = { income: 0, expense: 0, count: 0 }
+    if (!byMonth[em]) byMonth[em] = { income: 0, expense: 0, refund: 0, count: 0 }
     if (isCountedIncome(t)) byMonth[em].income += t.amount
     byMonth[em].expense += countedExpenseAmount(t)
+    byMonth[em].refund += countedRefundAmount(t)
     byMonth[em].count++
   }
   // Deep mode widens both the monthly horizon and the raw-transaction window.
@@ -880,8 +910,9 @@ function _buildChatContext(question) {
   const months = Object.keys(byMonth).sort().slice(-monthsBack)
   const monthlyLines = months.map(m => {
     const b = byMonth[m]
-    const net = b.income - b.expense
-    return `${m}: הכנסות ${Math.round(b.income)}, הוצאות ${Math.round(b.expense)}, נטו ${net >= 0 ? '+' : ''}${Math.round(net)} (${b.count} עסקאות)`
+    const net = b.income - b.expense + b.refund
+    const ref = b.refund > 0 ? `, החזרים ${Math.round(b.refund)}` : ''
+    return `${m}: הכנסות ${Math.round(b.income)}, הוצאות ${Math.round(b.expense)}${ref}, נטו ${net >= 0 ? '+' : ''}${Math.round(net)} (${b.count} עסקאות)`
   })
 
   // Deep mode only: a month × category expense table over the whole horizon.
@@ -945,13 +976,15 @@ function _buildChatContext(question) {
   const periodTx = filterByEffectivePeriod(all, period)
   const periodInc = sumIncome(periodTx)
   const periodExp = sumExpenses(periodTx)
+  const periodRef = sumRefunds(periodTx)
   const checkingBalance = (typeof getCheckingCashBalance === 'function') ? getCheckingCashBalance() : 0
 
   return `אתה יועץ פיננסי אישי דובר עברית. ענה בעברית, תמציתי ומקצועי. השתמש בכל הנתונים שמצורפים. אם המשתמש שואל על חודש או טווח שלא תואמים לתקופת הצפייה הפעילה, הסתמך על "סיכום חודשי" ו"עסקאות אחרונות" — אל תגביל את עצמך לתקופה הפעילה.
 
 תאריך היום: ${todayIso}
 תקופת הצפייה בממשק כעת: ${period.label || ''} (${period.start} → ${period.end})
-סיכום התקופה הפעילה (לפי P&L, חודש חיוב אפקטיבי): הכנסות ${Math.round(periodInc)} ₪, הוצאות ${Math.round(periodExp)} ₪, נטו ${Math.round(periodInc - periodExp)} ₪
+סיכום התקופה הפעילה (לפי P&L, חודש חיוב אפקטיבי): הכנסות ${Math.round(periodInc)} ₪, הוצאות ${Math.round(periodExp)} ₪, החזרים ${Math.round(periodRef)} ₪, נטו ${Math.round(periodInc - periodExp + periodRef)} ₪
+החזרים הם זרם שלישי: אינם הכנסה ואינם מקטינים את ההוצאות המוצגות (ההוצאות ברוטו), אבל נספרים בנטו ובתזרים. נטו = הכנסות − הוצאות + החזרים.
 יתרת עו"ש+מזומן כיום: ${Math.round(checkingBalance)} ₪
 
 יתרות חשבונות (כל סוגי החשבונות):
@@ -960,7 +993,7 @@ ${accBalances.join('\n')}
 סיכום חודשי — עד ${monthsBack} חודשים אחרונים שיש בהם נתונים (effMonth = חודש חיוב אפקטיבי; חיובי אשראי משויכים לחודש שבו ירדו בעו"ש):
 ${monthlyLines.join('\n')}
 ${deep ? `\nפירוט חודשי לפי קטגוריה (הוצאות, ${monthsBack} חודשים, כיסוי מלא ללא חיתוך; analysisExpenseAmount — בלי כפל-ספירה של חיובי אשראי מרוכזים):\n${catLines.join('\n')}\n` : ''}
-${deep ? 'מצב ניתוח מעמיק מופעל — נתח לעומק, כולל מגמות ארוכות טווח.\n' : ''}עסקאות ${windowDays} הימים האחרונים, ללא העברות (${recent.length} שורות; amount חיובי = הכנסה, שלילי = הוצאה, refund חיובי = החזר שמקטין הוצאות):
+${deep ? 'מצב ניתוח מעמיק מופעל — נתח לעומק, כולל מגמות ארוכות טווח.\n' : ''}עסקאות ${windowDays} הימים האחרונים, ללא העברות (${recent.length} שורות; amount חיובי = הכנסה, שלילי = הוצאה, type=refund עם amount חיובי = החזר — זרם נפרד, לא הכנסה ולא הקטנת הוצאה):
 ${JSON.stringify(recent)}
 
 שאלת המשתמש: ${question}`

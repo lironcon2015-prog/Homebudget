@@ -77,6 +77,9 @@ function _bgLastCompleteMonthsBefore(targetMonth, n) {
 // category, lump CC payments dropped only when the targeted CC account has
 // detail txs in the same month) — matches computeBudgetStatus so the
 // proposed baseline reflects the same numbers the budget tracker will report.
+// Refunds contribute nothing (budgetExpenseAmount is gross since 1.47.0): a
+// baseline built from netted months would plan next month's ceiling around a
+// credit that already happened once and will not repeat.
 function _bgCategoryAmount(t, type, ctx) {
   if (type === 'income') return isCountedIncome(t) ? t.amount : 0
   return budgetExpenseAmount(t, ctx)

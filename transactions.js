@@ -344,8 +344,11 @@ function _drawTxTable() {
           const cat = getCategoryById(tx.categoryId)
           const isMirror = _txIsMirrorFor(tx, accountId)
           const dispAmt = isMirror ? -tx.amount : tx.amount
-          const isNonCounted = tx.type === 'transfer' || tx.type === 'refund'
-          const amountCls = isNonCounted ? 'amount-muted' : (dispAmt>0?'amount-inc':'amount-exp')
+          // A refund is counted (as its own flow), so it keeps a live colour —
+          // only transfers and mirror sides are dimmed as "not counted".
+          const isRefundRow = tx.type === 'refund' && tx.amount > 0
+          const isNonCounted = tx.type === 'transfer'
+          const amountCls = isNonCounted ? 'amount-muted' : isRefundRow ? 'amount-ref' : (dispAmt>0?'amount-inc':'amount-exp')
           const balCell = showRunningBalance ? `<td class="tx-cell-sec" style="font-weight:500">${formatCurrency(rowBalances[tx.id] ?? 0)}</td>` : ''
           const mirrorLabel = isMirror
             ? (tx.ccPaymentForAccountId === accountId ? 'תשלום לכרטיס' : 'הפקדה')

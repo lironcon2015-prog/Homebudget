@@ -115,6 +115,7 @@ html.m-ui .m-section-head a { color: var(--accent); font-size: .82rem; font-weig
 html.m-ui .m-muted { color: var(--text-muted); }
 html.m-ui .pos { color: var(--income); }
 html.m-ui .neg { color: var(--expense); }
+html.m-ui .ref { color: var(--refund); }
 html.m-ui .m-empty-line { color: var(--text-muted); font-size: .85rem; text-align: center; padding: 1rem; }
 
 /* ---- Chart ---- */

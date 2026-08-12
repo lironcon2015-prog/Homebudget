@@ -29,6 +29,9 @@ const OTHER_INCOME_COLOR = '#22d3ee'
 const CARRYOVER_INCOME_ID  = '__carryover_income__'
 const CARRYOVER_EXPENSE_ID = '__carryover_expense__'
 
+// Refunds row on the budget screen. REFUND_BUCKET_ID comes from core.js so the
+// dashboard bucket, the analysis bucket and this row are the same identity.
+function _isRefundRow(catId)   { return catId === REFUND_BUCKET_ID }
 function _isUnforeseen(catId)  { return catId === UNFORESEEN_ID }
 function _isOtherIncome(catId) { return catId === OTHER_INCOME_ID }
 function _isResidual(catId)    { return _isUnforeseen(catId) || _isOtherIncome(catId) }
@@ -123,14 +126,43 @@ function _budgetMonthContext(monthTxs) {
   }
 }
 
+// GROSS: a refund does not shrink the category it carries. A budget answers
+// "how much did I let this category cost me this month", and a refund usually
+// pays back an expense from another month (or from an installment plan), so
+// netting it here made one month read as a breach and another as exemplary
+// discipline. Refunds get their own row instead (budgetRefundAmount).
 function budgetExpenseAmount(t, ctx) {
   if (t.excludeFromBudget) return 0
   if (t.type === 'transfer') return 0
   if (ctx.savingsInvestIds.has(t.accountId)) return 0
   if (shouldDropCcLump(t, ctx.ccAccsWithDetail)) return 0
-  if (t.type === 'refund' && t.amount > 0) return -t.amount
+  if (t.type === 'refund' && t.amount > 0) return 0
   if (t.amount < 0) return Math.abs(t.amount)
   return 0
+}
+
+function budgetRefundAmount(t, ctx) {
+  if (t.excludeFromBudget) return 0
+  if (t.type !== 'refund' || !(t.amount > 0)) return 0
+  if (ctx.savingsInvestIds.has(t.accountId)) return 0
+  if (shouldDropCcLump(t, ctx.ccAccsWithDetail)) return 0
+  return t.amount
+}
+
+// Month total for the budget screen's refunds row. Not part of
+// computeBudgetStatus: those rows carry a budget and feed the expense totals,
+// and a refund has neither a target nor a place inside gross spending.
+function computeBudgetRefunds(monthKey) {
+  const txs = getTransactions().filter(t => getTxEffectiveMonth(t) === monthKey)
+  const ctx = _budgetMonthContext(txs)
+  let total = 0, count = 0
+  for (const t of txs) {
+    const r = budgetRefundAmount(t, ctx)
+    if (r <= 0) continue
+    total += r
+    count++
+  }
+  return { total, count }
 }
 
 function budgetIncomeAmount(t) {
@@ -153,6 +185,9 @@ function _budgetCategoryProxy(catId) {
   }
   if (catId === CARRYOVER_EXPENSE_ID) {
     return { id: CARRYOVER_EXPENSE_ID, name: 'גירעון מחודש קודם', icon: 'ic:chart', color: '#f97316', type: 'expense', _virtual: true }
+  }
+  if (_isRefundRow(catId)) {
+    return { id: REFUND_BUCKET_ID, name: REFUND_BUCKET_NAME, icon: 'ic:undo', color: REFUND_BUCKET_COLOR, type: 'refund', _virtual: true }
   }
   return getCategoryById(catId)
 }
@@ -241,22 +276,31 @@ function computeBudgetRowTxs(catId, monthKey, type, { includeExcluded = false } 
   const txs = getTransactions().filter(t => getTxEffectiveMonth(t) === monthKey)
   const ctx = _budgetMonthContext(txs)
   const sets = _coveredCatSets(budgets)
-  const effType = type || (_isOtherIncome(catId) ? 'income' : 'expense')
+  const effType = type || (_isRefundRow(catId) ? 'refund' : _isOtherIncome(catId) ? 'income' : 'expense')
 
+  // All three branches ignore excludeFromBudget so the modal can list excluded
+  // rows greyed-out; the caller filters them unless includeExcluded is set.
   const amountFor = effType === 'income'
     ? ((t) => isCountedIncome(t) ? t.amount : 0)
+    : effType === 'refund'
+    ? ((t) => {
+        if (t.type !== 'refund' || !(t.amount > 0)) return 0
+        if (ctx.savingsInvestIds.has(t.accountId)) return 0
+        if (shouldDropCcLump(t, ctx.ccAccsWithDetail)) return 0
+        return t.amount
+      })
     : ((t) => {
-        // Same as budgetExpenseAmount but ignoring excludeFromBudget so we can
-        // show excluded rows in the modal too.
         if (t.type === 'transfer') return 0
         if (ctx.savingsInvestIds.has(t.accountId)) return 0
         if (shouldDropCcLump(t, ctx.ccAccsWithDetail)) return 0
-        if (t.type === 'refund' && t.amount > 0) return -t.amount
+        if (t.type === 'refund' && t.amount > 0) return 0
         if (t.amount < 0) return Math.abs(t.amount)
         return 0
       })
 
   const matchesRow = (t) => {
+    // The refunds row spans every category — that is the point of it.
+    if (_isRefundRow(catId)) return true
     if (_isUnforeseen(catId)) return !(t.categoryId && sets.expense.has(t.categoryId))
     if (_isOtherIncome(catId)) return !(t.categoryId && sets.income.has(t.categoryId))
     return t.categoryId === catId
@@ -329,6 +373,13 @@ function renderBudgetCard(containerId, monthKey) {
       <div class="budget-agg-foot"><span>${incPct.toFixed(0)}%</span>
         <span>${incActual>=incBudget?'מעל היעד ':'חסר '}${formatCurrency(Math.abs(incBudget - incActual))}</span></div>
     </div>`
+  // Refunds are stated, never subtracted from the bar: the bar tracks gross
+  // spending against the plan, so folding a credit into it would understate
+  // what the month actually cost.
+  const refunds = computeBudgetRefunds(monthKey)
+  const refundNote = refunds.total > 0
+    ? `<div class="budget-agg-refund">החזרים בחודש זה: <span class="refund-color">${formatCurrency(refunds.total)}</span> · אינם מקוזזים מההוצאות</div>`
+    : ''
   el.innerHTML = `
     <div class="budget-agg-grid">
       <div class="budget-agg-row ${expCls}">
@@ -340,6 +391,7 @@ function renderBudgetCard(containerId, monthKey) {
       </div>
       ${incRow}
     </div>
+    ${refundNote}
     <div style="text-align:center;margin-top:.9rem">${openBtn}</div>`
 }
 
@@ -566,6 +618,25 @@ function _renderBudgetScreenTable(monthKey, readOnly) {
     { residualRowCls: 'budget-carryover-row budget-carryover-expense-row', noClick: true }
   )
 
+  // Refunds row: read-only, no budget input, and outside the category list —
+  // gross spending is what the categories above measure, and this is the credit
+  // that came back against spending that may not even live in this month.
+  const refunds = computeBudgetRefunds(monthKey)
+  const refundRow = refunds.total <= 0 ? '' : `
+      <div class="budget-screen-row budget-refund-row">
+        <span class="budget-screen-cat budget-screen-cat-link" role="link" tabindex="0"
+              onclick="openBudgetRowModal('${REFUND_BUCKET_ID}','${monthKey}','refund')"
+              title="החזרים שהתקבלו בחודש זה. אינם מקוזזים מ'בפועל' של הקטגוריות — לחץ לפירוט">
+          ${uiIcon('undo', 16)} ${REFUND_BUCKET_NAME}
+          <span class="budget-unforeseen-tag" title="לא מקוזז מהקטגוריות">אוטומטי</span>
+        </span>
+        <span class="budget-screen-actual-wrap" onclick="openBudgetRowModal('${REFUND_BUCKET_ID}','${monthKey}','refund')" style="cursor:pointer">
+          <span class="budget-screen-actual refund-color">${formatCurrency(refunds.total)}</span>
+        </span>
+        <span class="budget-screen-budget" style="color:var(--text-muted)">—</span>
+        <div class="budget-screen-bar-track"></div>
+      </div>`
+
   return `
     <div class="budget-screen-section">
       <h3 class="budget-screen-heading">הוצאות</h3>
@@ -576,6 +647,7 @@ function _renderBudgetScreenTable(monthKey, readOnly) {
         ${expCats.map(c => row(c, 'expense')).join('')}
         ${coExpRow}
         ${uRow}
+        ${refundRow}
       </div>
     </div>
     <div class="budget-screen-section">
@@ -693,7 +765,7 @@ function openBudgetGenModalForMonth(monthKey) {
 let _budgetRowModalState = null
 
 function openBudgetRowModal(catId, monthKey, type) {
-  const effType = type || (_isOtherIncome(catId) ? 'income' : 'expense')
+  const effType = type || (_isRefundRow(catId) ? 'refund' : _isOtherIncome(catId) ? 'income' : 'expense')
   _budgetRowModalState = { catId, monthKey, type: effType }
   _renderBudgetRowModal()
   document.getElementById('budgetRowModal')?.classList.add('open')
@@ -715,9 +787,12 @@ function _renderBudgetRowModal() {
 
   const rows = computeBudgetRowTxs(catId, monthKey, type, { includeExcluded: true })
   const isIncome = type === 'income'
-  const amtCls = isIncome ? 'income-color' : 'expense-color'
+  const isRefund = type === 'refund'
+  const amtCls = isIncome ? 'income-color' : isRefund ? 'refund-color' : 'expense-color'
   const isResidual = _isResidual(catId)
-  const intro = isResidual
+  const intro = isRefund
+    ? 'כל ההחזרים שהתקבלו בחודש זה, על פני כל הקטגוריות. הם אינם מקטינים את "בפועל" של אף קטגוריה — הקטגוריה שעל ההחזר מציינת מה הוחזר, וההוצאה המקורית יכולה להיות מחודש אחר או מפריסת תשלומים.'
+    : isResidual
     ? (isIncome
         ? 'כל הכנסה ללא יעד תקציב משלה נכללת אוטומטית בהכנסות אחרות. הסר סימון מהכנסות שאינן צריכות להיספר כאן.'
         : 'כל הוצאה ללא תקציב משלה נכללת אוטומטית בבלת״ם. הסר סימון מעסקאות שאינן צריכות להיספר כאן.')
@@ -750,7 +825,9 @@ function _renderBudgetRowModal() {
       </label>`
   }).join('')
 
-  const drillBtn = isResidual
+  // Residual and refunds rows span many categories, so there is no single
+  // category filter to hand the transactions screen.
+  const drillBtn = (isResidual || isRefund)
     ? ''
     : `<button class="btn-ghost" onclick="navigateBudgetCatToTx('${catId}','${monthKey}'); closeBudgetRowModal()">↗ פתח במסך עסקאות</button>`
 

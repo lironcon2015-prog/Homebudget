@@ -28,17 +28,26 @@ test('isCountedIncome/Expense respect account scope and type', () => {
   assert.equal(c.isCountedIncome({ accountId: 'chk', amount: 100, type: 'refund' }), false)
   assert.equal(c.isCountedExpense({ accountId: 'chk', amount: -50, type: 'expense' }), true)
   assert.equal(c.isCountedExpense({ accountId: 'chk', amount: -50, type: 'transfer' }), false)
-  assert.equal(c.isCountedExpense({ accountId: 'chk', amount: 80, type: 'refund' }), true)   // refund reduces expenses
+  assert.equal(c.isCountedExpense({ accountId: 'chk', amount: 80, type: 'refund' }), false)  // own flow, not an expense
+  assert.equal(c.isCountedRefund({ accountId: 'chk', amount: 80, type: 'refund' }), true)
+  assert.equal(c.isCountedRefund({ accountId: 'cc', amount: 80, type: 'refund' }), false)    // CC not in P&L
+  assert.equal(c.isCountedRefund({ accountId: 'chk', amount: 80, type: 'income' }), false)
 })
 
-test('countedExpenseAmount: refund is negative expense', () => {
+test('countedExpenseAmount is GROSS; refunds report through countedRefundAmount', () => {
   const c = core()
   assert.equal(c.countedExpenseAmount({ accountId: 'chk', amount: -50, type: 'expense' }), 50)
-  assert.equal(c.countedExpenseAmount({ accountId: 'chk', amount: 80, type: 'refund' }), -80)
+  assert.equal(c.countedExpenseAmount({ accountId: 'chk', amount: 80, type: 'refund' }), 0)
   assert.equal(c.countedExpenseAmount({ accountId: 'cc', amount: -50, type: 'expense' }), 0)
+  assert.equal(c.countedRefundAmount({ accountId: 'chk', amount: 80, type: 'refund' }), 80)
+  assert.equal(c.countedRefundAmount({ accountId: 'chk', amount: -50, type: 'expense' }), 0)
+  // A refund carrying a NEGATIVE amount is a mislabelled outflow: it stays on
+  // the expense side rather than becoming a negative credit.
+  assert.equal(c.countedExpenseAmount({ accountId: 'chk', amount: -40, type: 'refund' }), 40)
+  assert.equal(c.countedRefundAmount({ accountId: 'chk', amount: -40, type: 'refund' }), 0)
 })
 
-test('sumIncome/sumExpenses/sumNet', () => {
+test('sumIncome/sumExpenses/sumRefunds/sumNet: three separate flows', () => {
   const c = core()
   const txs = [
     { accountId: 'chk', amount: 1000, type: 'income' },
@@ -48,7 +57,9 @@ test('sumIncome/sumExpenses/sumNet', () => {
     { accountId: 'chk', amount: -100, type: 'transfer' },     // transfer never counts
   ]
   assert.equal(c.sumIncome(txs), 1000)
-  assert.equal(c.sumExpenses(txs), 250)
+  assert.equal(c.sumExpenses(txs), 300)   // gross: the refund no longer shrinks it
+  assert.equal(c.sumRefunds(txs), 50)
+  // Net is unchanged from the old netting behaviour — only the sides split.
   assert.equal(c.sumNet(txs), 750)
 })
 
@@ -62,6 +73,15 @@ test('sumHiddenSavings counts only isSavings categories; sumCapitalIncome only i
   ]
   assert.equal(c.sumHiddenSavings(txs), 500)
   assert.equal(c.sumCapitalIncome(txs), 900)
+})
+
+test('sumHiddenSavings still nets refunds — money handed back was never kept', () => {
+  const c = core()
+  const txs = [
+    { accountId: 'chk', amount: -1000, type: 'expense', categoryId: 'cat_invest_out' },
+    { accountId: 'chk', amount: 200, type: 'refund', categoryId: 'cat_invest_out' },
+  ]
+  assert.equal(c.sumHiddenSavings(txs), 800)
 })
 
 // ===== effective month =====
@@ -125,14 +145,47 @@ test('shouldDropCcLump drops specific-pattern lump only when CC has detail', () 
   assert.equal(c.shouldDropCcLump(generic, new Set(['cc'])), false)
 })
 
-test('analysisExpenseAmount: transfers/savings rows excluded, refund negative, CC detail included', () => {
+test('analysisExpenseAmount: transfers/savings rows excluded, refunds split off, CC detail included', () => {
   const c = core()
   const savIds = c.analysisExpenseSavingsInvestIds()
   assert.equal(c.analysisExpenseAmount({ accountId: 'chk', amount: -100, type: 'expense' }, savIds, new Set()), 100)
   assert.equal(c.analysisExpenseAmount({ accountId: 'cc', amount: -70, type: 'expense' }, savIds, new Set()), 70)
   assert.equal(c.analysisExpenseAmount({ accountId: 'sav', amount: -70, type: 'expense' }, savIds, new Set()), 0)
   assert.equal(c.analysisExpenseAmount({ accountId: 'chk', amount: -70, type: 'transfer' }, savIds, new Set()), 0)
-  assert.equal(c.analysisExpenseAmount({ accountId: 'chk', amount: 30, type: 'refund' }, savIds, new Set()), -30)
+  // A refund is never a negative slice of the category it carries.
+  assert.equal(c.analysisExpenseAmount({ accountId: 'chk', amount: 30, type: 'refund' }, savIds, new Set()), 0)
+})
+
+test('analysisRefundAmount shares the breakdown scope', () => {
+  const c = core()
+  const savIds = c.analysisExpenseSavingsInvestIds()
+  assert.equal(c.analysisRefundAmount({ accountId: 'chk', amount: 30, type: 'refund' }, savIds, new Set()), 30)
+  // CC-side credits belong to the breakdown even though they are outside P&L,
+  // exactly like CC expense detail rows.
+  assert.equal(c.analysisRefundAmount({ accountId: 'cc', amount: 30, type: 'refund' }, savIds, new Set()), 30)
+  assert.equal(c.analysisRefundAmount({ accountId: 'sav', amount: 30, type: 'refund' }, savIds, new Set()), 0)
+  assert.equal(c.analysisRefundAmount({ accountId: 'chk', amount: -30, type: 'refund' }, savIds, new Set()), 0)
+  assert.equal(c.analysisRefundAmount({ accountId: 'chk', amount: 30, type: 'income' }, savIds, new Set()), 0)
+})
+
+test('refundBreakdownByCategory keeps each refund under the category it carries', () => {
+  const c = core()
+  const NONE = c._eval('ANALYSIS_EXCL_UNCATEGORIZED')
+  const txs = [
+    { accountId: 'chk', amount: 120, type: 'refund', categoryId: 'cat_food' },
+    { accountId: 'chk', amount: 80,  type: 'refund', categoryId: 'cat_food' },
+    { accountId: 'chk', amount: 300, type: 'refund' },                          // uncategorized
+    { accountId: 'chk', amount: -50, type: 'expense', categoryId: 'cat_food' },  // not a refund
+    { accountId: 'sav', amount: 999, type: 'refund', categoryId: 'cat_food' },   // out of scope
+  ]
+  const b = c.refundBreakdownByCategory(txs)
+  assert.equal(b.total, 500)
+  assert.equal(b.count, 3)
+  // Sorted by amount, largest first — same ordering as the expense breakdown.
+  deepEq(b.rows.map(r => [r.catId, r.total, r.count]), [
+    [NONE, 300, 1],
+    ['cat_food', 200, 2],
+  ])
 })
 
 // ===== vendor aliases =====
@@ -264,7 +317,7 @@ test('applyAnalysisExclusions drops only the expense side of an excluded categor
   ]
   const excl = new Set(['cat_invest_out'])
   const kept = c.applyAnalysisExclusions(txs, excl).map(t => t.id)
-  // Expense and refund (a negative expense) go; income and transfer stay.
+  // Expense and refund go (both are "spending side"); income and transfer stay.
   deepEq(kept, ['c', 'd', 'e'])
 })
 
@@ -293,8 +346,10 @@ test('analysisExcludableTotals reports the breakdown scope, not the P&L scope', 
     { accountId: 'chk', amount:   50, type: 'refund',  categoryId: 'cat_food' },
   ]
   const totals = c.analysisExcludableTotals(txs)
-  assert.equal(totals.get('cat_food'), 450)  // 200 + 300 − 50
-  assert.equal(c.sumAnalysisExcluded(txs, new Set(['cat_food'])), 450)
+  // Gross: the picker quotes the same bars the breakdown draws, and the refund
+  // is not one of them (it lives in the refunds bucket).
+  assert.equal(totals.get('cat_food'), 500)  // 200 + 300
+  assert.equal(c.sumAnalysisExcluded(txs, new Set(['cat_food'])), 500)
   assert.equal(c.sumAnalysisExcluded(txs, new Set()), 0)
 })
 
@@ -312,6 +367,24 @@ test('neutralizing savings moves expenses by exactly the hidden-savings amount',
   // (net + hiddenSavings) is the same number through the lens as without it.
   assert.equal(c.sumNet(lensed), c.sumNet(txs) + hidden)
   assert.equal(c.sumHiddenSavings(lensed), 0)
+})
+
+test('the savings-lens invariant survives a refund inside the savings category', () => {
+  const c = core()
+  const txs = [
+    { accountId: 'chk', amount: 10000, type: 'income',  categoryId: 'cat_salary' },
+    { accountId: 'chk', amount: -3000, type: 'expense', categoryId: 'cat_food' },
+    { accountId: 'chk', amount: -2000, type: 'expense', categoryId: 'cat_invest_out' },
+    { accountId: 'chk', amount:   500, type: 'refund',  categoryId: 'cat_invest_out' },
+  ]
+  const hidden = c.sumHiddenSavings(txs)
+  assert.equal(hidden, 1500)
+  const lensed = c.applyAnalysisExclusions(txs, new Set(['cat_invest_out']))
+  // Splitting refunds out of the expense side must not move the true savings
+  // rate: net + hiddenSavings has to come out identical with and without lens.
+  assert.equal(c.sumNet(lensed), c.sumNet(txs) + hidden)
+  assert.equal(c.sumHiddenSavings(lensed), 0)
+  assert.equal(c.sumRefunds(lensed), 0)
 })
 
 test('analysis exclusions round-trip through storage', () => {

@@ -62,9 +62,11 @@ function ANOM_detect() {
   const ccDetail = (typeof ccAccountsWithDetail === 'function') ? ccAccountsWithDetail(all) : new Set()
   const isLump = t => (typeof shouldDropCcLump === 'function') ? shouldDropCcLump(t, ccDetail) : false
 
-  // Visible expenses the user actually sees (no transfers, no double-counted CC lump).
+  // Visible expenses the user actually sees (no transfers, no double-counted CC
+  // lump). Refunds are excluded: money coming back is not a suspicious charge,
+  // and taking its absolute value made a large credit look like a large spend.
   const expenses = all
-    .filter(t => (t.amount < 0 || (t.type === 'refund' && t.amount > 0)) && t.type !== 'transfer' && !isLump(t))
+    .filter(t => t.amount < 0 && t.type !== 'transfer' && !isLump(t))
     .map(t => ({ t, key: _txVendorKey(t), abs: Math.abs(t.amount), date: t.date || '', m: getTxEffectiveMonth(t) }))
     .filter(x => x.key && x.date)
     .sort((a, b) => a.date.localeCompare(b.date))

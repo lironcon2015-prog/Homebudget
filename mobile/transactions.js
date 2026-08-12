@@ -152,8 +152,8 @@ function M_txListRow(tx) {
   if (tx.installmentCurrent && tx.installmentTotal) badges += `<span class="m-badge">${uiIcon('card', 11)} ${tx.installmentCurrent}/${tx.installmentTotal}</span>`
   if (tx.standingOrder) badges += `<span class="m-badge" title="הוראת קבע">${uiIcon('pin', 11)}</span>`
   const cat = getCategoryById(tx.categoryId)
-  const isNonCounted = tx.type === 'transfer' || tx.type === 'refund'
-  const cls = isNonCounted ? 'm-muted' : (tx.amount > 0 ? 'pos' : 'neg')
+  const isNonCounted = tx.type === 'transfer'
+  const cls = isNonCounted ? 'm-muted' : (tx.type === 'refund' && tx.amount > 0) ? 'ref' : (tx.amount > 0 ? 'pos' : 'neg')
   const name = escHtml(resolveVendor(tx.vendor, tx.amount, getTxAliasDay(tx)) || tx.description || '—')
   const sign = tx.amount > 0 ? '+' : ''
   const avatar = (typeof UK_vendorAvatar === 'function') ? UK_vendorAvatar(tx, { size: 42 }) : `<div class="tx-avatar">${uiIcon('file', 18)}</div>`

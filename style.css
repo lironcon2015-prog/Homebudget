@@ -22,6 +22,10 @@
   --income-bg:      rgba(45,212,160,.10);
   --expense:        #fb6a86;
   --expense-bg:     rgba(251,106,134,.10);
+  /* Refunds are a third flow — credited back, but not income. Deliberately a
+     distinct hue so a refund line is never read as earnings. */
+  --refund:         #38bdf8;
+  --refund-bg:      rgba(56,189,248,.10);
   --brand-gradient: linear-gradient(120deg, #4f8bff 0%, #8b5cf6 100%);
   --sidebar-w:      96px;
   --nav-h:          56px;
@@ -64,6 +68,8 @@
   --expense:        #e6516f;
   --income-bg:      rgba(14,170,127,.12);
   --expense-bg:     rgba(230,81,111,.12);
+  --refund:         #0284c7;
+  --refund-bg:      rgba(2,132,199,.12);
   --glass-border:   1px solid rgba(15, 23, 42, 0.07);
   --glass-shadow:   inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 12px 40px rgba(15, 23, 42, 0.08);
   --bg-elev:        var(--bg-elevated);
@@ -638,6 +644,13 @@ select option { background-color: #141417; color: var(--text-primary); }
   font-variant-numeric: tabular-nums;
   text-shadow: 0 0 18px rgba(244,63,94,0.35);
 }
+/* A refund counts (in its own line) — so it is NOT greyed out like a transfer,
+   but it is not green either: green would read as earnings. */
+.amount-ref {
+  color: var(--refund); font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 18px rgba(56,189,248,0.3);
+}
 .type-badge { display: inline-block; padding: .18rem .55rem; border-radius: 20px; font-size: .74rem; font-weight: 600; }
 .type-income { background: var(--income-bg); color: var(--income); }
 .type-expense { background: var(--expense-bg); color: var(--expense); }
@@ -748,6 +761,28 @@ select option { background-color: #141417; color: var(--text-primary); }
 .cat-bar-track { height: 6px; background: var(--bg-hover); border-radius: 3px; overflow: hidden; }
 .cat-bar-fill { height: 100%; border-radius: 3px; transition: width .5s; }
 
+/* ===== Refunds bucket (ui.js refundBucketLineHTML) =====
+   Reads as a credit note, not as another category bar: no track, tinted
+   surface, dashed top rule separating it from the gross-spending bars. */
+.refund-bucket { margin-top: .7rem; padding: .55rem .65rem; border-radius: var(--r-sm);
+  background: var(--refund-bg); border: 1px solid rgba(56,189,248,.22);
+  border-top-width: 1px; cursor: pointer; transition: background .15s, border-color .15s; }
+.refund-bucket:hover { background: rgba(56,189,248,.16); border-color: rgba(56,189,248,.4); }
+.refund-bucket:focus-visible { outline: 2px solid var(--refund); outline-offset: 2px; }
+.refund-bucket-compact { margin-top: .5rem; padding: .45rem .55rem; }
+.refund-bucket-head { display: flex; justify-content: space-between; align-items: center; gap: .5rem; font-size: .83rem; }
+.refund-bucket-name { display: inline-flex; align-items: center; gap: .35rem; color: var(--refund); font-weight: 600; }
+.refund-bucket-amt { color: var(--refund); font-weight: 700; white-space: nowrap; }
+.refund-bucket-sub { margin-top: .2rem; font-size: .72rem; color: var(--text-muted); }
+.refund-sheet-note { font-size: .8rem; color: var(--text-muted); line-height: 1.5; margin-bottom: .9rem; }
+.refund-sheet-list { display: flex; flex-direction: column; gap: .3rem; }
+.refund-sheet-row { display: grid; grid-template-columns: 1fr auto auto; gap: .75rem; align-items: center;
+  padding: .5rem .6rem; border: 1px solid var(--border); border-radius: var(--r-sm); cursor: pointer;
+  font-size: .85rem; transition: border-color .15s, background .15s; }
+.refund-sheet-row:hover { border-color: var(--refund); background: var(--refund-bg); }
+.refund-sheet-count { color: var(--text-muted); font-size: .75rem; }
+.refund-sheet-amt { color: var(--refund); font-weight: 700; }
+
 /* ===== UPDATE TOAST ===== */
 .update-toast {
   position: fixed; 
@@ -803,6 +838,7 @@ select option { background-color: #141417; color: var(--text-primary); }
 .tx-noncounted td { background: rgba(255,255,255,.015); }
 .income-color { color: var(--income); text-shadow: 0 0 12px rgba(16,185,129,0.25); }
 .expense-color { color: var(--expense); text-shadow: 0 0 12px rgba(244,63,94,0.25); }
+.refund-color { color: var(--refund); text-shadow: 0 0 12px rgba(56,189,248,0.25); }
 
 /* ===== ACCOUNT BALANCES (dashboard) ===== */
 .account-balance-row { display: flex; align-items: center; justify-content: space-between; padding: .6rem 0; border-bottom: 1px solid var(--border); }
@@ -846,6 +882,7 @@ select option { background-color: #141417; color: var(--text-primary); }
 .cf-row:last-child { border-bottom: none; }
 .cf-income span:last-child { color: var(--income); font-weight: 600; }
 .cf-expense span:last-child { color: var(--expense); font-weight: 600; }
+.cf-refund span:last-child { color: var(--refund); font-weight: 600; }
 .cf-net { background: var(--bg-elevated); margin-top: .25rem; border-radius: 8px; padding: .75rem .85rem; font-weight: 700; border-bottom: none; }
 .cf-total { background: var(--accent-dim); margin-top: .5rem; border-radius: 8px; padding: .85rem .85rem; font-weight: 700; font-size: 1rem; border-bottom: none; }
 .cf-note { margin: .65rem .25rem 0; font-size: .78rem; color: var(--text-muted); }
@@ -1124,6 +1161,9 @@ select option { background-color: #141417; color: var(--text-primary); }
 
 .budget-unforeseen-row { border-style: dashed; background: rgba(167, 139, 250, .06); }
 .budget-unforeseen-row .budget-screen-cat { color: #c4b5fd; }
+.budget-refund-row { border-style: dashed; background: var(--refund-bg); }
+.budget-refund-row .budget-screen-cat { color: var(--refund); display: inline-flex; align-items: center; gap: .35rem; }
+.budget-refund-row .budget-screen-bar-track { visibility: hidden; }
 .budget-unforeseen-tag { display: inline-block; margin-inline-start: .35rem; padding: .1rem .4rem; border-radius: 8px; background: rgba(167, 139, 250, .2); color: #c4b5fd; font-size: .65rem; font-weight: 600; }
 .budget-other-income-row { border-style: dashed; background: rgba(34, 211, 238, .06); }
 .budget-other-income-row .budget-screen-cat { color: #67e8f9; }
@@ -1156,6 +1196,7 @@ select option { background-color: #141417; color: var(--text-primary); }
 .budget-agg-row.budget-danger .budget-agg-bar-fill { background: #f97316; }
 .budget-agg-row.budget-over .budget-agg-bar-fill { background: var(--expense); }
 .budget-agg-foot { display: flex; justify-content: space-between; font-size: .72rem; color: var(--text-muted); margin-top: .3rem; }
+.budget-agg-refund { margin-top: .6rem; font-size: .74rem; color: var(--text-muted); text-align: center; }
 
 @media (max-width: 720px) {
   .budget-month-nav { flex-wrap: wrap; }
@@ -1906,11 +1947,13 @@ select option { background-color: #141417; color: var(--text-primary); }
   body::before, body::after { display: none !important; }
   body > *:not(#reportPrintRoot) { display: none !important; }
   #reportPrintRoot { display: block !important; }
-  .report { color: #111; font-family: 'Heebo', sans-serif; direction: rtl; }
+  .report { color: #111; font-family: 'Heebo', sans-serif; direction: rtl; orphans: 3; widows: 3; }
   .report-head h1 { font-size: 20px; margin-bottom: 4px; }
   .report-meta { font-size: 12px; color: #555; margin-bottom: 16px; }
-  .report-summary { display: flex; gap: 10px; margin-bottom: 18px; }
-  .report-kpi { flex: 1; border: 1px solid #ddd; border-radius: 8px; padding: 8px 10px; }
+  .report-head { break-after: avoid; page-break-after: avoid; }
+  .report-summary { display: flex; gap: 10px; margin-bottom: 18px; flex-wrap: wrap;
+    break-inside: avoid; page-break-inside: avoid; }
+  .report-kpi { flex: 1; border: 1px solid #ddd; border-radius: 8px; padding: 8px 10px; min-width: 90px; }
   .report-kpi span { display: block; font-size: 11px; color: #666; }
   .report-kpi strong { font-size: 15px; }
   .report h2 { font-size: 14px; margin: 16px 0 6px; border-bottom: 1px solid #ccc; padding-bottom: 3px; }
@@ -1920,7 +1963,22 @@ select option { background-color: #141417; color: var(--text-primary); }
   .report-table .num { text-align: left; font-variant-numeric: tabular-nums; }
   .report-table tfoot td { font-weight: 700; background: #f9fafb; }
   .report tr { page-break-inside: avoid; }
-  .report-foot { margin-top: 18px; font-size: 10px; color: #888; }
+  .report-note { font-size: 11px; color: #555; margin: 0 0 6px; break-after: avoid; page-break-after: avoid; }
+
+  /* ===== Orphan-heading control =====
+     A section title must never be the last thing on a page. Chrome ignores
+     break-after:avoid on its own often enough that the reliable recipe is the
+     PAIR: avoid a break after the heading AND before the block that follows it,
+     with the two wrapped in one .report-block. Long tables still split — only
+     the title is glued to its first rows, which is the point. thead repeats on
+     every page so a continued table stays readable. */
+  .report-block { break-inside: auto; page-break-inside: auto; }
+  .report-block > h2 { break-after: avoid; page-break-after: avoid; break-inside: avoid; page-break-inside: avoid; }
+  .report-block > h2 + * { break-before: avoid; page-break-before: avoid; }
+  .report-block > .report-note + .report-table { break-before: avoid; page-break-before: avoid; }
+  .report-table thead { display: table-header-group; break-inside: avoid; page-break-inside: avoid; }
+  .report-table tfoot { display: table-row-group; }
+  .report-foot { margin-top: 18px; font-size: 10px; color: #888; break-inside: avoid; }
 }
 
 /* ===== PORTFOLIO SCREEN (embedded /invest/ app) ===== */

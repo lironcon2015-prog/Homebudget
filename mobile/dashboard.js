@@ -1,6 +1,6 @@
 // ===== MOBILE DASHBOARD (Dark Glass) =====
 // Owns the #screen-dashboard markup on mobile. Reuses the desktop ENGINE only
-// (sumIncome/sumExpenses/getAccountBalance/analysisExpenseAmount/resolveVendor…)
+// (sumIncome/sumExpenses/sumRefunds/getAccountBalance/analysisExpenseAmount/resolveVendor…)
 // — no desktop presentational code is shared. Routed from renderDashboard()'s
 // mobile guard, so every refresh caller lands here too.
 let _mMonthlyChart = null
@@ -14,7 +14,8 @@ function M_renderDashboard() {
 
   const income        = sumIncome(periodTx)
   const expenses      = sumExpenses(periodTx)
-  const net           = income - expenses
+  const refunds       = sumRefunds(periodTx)
+  const net           = income - expenses + refunds
   const hiddenSavings = sumHiddenSavings(periodTx)
   const capitalIncome = (typeof sumCapitalIncome === 'function') ? sumCapitalIncome(periodTx) : 0
   const netHidden     = hiddenSavings - capitalIncome
@@ -25,6 +26,7 @@ function M_renderDashboard() {
     { label: 'הכנסות', value: income,   cls: 'pos' },
     { label: 'הוצאות', value: expenses, cls: 'neg' },
   ]
+  if (refunds > 0) chips.push({ label: 'החזרים', value: refunds, cls: 'ref' })
   if (hiddenSavings > 0 || capitalIncome > 0) chips.push({ label: 'חיסכון חבוי נטו', value: netHidden, cls: netHidden >= 0 ? 'pos' : 'neg' })
   if (recur.count > 0)   chips.push({ label: 'קבוע חודשי', value: recur.net, cls: recur.net >= 0 ? 'pos' : 'neg' })
 
@@ -97,10 +99,13 @@ function M_dashChart(all, period) {
   const displayMonths = months.length < 2
     ? (() => { const out = [], now = new Date(); for (let i = 5; i >= 0; i--) out.push(_ym(new Date(now.getFullYear(), now.getMonth() - i, 1))); return out })()
     : months
-  const incomes = displayMonths.map(mo => sumIncome(all.filter(t => getTxEffectiveMonth(t) === mo)))
-  const exps    = displayMonths.map(mo => sumExpenses(all.filter(t => getTxEffectiveMonth(t) === mo)))
-  const nets    = incomes.map((v, i) => v - exps[i])
+  const monthTx = displayMonths.map(mo => all.filter(t => getTxEffectiveMonth(t) === mo))
+  const incomes = monthTx.map(sumIncome)
+  const exps    = monthTx.map(sumExpenses)
+  const refs    = monthTx.map(sumRefunds)
+  const nets    = incomes.map((v, i) => v - exps[i] + refs[i])
   const labels  = displayMonths.map(mo => mo.slice(5) + '/' + mo.slice(2, 4))
+  const hasRefunds = refs.some(v => v > 0)
 
   if (_mMonthlyChart) { _mMonthlyChart.destroy(); _mMonthlyChart = null }
   const cv = document.getElementById('mMonthlyChart')
@@ -114,6 +119,7 @@ function M_dashChart(all, period) {
       datasets: [
         { type: 'bar', label: 'הכנסות', data: incomes, backgroundColor: CHART_COLORS.incomeBg, borderRadius: 5, borderSkipped: false },
         { type: 'bar', label: 'הוצאות', data: exps, backgroundColor: CHART_COLORS.expenseBg, borderRadius: 5, borderSkipped: false },
+        ...(hasRefunds ? [{ type: 'bar', label: 'החזרים', data: refs, backgroundColor: CHART_COLORS.refundBg, borderRadius: 5, borderSkipped: false }] : []),
         { type: 'line', label: 'נטו', data: nets, borderColor: CHART_COLORS.accent, backgroundColor: netGrad, borderWidth: 2.5, tension: 0.45, fill: true, hidden: true, pointRadius: 3, pointBackgroundColor: CHART_COLORS.accent },
       ]
     },
@@ -146,13 +152,14 @@ function M_dashCats(periodTx) {
     bycat[key].total += ca; total += ca
   })
   const sorted = Object.values(bycat).sort((a, b) => b.total - a.total).slice(0, 6)
-  el.innerHTML = sorted.length === 0
+  const refundLine = refundBucketLineHTML(refundBreakdownByCategory(periodTx), { compact: true })
+  el.innerHTML = (sorted.length === 0 && !refundLine)
     ? '<p class="m-empty-line">אין נתונים לתקופה</p>'
     : sorted.map(c => `
       <div class="m-catbar">
         <div class="m-catbar-head"><span>${escHtml(c.name)}</span><span class="m-muted">${formatCurrency(c.total)}</span></div>
         <div class="m-catbar-track"><div class="m-catbar-fill" style="width:${total > 0 ? Math.round(c.total / total * 100) : 0}%;background:${c.color}"></div></div>
-      </div>`).join('')
+      </div>`).join('') + refundLine
 }
 
 function M_dashAccounts() {
@@ -207,8 +214,8 @@ function M_dashRecent(all) {
 // Shared compact transaction row (used by dashboard recents + tx list).
 function M_txRow(tx, opts = {}) {
   const cat = getCategoryById(tx.categoryId)
-  const isNonCounted = tx.type === 'transfer' || tx.type === 'refund'
-  const cls = isNonCounted ? 'm-muted' : (tx.amount > 0 ? 'pos' : 'neg')
+  const isNonCounted = tx.type === 'transfer'
+  const cls = isNonCounted ? 'm-muted' : (tx.type === 'refund' && tx.amount > 0) ? 'ref' : (tx.amount > 0 ? 'pos' : 'neg')
   const name = escHtml(resolveVendor(tx.vendor, tx.amount, getTxAliasDay(tx)) || tx.description || '—')
   const sign = tx.amount > 0 ? '+' : ''
   const avatar = (typeof UK_vendorAvatar === 'function') ? UK_vendorAvatar(tx, { size: 40 })

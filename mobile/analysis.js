@@ -68,7 +68,8 @@ function M_anStats(periodTx) {
   if (!el) return
   const income = sumIncome(periodTx)
   const expenses = sumExpenses(periodTx)
-  const net = income - expenses
+  const refunds = sumRefunds(periodTx)
+  const net = income - expenses + refunds
   const hidden = sumHiddenSavings(periodTx)
   const capital = sumCapitalIncome(periodTx)
   const realIncome = income - capital
@@ -83,6 +84,7 @@ function M_anStats(periodTx) {
     { label: 'אחוז חיסכון', val: savingsPct.toFixed(1) + '%', cls: savingsPct >= 0 ? 'pos' : 'neg' },
   ]
   const netHidden = hidden - capital
+  if (refunds > 0) cards.push({ label: 'החזרים', val: formatCurrency(refunds), cls: 'ref' })
   if (hidden > 0 || capital > 0) cards.push({ label: 'חיסכון חבוי נטו', val: formatCurrency(netHidden), cls: netHidden >= 0 ? 'pos' : 'neg' })
   if (recur.count > 0) cards.push({ label: 'קבוע חודשי', val: formatCurrency(recur.net), cls: recur.net >= 0 ? 'pos' : 'neg' })
 
@@ -102,7 +104,8 @@ function M_anYoY(all, period) {
   const prv = filterByEffectivePeriod(all, shiftPeriodByYear(period, 1))
   const ci = sumIncome(cur), pi = sumIncome(prv)
   const ce = sumExpenses(cur), pe = sumExpenses(prv)
-  const cn = ci - ce, pn = pi - pe
+  const cr = sumRefunds(cur), pr = sumRefunds(prv)
+  const cn = ci - ce + cr, pn = pi - pe + pr
   const delta = (c, p) => p === 0 ? (c === 0 ? 0 : 100) : ((c - p) / Math.abs(p) * 100)
   const row = (label, c, p, goodUp) => {
     const d = delta(c, p)
@@ -118,6 +121,7 @@ function M_anYoY(all, period) {
     <div class="m-yoy-head"><span></span><span>נוכחי</span><span>אשתקד</span><span>שינוי</span></div>
     ${row('הכנסות', ci, pi, true)}
     ${row('הוצאות', ce, pe, false)}
+    ${(cr > 0 || pr > 0) ? row('החזרים', cr, pr, true) : ''}
     ${row('נטו', cn, pn, true)}`
 }
 
