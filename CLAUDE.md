@@ -164,6 +164,20 @@ git checkout origin/main -- invest/dist invest/version.json
 - `isSavings` (על קטגוריות הוצאה): נספר כהוצאה רגילה, אבל `sumHiddenSavings` מאפשר להציג אותו בנפרד בדשבורד ולהוסיף חזרה ל"אחוז חיסכון אמיתי" בניתוח.
 - `isSavingsReduction` (על קטגוריות הכנסה): דיבידנד/מכירת ני"ע/משיכת חיסכון. נספר בהכנסות הרגילות, אבל מנוטרל מהמונה וגם מהמכנה של אחוז החיסכון האמיתי (לא הכנסה טרייה).
 
+### אחוז חיסכון אמיתי — נוסחה אחת, שלושה מסכים
+```
+realIncome  = income − capitalIncome
+realSavings = net + hiddenSavings − capitalIncome      (net = inc − exp + refunds)
+savingsPct  = realSavings / realIncome                 (0 כאשר realIncome ≤ 0)
+```
+הכנסה הונית יורדת **משני הצדדים**. הורדה מהמכנה בלבד מזכה את המשתמש על כסף
+שלא הרוויח בתקופה כאילו נחסך — וזה בדיוק מה ש-`_reportSavingsRate`
+ב-`reports.js` עשה עד 1.48.1, כך שה-PDF וגיליון הסיכום הציגו אחוז גבוה
+מהמסך (61.8% מול 44.1% בדוגמה של דיבידנד 3,000). הנוסחה מופיעה בשלושה
+מקומות — `analysis.js` (`_drawAnalysis`), `mobile/analysis.js` (`M_anStats`)
+ו-`reports.js` — ולכן `tests/reports.test.mjs` בודק **שוויון** בין הדוח
+לנוסחת המסך, לא רק את המספר.
+
 ### קטגוריות במסכי בחירה — `getCategoriesSorted()`
 כל UI שמבקש מהמשתמש **לבחור** קטגוריה (select/picker/grid) חייב לקרוא
 `getCategoriesSorted()` — מיון אלפביתי לפי שם עם collation עברי. רשימה

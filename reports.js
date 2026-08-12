@@ -78,9 +78,17 @@ function _reportData() {
   }
 }
 
+// True savings rate — must stay identical to the analysis screen (analysis.js
+// _drawAnalysis / mobile M_anStats):
+//   realIncome  = income - capitalIncome
+//   realSavings = net + hiddenSavings - capitalIncome
+// Capital income (dividends, asset sales, savings withdrawals) leaves BOTH sides:
+// dropping it only from the denominator credited money the user never earned this
+// period as if it had been saved, so the report read higher than the screen.
 function _reportSavingsRate(d) {
-  const base = d.income - d.capitalIncome
-  return base > 0 ? (d.net + d.hiddenSavings) / base : 0
+  const realIncome = d.income - d.capitalIncome
+  const realSavings = d.net + d.hiddenSavings - d.capitalIncome
+  return realIncome > 0 ? realSavings / realIncome : 0
 }
 
 // ===== EXCEL =====
