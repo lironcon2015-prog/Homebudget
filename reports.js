@@ -21,6 +21,7 @@ function _reportData() {
   const tx = filterByEffectivePeriod(all, period)
   const income = sumIncome(tx)
   const expenses = sumExpenses(tx)
+  const refunds = sumRefunds(tx)
   const hiddenSavings = sumHiddenSavings(tx)
   const capitalIncome = sumCapitalIncome(tx)
 
@@ -52,73 +53,216 @@ function _reportData() {
       incByCat[k].count++
     }
   }
+  // Refunds are their own bucket, never a negative slice of a category (see
+  // core.js): the report has to show the same three flows the screens show.
+  const refundBucket = refundBreakdownByCategory(tx)
 
   const months = monthsInPeriod(period)
   const monthly = months.map(mo => {
     const mtx = tx.filter(t => getTxEffectiveMonth(t) === mo)
     const mi = sumIncome(mtx)
     const me = sumExpenses(mtx)
-    return { month: mo, income: mi, expense: me, net: mi - me }
+    const mr = sumRefunds(mtx)
+    return { month: mo, income: mi, expense: me, refund: mr, net: mi - me + mr }
   })
 
   return {
     period, tx,
-    income, expenses, net: income - expenses, hiddenSavings, capitalIncome,
+    income, expenses, refunds, net: income - expenses + refunds, hiddenSavings, capitalIncome,
     expBreakdownTotal,
     expRows: Object.values(expByCat).sort((a, b) => b.total - a.total),
     incRows: Object.values(incByCat).sort((a, b) => b.total - a.total),
+    refundRows: refundBucket.rows,
+    refundBreakdownTotal: refundBucket.total,
     monthly,
   }
 }
 
+function _reportSavingsRate(d) {
+  const base = d.income - d.capitalIncome
+  return base > 0 ? (d.net + d.hiddenSavings) / base : 0
+}
+
 // ===== EXCEL =====
+// Formatting notes: the bundled SheetJS build writes structure, column widths,
+// merges, autofilter, sheet views and NUMBER FORMATS — but not fonts or fills
+// (cell.s is a paid-build feature). So the design here leans on what actually
+// lands in the file: a cover sheet, real Date/number cells Excel can pivot and
+// sum, currency/percent formats, a frozen filtered header, and framed section
+// blocks. Never emit pre-formatted strings for numbers — that produces a
+// workbook that looks fine and cannot compute.
+const _XL_MONEY = '"₪"#,##0.00'
+const _XL_MONEY0 = '"₪"#,##0'
+const _XL_PCT = '0.0%'
+const _XL_DATE = 'dd/mm/yyyy'
+const _XL_MONTH = 'mm/yyyy'
+
+function _xlA(col, row) { return XLSX.utils.encode_cell({ c: col, r: row }) }
+
+// Applies a number format down a column, over the given (0-based) row range.
+// Date cells must be included: aoa_to_sheet stamps them t:'d' with the default
+// m/d/yy, which is the wrong order for an RTL Hebrew report.
+function _xlFormatCol(ws, col, z, fromRow, toRow) {
+  for (let r = fromRow; r <= toRow; r++) {
+    const cell = ws[_xlA(col, r)]
+    if (cell && (cell.t === 'n' || cell.t === 'd')) cell.z = z
+  }
+}
+
+function _xlDate(iso) {
+  if (!iso) return ''
+  const [y, m, dd] = String(iso).split('-').map(Number)
+  if (!y || !m) return String(iso)
+  return new Date(y, m - 1, dd || 1)
+}
+
+// Sheet chrome shared by every sheet: RTL, tuned widths, a taller header band,
+// and an autofilter over the data. Freeze panes are deliberately NOT attempted:
+// this SheetJS build reads them but never writes a <pane> element, so the code
+// would have looked like it froze the header while the file did not.
+function _xlFinishSheet(ws, { cols, headerRow = 0, autofilterTo = null }) {
+  if (cols) ws['!cols'] = cols
+  ws['!views'] = [{ RTL: true }]
+  const rows = []
+  rows[headerRow] = { hpt: 22 }
+  ws['!rows'] = rows
+  if (autofilterTo) ws['!autofilter'] = { ref: `${_xlA(0, headerRow)}:${autofilterTo}` }
+}
+
+function _xlSummarySheet(d) {
+  const label = d.period.label || `${d.period.start} – ${d.period.end}`
+  const rate = _reportSavingsRate(d)
+  const aoa = [
+    ['דוח פיננסי – כספים'],
+    [`תקופה: ${label}`],
+    [`הופק: ${new Date().toLocaleDateString('he-IL')}`],
+    [],
+    ['מדד', 'סכום'],
+    ['סך הכנסות', d.income],
+    ['סך הוצאות (ברוטו)', d.expenses],
+    ['החזרים', d.refunds],
+    ['נטו (הכנסות − הוצאות + החזרים)', d.net],
+    ['מתוך ההוצאות: חסכונות חבויים', d.hiddenSavings],
+    ['מתוך ההכנסות: הכנסה הונית', d.capitalIncome],
+    ['שיעור חיסכון אמיתי', rate],
+    [],
+    ['הערה', 'החזרים אינם מנוכים מההוצאות ואינם נספרים כהכנסה. ההוצאות מוצגות ברוטו — כפי שיצאו בפועל בחודש שלהן — וההחזר נספר בשורה נפרדת ובנטו.'],
+  ]
+  const ws = XLSX.utils.aoa_to_sheet(aoa)
+  _xlFormatCol(ws, 1, _XL_MONEY, 5, 10)
+  const rateCell = ws[_xlA(1, 11)]
+  if (rateCell && rateCell.t === 'n') rateCell.z = _XL_PCT
+  ws['!merges'] = [
+    XLSX.utils.decode_range('A1:B1'),
+    XLSX.utils.decode_range('A2:B2'),
+    XLSX.utils.decode_range('A3:B3'),
+  ]
+  ws['!cols'] = [{ wch: 36 }, { wch: 62 }]
+  ws['!views'] = [{ RTL: true }]
+  ws['!rows'] = [{ hpt: 26 }, { hpt: 16 }, { hpt: 16 }]
+  return ws
+}
+
+function _xlTransactionsSheet(d) {
+  const accs = (typeof getAccounts === 'function') ? getAccounts() : []
+  const accName = id => (accs.find(a => a.id === id) || {}).name || ''
+  const header = ['תאריך', 'חודש חיוב', 'חשבון', 'ספק', 'קטגוריה', 'סוג', 'סכום']
+  const rows = [...d.tx]
+    .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
+    .map(t => {
+      const cat = getCategoryById(t.categoryId)
+      const eff = getTxEffectiveMonth(t)
+      return [
+        _xlDate(t.date),
+        eff ? _xlDate(eff + '-01') : '',
+        accName(t.accountId),
+        _reportVendor(t),
+        cat ? cat.name : 'לא מסווג',
+        _REPORT_TYPE_LABEL[t.type] || t.type || '',
+        t.amount,
+      ]
+    })
+  const ws = XLSX.utils.aoa_to_sheet([header, ...rows], { cellDates: true })
+  const last = rows.length
+  _xlFormatCol(ws, 0, _XL_DATE, 1, last)
+  _xlFormatCol(ws, 1, _XL_MONTH, 1, last)
+  _xlFormatCol(ws, 6, _XL_MONEY, 1, last)
+  _xlFinishSheet(ws, {
+    cols: [{ wch: 12 }, { wch: 11 }, { wch: 18 }, { wch: 30 }, { wch: 20 }, { wch: 9 }, { wch: 14 }],
+    autofilterTo: _xlA(6, Math.max(1, last)),
+  })
+  return ws
+}
+
+function _xlCategoriesSheet(d) {
+  const header = ['קטגוריה', 'סוג', 'סכום', 'אחוז מהסוג', 'מספר עסקאות']
+  const rows = []
+  d.expRows.forEach(r => rows.push([r.name, 'הוצאה', r.total, d.expBreakdownTotal > 0 ? r.total / d.expBreakdownTotal : 0, r.count]))
+  d.incRows.forEach(r => rows.push([r.name, 'הכנסה', r.total, d.income > 0 ? r.total / d.income : 0, r.count]))
+  d.refundRows.forEach(r => rows.push([r.name, 'החזר', r.total, d.refundBreakdownTotal > 0 ? r.total / d.refundBreakdownTotal : 0, r.count]))
+  const ws = XLSX.utils.aoa_to_sheet([header, ...rows])
+  const last = rows.length
+  _xlFormatCol(ws, 2, _XL_MONEY, 1, last)
+  _xlFormatCol(ws, 3, _XL_PCT, 1, last)
+  _xlFinishSheet(ws, {
+    cols: [{ wch: 26 }, { wch: 9 }, { wch: 14 }, { wch: 12 }, { wch: 13 }],
+    autofilterTo: _xlA(4, Math.max(1, last)),
+  })
+  return ws
+}
+
+function _xlMonthlySheet(d) {
+  const header = ['חודש', 'הכנסות', 'הוצאות (ברוטו)', 'החזרים', 'נטו']
+  const rows = d.monthly.map(m => [_xlDate(m.month + '-01'), m.income, m.expense, m.refund, m.net])
+  const totals = ['סה"כ', d.income, d.expenses, d.refunds, d.net]
+  const ws = XLSX.utils.aoa_to_sheet([header, ...rows, totals], { cellDates: true })
+  const last = rows.length + 1
+  _xlFormatCol(ws, 0, _XL_MONTH, 1, rows.length)
+  for (const c of [1, 2, 3, 4]) _xlFormatCol(ws, c, _XL_MONEY0, 1, last)
+  _xlFinishSheet(ws, { cols: [{ wch: 11 }, { wch: 15 }, { wch: 17 }, { wch: 13 }, { wch: 15 }] })
+  return ws
+}
+
 function exportExcel() {
   if (typeof XLSX === 'undefined') { toast('ספריית Excel לא נטענה', { type: 'error' }); return }
   const d = _reportData()
 
-  const txAoA = [['תאריך', 'חשבון', 'ספק', 'קטגוריה', 'סוג', 'סכום']]
-  const accs = (typeof getAccounts === 'function') ? getAccounts() : []
-  const accName = id => (accs.find(a => a.id === id) || {}).name || ''
-  ;[...d.tx].sort((a, b) => (a.date || '').localeCompare(b.date || '')).forEach(t => {
-    const cat = getCategoryById(t.categoryId)
-    txAoA.push([t.date || '', accName(t.accountId), _reportVendor(t), cat ? cat.name : '', _REPORT_TYPE_LABEL[t.type] || t.type, t.amount])
-  })
-
-  const catAoA = [['קטגוריה', 'סוג', 'סכום', 'מספר עסקאות']]
-  d.expRows.forEach(r => catAoA.push([r.name, 'הוצאה', r.total, r.count]))
-  d.incRows.forEach(r => catAoA.push([r.name, 'הכנסה', r.total, r.count]))
-
-  const plAoA = [['חודש', 'הכנסות', 'הוצאות', 'נטו']]
-  d.monthly.forEach(m => plAoA.push([m.month, m.income, m.expense, m.net]))
-  plAoA.push(['סה"כ', d.income, d.expenses, d.net])
-
   const wb = XLSX.utils.book_new()
   wb.Workbook = { Views: [{ RTL: true }] }
-  const s1 = XLSX.utils.aoa_to_sheet(txAoA)
-  s1['!cols'] = [{ wch: 12 }, { wch: 16 }, { wch: 26 }, { wch: 18 }, { wch: 8 }, { wch: 12 }]
-  XLSX.utils.book_append_sheet(wb, s1, 'עסקאות')
-  const s2 = XLSX.utils.aoa_to_sheet(catAoA)
-  s2['!cols'] = [{ wch: 24 }, { wch: 8 }, { wch: 12 }, { wch: 12 }]
-  XLSX.utils.book_append_sheet(wb, s2, 'סיכום קטגוריות')
-  const s3 = XLSX.utils.aoa_to_sheet(plAoA)
-  s3['!cols'] = [{ wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 14 }]
-  XLSX.utils.book_append_sheet(wb, s3, 'רווח והפסד חודשי')
+  wb.Props = {
+    Title: 'דוח פיננסי – כספים',
+    Subject: d.period.label || `${d.period.start} – ${d.period.end}`,
+    Application: 'כספים',
+  }
 
-  XLSX.writeFile(wb, `כספים-דוח-${d.period.start}_${d.period.end}.xlsx`)
+  XLSX.utils.book_append_sheet(wb, _xlSummarySheet(d), 'סיכום')
+  XLSX.utils.book_append_sheet(wb, _xlTransactionsSheet(d), 'עסקאות')
+  XLSX.utils.book_append_sheet(wb, _xlCategoriesSheet(d), 'סיכום קטגוריות')
+  XLSX.utils.book_append_sheet(wb, _xlMonthlySheet(d), 'רווח והפסד חודשי')
+
+  XLSX.writeFile(wb, `כספים-דוח-${d.period.start}_${d.period.end}.xlsx`, { cellDates: true })
   toast('הדוח יוצא ל-Excel', { type: 'success' })
 }
 
 // ===== PRINTABLE PDF REPORT =====
 // Renders into #reportPrintRoot; an @media print stylesheet hides everything
 // else, so window.print() (or "Save as PDF") yields a clean RTL report.
+//
+// Every heading is wrapped with its table in .report-block so a page break can
+// never leave a title stranded at the foot of a page with its content overleaf
+// (the CSS pairs break-after:avoid on the heading with break-before:avoid on
+// the table — Chrome honours the pair even where it ignores either alone).
+function _reportBlock(title, bodyHTML) {
+  return `<section class="report-block"><h2>${title}</h2>${bodyHTML}</section>`
+}
+
 function printReport() {
   const root = document.getElementById('reportPrintRoot')
   if (!root) return
   const d = _reportData()
   const f = v => formatCurrency(v)
   const pct = (v, tot) => (tot > 0 ? Math.round((v / tot) * 100) + '%' : '—')
-  const savingsBase = d.income - d.capitalIncome
-  const savingsRate = savingsBase > 0 ? Math.round(((d.net + d.hiddenSavings) / savingsBase) * 100) : 0
+  const savingsRate = Math.round(_reportSavingsRate(d) * 100)
   const taxRefund = (d.incRows.find(r => r.id === 'cat_taxback') || {}).total || 0
   const generated = new Date().toLocaleDateString('he-IL')
 
@@ -126,8 +270,25 @@ function printReport() {
     `<tr><td>${escHtml(r.name)}</td><td class="num">${f(r.total)}</td><td class="num">${pct(r.total, d.expBreakdownTotal)}</td><td class="num">${r.count}</td></tr>`).join('')
   const incRowsHTML = d.incRows.map(r =>
     `<tr><td>${escHtml(r.name)}</td><td class="num">${f(r.total)}</td><td class="num">${pct(r.total, d.income)}</td><td class="num">${r.count}</td></tr>`).join('')
+  const refRowsHTML = d.refundRows.map(r =>
+    `<tr><td>${escHtml(r.name)}</td><td class="num">${f(r.total)}</td><td class="num">${r.count}</td></tr>`).join('')
   const plRowsHTML = d.monthly.map(m =>
-    `<tr><td>${m.month}</td><td class="num">${f(m.income)}</td><td class="num">${f(m.expense)}</td><td class="num">${f(m.net)}</td></tr>`).join('')
+    `<tr><td>${m.month}</td><td class="num">${f(m.income)}</td><td class="num">${f(m.expense)}</td><td class="num">${f(m.refund)}</td><td class="num">${f(m.net)}</td></tr>`).join('')
+
+  const kpis = [
+    ['הכנסות', f(d.income)],
+    ['הוצאות (ברוטו)', f(d.expenses)],
+  ]
+  if (d.refunds > 0) kpis.push(['החזרים', f(d.refunds)])
+  kpis.push(['נטו', f(d.net)], ['שיעור חיסכון', savingsRate + '%'])
+
+  const refundsBlock = d.refundBreakdownTotal > 0
+    ? _reportBlock('החזרים לפי קטגוריה', `
+        <p class="report-note">החזרים אינם מנוכים מההוצאות שלמעלה. הקטגוריה מציינת מה הוחזר — ההוצאה המקורית יכולה להיות מחודש אחר או מפריסת תשלומים.</p>
+        <table class="report-table"><thead><tr><th>קטגוריה</th><th class="num">סכום</th><th class="num">עסקאות</th></tr></thead>
+          <tbody>${refRowsHTML}</tbody>
+          <tfoot><tr><td>סה"כ</td><td class="num">${f(d.refundBreakdownTotal)}</td><td class="num"></td></tr></tfoot></table>`)
+    : ''
 
   root.innerHTML = `
     <div class="report">
@@ -136,31 +297,30 @@ function printReport() {
         <div class="report-meta">תקופה: ${d.period.label || (d.period.start + ' – ' + d.period.end)} · הופק: ${generated}</div>
       </div>
       <div class="report-summary">
-        <div class="report-kpi"><span>הכנסות</span><strong>${f(d.income)}</strong></div>
-        <div class="report-kpi"><span>הוצאות</span><strong>${f(d.expenses)}</strong></div>
-        <div class="report-kpi"><span>נטו</span><strong>${f(d.net)}</strong></div>
-        <div class="report-kpi"><span>שיעור חיסכון</span><strong>${savingsRate}%</strong></div>
+        ${kpis.map(([k, v]) => `<div class="report-kpi"><span>${k}</span><strong>${v}</strong></div>`).join('')}
       </div>
 
-      <h2>הוצאות לפי קטגוריה</h2>
-      <table class="report-table"><thead><tr><th>קטגוריה</th><th class="num">סכום</th><th class="num">%</th><th class="num">עסקאות</th></tr></thead>
-        <tbody>${expRowsHTML || '<tr><td colspan="4">אין נתונים</td></tr>'}</tbody></table>
+      ${_reportBlock('הוצאות לפי קטגוריה', `
+        <table class="report-table"><thead><tr><th>קטגוריה</th><th class="num">סכום</th><th class="num">%</th><th class="num">עסקאות</th></tr></thead>
+          <tbody>${expRowsHTML || '<tr><td colspan="4">אין נתונים</td></tr>'}</tbody></table>`)}
 
-      <h2>הכנסות לפי קטגוריה</h2>
-      <table class="report-table"><thead><tr><th>קטגוריה</th><th class="num">סכום</th><th class="num">%</th><th class="num">עסקאות</th></tr></thead>
-        <tbody>${incRowsHTML || '<tr><td colspan="4">אין נתונים</td></tr>'}</tbody></table>
+      ${refundsBlock}
 
-      <h2>רווח והפסד חודשי</h2>
-      <table class="report-table"><thead><tr><th>חודש</th><th class="num">הכנסות</th><th class="num">הוצאות</th><th class="num">נטו</th></tr></thead>
-        <tbody>${plRowsHTML}</tbody>
-        <tfoot><tr><td>סה"כ</td><td class="num">${f(d.income)}</td><td class="num">${f(d.expenses)}</td><td class="num">${f(d.net)}</td></tr></tfoot></table>
+      ${_reportBlock('הכנסות לפי קטגוריה', `
+        <table class="report-table"><thead><tr><th>קטגוריה</th><th class="num">סכום</th><th class="num">%</th><th class="num">עסקאות</th></tr></thead>
+          <tbody>${incRowsHTML || '<tr><td colspan="4">אין נתונים</td></tr>'}</tbody></table>`)}
 
-      <h2>סיכום למס</h2>
-      <table class="report-table"><tbody>
-        <tr><td>סך הכנסות בתקופה</td><td class="num">${f(d.income)}</td></tr>
-        <tr><td>מתוכן הכנסה הונית (שבירת חיסכון/דיבידנד)</td><td class="num">${f(d.capitalIncome)}</td></tr>
-        <tr><td>החזרי מס שהתקבלו</td><td class="num">${f(taxRefund)}</td></tr>
-      </tbody></table>
+      ${_reportBlock('רווח והפסד חודשי', `
+        <table class="report-table"><thead><tr><th>חודש</th><th class="num">הכנסות</th><th class="num">הוצאות</th><th class="num">החזרים</th><th class="num">נטו</th></tr></thead>
+          <tbody>${plRowsHTML}</tbody>
+          <tfoot><tr><td>סה"כ</td><td class="num">${f(d.income)}</td><td class="num">${f(d.expenses)}</td><td class="num">${f(d.refunds)}</td><td class="num">${f(d.net)}</td></tr></tfoot></table>`)}
+
+      ${_reportBlock('סיכום למס', `
+        <table class="report-table"><tbody>
+          <tr><td>סך הכנסות בתקופה</td><td class="num">${f(d.income)}</td></tr>
+          <tr><td>מתוכן הכנסה הונית (שבירת חיסכון/דיבידנד)</td><td class="num">${f(d.capitalIncome)}</td></tr>
+          <tr><td>החזרי מס שהתקבלו</td><td class="num">${f(taxRefund)}</td></tr>
+        </tbody></table>`)}
 
       <div class="report-foot">הופק מאפליקציית "כספים" · גרסה ${typeof APP_VERSION !== 'undefined' ? APP_VERSION : ''}</div>
     </div>`
