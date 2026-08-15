@@ -212,6 +212,7 @@ html[data-privacy] .budget-input:focus {
 .ins-anom-ok:hover { background: var(--bg-hover); color: var(--text-primary); }
 .ins-anom-all { width: 100%; margin-top: .5rem; padding: .55rem; border-radius: var(--r-md); border: 1px solid var(--border); background: none; color: var(--accent); font-weight: 600; font-size: .82rem; cursor: pointer; }
 .ins-anom-reviewtop { display: flex; align-items: center; justify-content: space-between; margin-bottom: .5rem; font-size: .85rem; color: var(--text-muted); }
+.ins-anom-muted-note { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-bottom: .5rem; font-size: .78rem; color: var(--text-muted); }
 .ins-anom-fchips { display: flex; gap: .4rem; overflow-x: auto; margin-bottom: .75rem; scrollbar-width: none; }
 .ins-anom-fchips::-webkit-scrollbar { display: none; }
 .ins-anom-fchip { flex: 0 0 auto; padding: .4rem .8rem; border-radius: var(--r-pill); font-size: .8rem; font-weight: 600; border: 1px solid var(--border); background: var(--bg-surface); color: var(--text-secondary); cursor: pointer; white-space: nowrap; }

@@ -208,6 +208,11 @@ function detectRecurring() {
       lastSeen: last.date,
       nextExpected,
       occurrences: filtered.length,
+      // The exact rows this entry was built from — AFTER the outlier drop and
+      // the ±20%-of-median filter. Consumers that reason about "this recurring
+      // charge over time" (anomalies.js) must use these and not re-derive the
+      // vendor group, or they'd read back the very rows we just excluded.
+      memberIds: filtered.map(t => t.id),
       accountId: last.accountId,
       categoryId: last.categoryId,
       source: 'auto',
@@ -268,6 +273,7 @@ function _getManualFlagRecurring() {
       nextExpected: _addDays(last.date, cad.days),
       occurrences: same.length,
       periods,
+      memberIds: sorted.map(t => t.id),
       accountId: last.accountId,
       categoryId: last.categoryId,
       source: 'manual-flag',
@@ -557,6 +563,7 @@ function _getManualGroupRecurring() {
       nextExpected: _addDays(last.date, cad.days),
       occurrences: txs.length,
       periods,
+      memberIds: sorted.map(t => t.id),
       accountId: g.accountId || last.accountId,
       categoryId: g.categoryId || last.categoryId,
       source: 'manual-group',
@@ -771,6 +778,7 @@ function _getInstallmentRecurring(coveredKeys) {
       lastSeen: latest.date,
       nextExpected: _addDays(latest.date, cad.days),
       occurrences: txs.length,
+      memberIds: [...txs].sort((a, b) => (a.date || '').localeCompare(b.date || '')).map(t => t.id),
       accountId: latest.accountId,
       categoryId: latest.categoryId,
       source: 'installment',
