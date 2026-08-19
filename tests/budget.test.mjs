@@ -108,15 +108,38 @@ test('re-importing replaces the opposite carryover row instead of stacking', asy
   assert.strictEqual(aug[0].amount, 8000)
 })
 
-test('carryover rows count in the plan but never in the actuals', async () => {
+test('the carried balance counts on both sides — plan and actual', async () => {
   const ctx = loadBudget(TXS)
   await ctx.importFor('2026-08')
   const t = ctx.computeBudgetTotals('2026-08')
   assert.strictEqual(t.incBudget, 8000, 'carryover is a planned income')
-  assert.strictEqual(t.incActual, 0,    'carryover never becomes actual income')
+  assert.strictEqual(t.incActual, 8000, 'the money is already in the account — it is actual too')
   assert.strictEqual(t.expActual, 1000)
   assert.strictEqual(ctx.budgetCarryIn('2026-08'), 8000)
-  assert.strictEqual(ctx.budgetClosingBalance('2026-08'), 7000, 'carried in minus this month net')
+  assert.strictEqual(ctx.budgetClosingBalance('2026-08'), 7000, 'net already contains the carried row')
+})
+
+test('a deficit row counts as actual on the expense side', async () => {
+  const ctx = loadBudget([])
+  ctx.setBudget(ctx._eval('CARRYOVER_EXPENSE_ID'), '2026-08', 1200, 'expense')
+  const t = ctx.computeBudgetTotals('2026-08')
+  assert.strictEqual(t.expBudget, 1200)
+  assert.strictEqual(t.expActual, 1200)
+})
+
+test('the carried amount is stored in agorot, not float dust', async () => {
+  // 2000 + 4000.1 − 1000.2 is 4999.900000000001 in IEEE-754 — the trail of
+  // digits the number input was printing.
+  const ctx = loadBudget([
+    { id: 'f1', accountId: 'a1', date: '2026-07-02', amount: 4000.1,  type: 'income',  categoryId: 'c2' },
+    { id: 'f2', accountId: 'a1', date: '2026-07-04', amount: -1000.2, type: 'expense', categoryId: 'c1' },
+  ])
+  const raw = ctx.getCheckingCashBalance('2026-07-31')
+  assert.notStrictEqual(raw, 4999.9, `precondition: the raw sum carries dust (${raw})`)
+  await ctx.importFor('2026-08')
+  const amount = ctx.getBudgetsForMonth('2026-08')[0].amount
+  assert.strictEqual(amount, 4999.9, 'rounded to two decimals on the way in')
+  assert.ok(/^\d+(\.\d{1,2})?$/.test(String(amount)), `no trailing digits: ${amount}`)
 })
 
 test('budgetCarryIn is signed and nets both rows', () => {

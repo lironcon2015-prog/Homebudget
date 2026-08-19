@@ -68,7 +68,10 @@ function setBudget(categoryId, monthKey, amount, type = 'expense') {
   if (!monthKey) monthKey = _ym(new Date())
   const all = getBudgets()
   const idx = all.findIndex(b => b.categoryId === categoryId && b.monthKey === monthKey)
-  const amt = parseFloat(amount) || 0
+  // Agorot, never float dust. A balance summed out of hundreds of transaction
+  // amounts lands on 8000.000000000002, and the number input then shows every
+  // one of those digits.
+  const amt = Math.round((parseFloat(amount) || 0) * 100) / 100
   const now = Date.now()
   if (idx >= 0) {
     all[idx] = { ...all[idx], amount: amt, type, updatedAt: now }
@@ -225,7 +228,14 @@ function computeBudgetStatus(monthKey) {
     const cat = _budgetCategoryProxy(b.categoryId)
     const type = b.type || 'expense'
     let actual = 0
-    if (_isUnforeseen(b.categoryId)) {
+    if (_isCarryover(b.categoryId)) {
+      // The carried balance is not a plan waiting to happen — it is money that
+      // was counted in the bank on the last day of last month. Reporting it as
+      // 'בפועל' too is what makes the budget screen's actual side add up to
+      // what is really available; leaving it at 0 read as if the money never
+      // arrived. No P&L screen consumes these rows, so nothing double-counts.
+      actual = b.amount
+    } else if (_isUnforeseen(b.categoryId)) {
       for (const t of txs) {
         if (t.categoryId && sets.expense.has(t.categoryId)) continue
         actual += budgetExpenseAmount(t, ctx)
@@ -436,10 +446,9 @@ function renderBudgetScreen() {
   const incRem = incBudget - incActual
   const netBudget = incBudget - expBudget
   const netActual = incActual - expActual
-  // Signed carry-in from the carryover rows, and the balance this month hands
-  // to the next one. Shown only when a carryover row is actually set.
+  // Signed carry-in from the carryover rows. It is already inside netActual —
+  // stated here only so the reader can see how much of the net was inherited.
   const carryIn = budgetCarryIn(monthKey)
-  const closing = carryIn + netActual
 
   const tag = isCurrent ? ' <span class="budget-month-tag">החודש</span>'
             : isFuture  ? ' <span class="budget-month-tag budget-month-tag-future">עתיד</span>'
@@ -468,7 +477,7 @@ function renderBudgetScreen() {
         <div class="budget-label">נטו</div>
         <div class="budget-val ${netActual>=0?'income-color':'expense-color'}">${formatCurrency(netActual)}</div>
         <div class="budget-sub">מתוכנן: <span class="${netBudget>=0?'income-color':'expense-color'}">${formatCurrency(netBudget)}</span></div>
-        ${carryIn ? `<div class="budget-sub" title="היתרה שנגררה מהחודש הקודם בתוספת הנטו של החודש. הערכה — הנטו נמדד בהיקף התקציב, לא בתנועת החשבון">כולל מועבר (${formatCurrency(carryIn)}): <span class="${closing>=0?'income-color':'expense-color'}">${formatCurrency(closing)}</span></div>` : ''}
+        ${carryIn ? `<div class="budget-sub" title="הנטו כולל כבר את היתרה שנגררה מסוף החודש הקודם">מזה יתרה מועברת: <span class="${carryIn>=0?'income-color':'expense-color'}">${formatCurrency(carryIn)}</span></div>` : ''}
       </div>
     </div>`
 
@@ -617,8 +626,8 @@ function _renderBudgetScreenTable(monthKey, readOnly) {
   // the row reads as a broken auto-row instead of a planning line the user fills
   // in (by hand, or via the 'ייבא יתרת חודש קודם' action).
   const coTag = 'ידני'
-  const coIncTitle = 'הכסף שהיה בפועל בחשבונות העו״ש והמזומן בסוף החודש הקודם. שורת תכנון בלבד — אין לה &quot;בפועל&quot;, כי הכסף לא זז החודש. מלא ידנית או לחץ &quot;ייבא יתרת חודש קודם&quot;'
-  const coExpTitle = 'יתרה שלילית (מינוס) בחשבונות בסוף החודש הקודם. שורת תכנון בלבד — אין לה &quot;בפועל&quot;, כי הכסף לא זז החודש. מלא ידנית או לחץ &quot;ייבא יתרת חודש קודם&quot;'
+  const coIncTitle = 'הכסף שהיה בפועל בחשבונות העו״ש והמזומן בסוף החודש הקודם. נספר גם ב&quot;בפועל&quot; — הסכום כבר בחשבון. מלא ידנית או לחץ &quot;ייבא יתרת חודש קודם&quot;'
+  const coExpTitle = 'יתרה שלילית (מינוס) בחשבונות בסוף החודש הקודם. נספרת גם ב&quot;בפועל&quot; — המינוס כבר בחשבון. מלא ידנית או לחץ &quot;ייבא יתרת חודש קודם&quot;'
   const coIncRow = row(
     _budgetCategoryProxy(CARRYOVER_INCOME_ID),
     'income',
@@ -761,15 +770,17 @@ function _monthEndISO(monthKey) {
 // money that P&L doesn't model. The balance in the account is the source of
 // everything that can be spent next month, so it is the thing to carry.
 function budgetPhysicalBalance(monthKey) {
-  return getCheckingCashBalance(_monthEndISO(monthKey))
+  return Math.round(getCheckingCashBalance(_monthEndISO(monthKey)) * 100) / 100
 }
 
-// The balance this month is heading toward: what it carried in plus its own net.
-// An estimate, not a bank figure — the net comes from budget scope (CC detail
-// instead of the lump), which is not the same series the account balance moves on.
+// The balance this month is heading toward. The carried row already sits inside
+// incActual/expActual, so this is simply the month's net — no second addition.
+// An estimate, not a bank figure: the rest of the net comes from budget scope
+// (CC detail instead of the lump), which is not the series an account balance
+// moves on.
 function budgetClosingBalance(monthKey) {
   const { incActual, expActual } = computeBudgetTotals(monthKey)
-  return budgetCarryIn(monthKey) + incActual - expActual
+  return incActual - expActual
 }
 
 // Reads the previous month's closing bank balance and offers to fill it in as
