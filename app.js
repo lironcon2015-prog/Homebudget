@@ -1,4 +1,4 @@
-const APP_VERSION = '1.49.2'
+const APP_VERSION = '1.49.3'
 
 // ===== STORAGE =====
 // Hot keys are cached as parsed objects: getTransactions() etc. used to
@@ -263,26 +263,99 @@ function setGeminiModels(list) {
   localStorage.setItem('geminiModels', JSON.stringify(list))
 }
 
+// Cascade tuning. A freshly released model answers 503 "currently experiencing
+// high demand" for its first weeks — the capacity is shared, so it hits every
+// key regardless of tier and it comes and goes minute to minute. Google's own
+// SDKs retry transient failures with backoff; a single attempt per model, which
+// is what this used to do, turns a two-second blip into a demotion to the
+// weakest model in the list (or a hard failure when the blip is wide).
+const GEMINI_MAX_ATTEMPTS = 3        // per model, including the first try
+const GEMINI_RETRY_BASE_MS = 700     // 700ms → 1.4s, plus jitter
+const GEMINI_COOLDOWN_MS = 5 * 60 * 1000
+
+// Model → epoch ms until which it is skipped while a healthy model is left in
+// the list. In memory only: capacity comes back on its own, and a reload should
+// give the preferred model another chance.
+const _geminiCooldown = new Map()
+
+function _geminiSleep(ms) { return new Promise(r => setTimeout(r, ms)) }
+
+// Transient = the request would plausibly succeed if repeated: overload,
+// rate limit, gateway hiccup, dropped connection.
+function _geminiIsTransient(httpStatus, apiStatus) {
+  if (httpStatus === 429 || httpStatus === 500 || httpStatus === 502 ||
+      httpStatus === 503 || httpStatus === 504 || httpStatus === 0) return true
+  return apiStatus === 'RESOURCE_EXHAUSTED' || apiStatus === 'UNAVAILABLE' ||
+         apiStatus === 'INTERNAL' || apiStatus === 'DEADLINE_EXCEEDED'
+}
+
+// Wrong/unavailable model name: this model can never serve the request, but
+// the next one in the cascade can. Worth no retry and no cooldown — just move on.
+function _geminiIsModelFault(httpStatus, apiStatus) {
+  return httpStatus === 404 || apiStatus === 'NOT_FOUND'
+}
+
+// Models to try, in order, with cooled-down ones pushed to the back rather than
+// dropped — a cooldown must never be able to empty the cascade.
+function _geminiModelOrder() {
+  const now = Date.now()
+  const all = getGeminiModels()
+  const hot = all.filter(m => (_geminiCooldown.get(m) || 0) <= now)
+  return hot.length ? [...hot, ...all.filter(m => !hot.includes(m))] : all
+}
+
 async function callGemini(apiKey, body) {
-  let lastError = ''
-  for (const model of getGeminiModels()) {
-    // API key travels in a header, not the query string — URLs get logged
-    // by proxies/CDNs; headers don't.
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey }, body: JSON.stringify(body) }
-    )
-    // Non-JSON error bodies (proxy/HTML 5xx) must not abort the cascade.
-    let data = null
-    try { data = await res.json() } catch {}
-    if (res.ok && data) return data
-    lastError = data?.error?.message || `שגיאת API (HTTP ${res.status})`
-    const status = data?.error?.status || ''
-    const shouldFallback = res.status === 429 || res.status === 503
-      || status === 'RESOURCE_EXHAUSTED' || status === 'UNAVAILABLE'
-    if (!shouldFallback) throw new Error(lastError)
+  const models = _geminiModelOrder()
+  const failures = []
+  for (let mi = 0; mi < models.length; mi++) {
+    const model = models[mi]
+    let lastError = ''
+    for (let attempt = 1; attempt <= GEMINI_MAX_ATTEMPTS; attempt++) {
+      let res = null, data = null
+      try {
+        // API key travels in a header, not the query string — URLs get logged
+        // by proxies/CDNs; headers don't.
+        res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+          { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey }, body: JSON.stringify(body) }
+        )
+        // Non-JSON error bodies (proxy/HTML 5xx) must not abort the cascade.
+        try { data = await res.json() } catch {}
+      } catch (e) {
+        // A thrown fetch (offline, DNS, connection reset) used to escape the
+        // loop and kill the cascade before the next model was ever tried.
+        lastError = e?.message || 'שגיאת רשת'
+      }
+      if (res && res.ok && data) {
+        _geminiCooldown.delete(model)
+        return data
+      }
+      const httpStatus = res ? res.status : 0
+      const apiStatus = data?.error?.status || ''
+      if (res) lastError = data?.error?.message || `שגיאת API (HTTP ${httpStatus})`
+
+      if (_geminiIsModelFault(httpStatus, apiStatus)) {
+        failures.push(`${model}: לא זמין (${httpStatus})`)
+        break
+      }
+      if (!_geminiIsTransient(httpStatus, apiStatus)) {
+        // Bad key, bad request: every model in the list would answer the same.
+        throw new Error(lastError)
+      }
+      if (attempt < GEMINI_MAX_ATTEMPTS) {
+        await _geminiSleep(GEMINI_RETRY_BASE_MS * Math.pow(2, attempt - 1) + Math.random() * 300)
+        continue
+      }
+      // Out of attempts on this model: bench it so the NEXT request doesn't
+      // pay the same retries again, and fall through.
+      _geminiCooldown.set(model, Date.now() + GEMINI_COOLDOWN_MS)
+      failures.push(`${model}: עומס (${httpStatus || 'רשת'})`)
+      if (mi < models.length - 1 && typeof toast === 'function') {
+        toast(`${model} עמוס — ממשיך ל-${models[mi + 1]}`, { type: 'info' })
+      }
+    }
   }
-  throw new Error('כל המודלים עמוסים כרגע – נסה שוב בעוד דקה')
+  throw new Error(`כל המודלים נכשלו — ${failures.join(' · ')}`)
 }
 
 async function testGeminiModels(apiKey, promptText, modelsList) {
@@ -299,6 +372,9 @@ async function testGeminiModels(apiKey, promptText, modelsList) {
       const data = await res.json()
       const ms = Math.round(performance.now() - startedAt)
       if (res.ok) {
+        // A model that answers a manual test is healthy — un-bench it so the
+        // next real call goes back to the user's preferred order.
+        _geminiCooldown.delete(model)
         const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
         results.push({ model, ok: true, ms, reply })
       } else {

@@ -104,7 +104,9 @@ git checkout origin/main -- invest/dist invest/version.json
 - Transfers משפיעים על יתרת שני הצדדים (ראו `getAccountBalance`), אבל לא נספרים כהכנסה/הוצאה ב-P&L.
 - Refund עם `amount > 0` מקטין הוצאות, לא נספר כהכנסה.
 - UI בעברית RTL, מטבע ILS, Chart.js לגרפים, Gemini 2.5 ל-parsing של דוחות.
-- Gemini fallback cascade (`GEMINI_MODELS` ב-`app.js`): `gemini-2.5-flash` → `gemini-2.5-flash-lite`. `callGemini` מעבירה למודל הבא רק על 429/503 או `RESOURCE_EXHAUSTED`/`UNAVAILABLE`.
+- Gemini fallback cascade (`getGeminiModels()` ב-`app.js`, ניתן לעריכה בהגדרות;
+  ברירת המחדל `gemini-2.5-flash` → `gemini-2.5-flash-lite`). ראו "מפל המודלים"
+  למטה — `callGemini` מנסה שוב באותו מודל לפני שהיא מדלגת.
 
 ## Design principles (not obvious from code)
 
@@ -495,6 +497,30 @@ savingsPct  = realSavings / realIncome                 (0 כאשר realIncome �
   במקום הלאמפ), שאינו הסדרה שעליה נעה יתרת החשבון.
 - `copyBudgetFromPrevMonth` **לא** מעתיק אותן — הן ספציפיות לחודש.
   טסטים: `tests/budget.test.mjs`.
+
+### מפל המודלים — ניסיון חוזר, דילוג, והרחקה זמנית
+מודל חדש עונה 503 `"currently experiencing high demand"` בשבועות הראשונים
+שלו, לסירוגין. זו מגבלת קיבולת משותפת — היא לא תלויה במפתח, בתשלום או ב-tier,
+והיא באה והולכת בין דקה לדקה. לכן `callGemini` ב-`app.js` היא לא "ניסיון אחד
+לכל מודל":
+
+- **עד `GEMINI_MAX_ATTEMPTS`=3 ניסיונות לאותו מודל** עם backoff מעריכי
+  (`GEMINI_RETRY_BASE_MS`=700ms ‏× 2^n + jitter). ניסיון בודד הפך תקלה של
+  שתי שניות להורדה קבועה למודל החלש ברשימה — או לכישלון מוחלט כשהגל רחב.
+- **סיווג השגיאה קובע את המהלך.** חולף (429/500/502/503/504, כשל רשת,
+  `RESOURCE_EXHAUSTED`/`UNAVAILABLE`/`INTERNAL`/`DEADLINE_EXCEEDED`) → ניסיון
+  חוזר ואז המודל הבא. **שם מודל לא קיים (404/`NOT_FOUND`) → דילוג מיידי**, בלי
+  ניסיונות: הוא לעולם לא יענה, אבל הבא בתור כן. מפתח פסול / בקשה שגויה →
+  זריקה מיידית, כי כל מודל ברשימה יענה אותו דבר.
+- **`fetch` שנזרק נתפס.** קודם הוא ברח מהלולאה והרג את המפל לפני שהמודל הבא
+  נוסה בכלל — נפילת רשת רגעית נראתה כשגיאה קשה.
+- **`_geminiCooldown`** מרחיק מודל שמיצה את הניסיונות ל-`GEMINI_COOLDOWN_MS`=5
+  דקות, כדי שהבקשה הבאה לא תשלם שוב את אותם שלושה ניסיונות. בזיכרון בלבד
+  (הקיבולת חוזרת מעצמה, ורענון מחזיר למודל המועדף הזדמנות), הרחקה **דוחפת
+  לסוף התור ולא מוחקת** — מפל לא יכול להתרוקן — וקריאה מוצלחת (או בדיקה ידנית
+  מוצלחת ב-`testGeminiModels`) מנקה אותה.
+- **המשתמש רואה מה קרה:** טוסט בכל נפילה למודל הבא, והשגיאה הסופית מונה כל
+  מודל וסיבתו במקום "כל המודלים עמוסים". טסטים: `tests/gemini.test.mjs`.
 
 ### Cache invalidation
 יש caches עם TTL 500ms ב-`core.js`: `_plAcctIdsCache`, `_savingsCatCache`, `_capitalIncomeCatCache`, `_vendorAliasIdx`. אחרי שינוי מקור (חשבונות/קטגוריות/aliases) חובה לקרוא ל-`invalidate*Cache` המתאים, אחרת הטבלאות ב-UI מסתכנות בסטייל במשך חצי שנייה.
