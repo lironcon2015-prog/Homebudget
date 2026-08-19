@@ -436,6 +436,10 @@ function renderBudgetScreen() {
   const incRem = incBudget - incActual
   const netBudget = incBudget - expBudget
   const netActual = incActual - expActual
+  // Signed carry-in from the carryover rows, and the balance this month hands
+  // to the next one. Shown only when a carryover row is actually set.
+  const carryIn = budgetCarryIn(monthKey)
+  const closing = carryIn + netActual
 
   const tag = isCurrent ? ' <span class="budget-month-tag">החודש</span>'
             : isFuture  ? ' <span class="budget-month-tag budget-month-tag-future">עתיד</span>'
@@ -464,6 +468,7 @@ function renderBudgetScreen() {
         <div class="budget-label">נטו</div>
         <div class="budget-val ${netActual>=0?'income-color':'expense-color'}">${formatCurrency(netActual)}</div>
         <div class="budget-sub">מתוכנן: <span class="${netBudget>=0?'income-color':'expense-color'}">${formatCurrency(netBudget)}</span></div>
+        ${carryIn ? `<div class="budget-sub" title="נטו החודש בתוספת היתרה שנגררה מהחודש הקודם — זו היתרה שתועבר לחודש הבא">כולל מועבר (${formatCurrency(carryIn)}): <span class="${closing>=0?'income-color':'expense-color'}">${formatCurrency(closing)}</span></div>` : ''}
       </div>
     </div>`
 
@@ -607,15 +612,24 @@ function _renderBudgetScreenTable(monthKey, readOnly) {
       residualTitle: 'סוכמת כל הכנסה ללא יעד תקציב משלה. לחיצה פותחת עורך כדי להוציא ידנית הכנסות שלא צריכות להיכלל',
     }
   )
+  // Carryover rows carry a tag because their 'בפועל' cell is permanently empty:
+  // no transaction happened this month, the money moved last month. Without it
+  // the row reads as a broken auto-row instead of a planning line the user fills
+  // in (by hand, or via the 'ייבא יתרת חודש קודם' action).
+  const coTag = 'ידני'
+  const coIncTitle = 'יתרה שנשארה מהחודש הקודם. שורת תכנון בלבד — אין לה "בפועל", כי הכסף זז בחודש הקודם. מלא ידנית או לחץ "ייבא יתרת חודש קודם"'
+  const coExpTitle = 'גירעון שנגרר מהחודש הקודם. שורת תכנון בלבד — אין לה "בפועל", כי הכסף זז בחודש הקודם. מלא ידנית או לחץ "ייבא יתרת חודש קודם"'
   const coIncRow = row(
     _budgetCategoryProxy(CARRYOVER_INCOME_ID),
     'income',
-    { residualRowCls: 'budget-carryover-row budget-carryover-income-row', noClick: true }
+    { residualRowCls: 'budget-carryover-row budget-carryover-income-row', noClick: true,
+      residualTag: coTag, residualTitle: coIncTitle }
   )
   const coExpRow = row(
     _budgetCategoryProxy(CARRYOVER_EXPENSE_ID),
     'expense',
-    { residualRowCls: 'budget-carryover-row budget-carryover-expense-row', noClick: true }
+    { residualRowCls: 'budget-carryover-row budget-carryover-expense-row', noClick: true,
+      residualTag: coTag, residualTitle: coExpTitle }
   )
 
   // Refunds row: read-only, no budget input, and outside the category list —
@@ -719,21 +733,52 @@ async function copyBudgetFromPrevMonth() {
   renderBudgetScreen()
 }
 
-// Computes the previous month's actual net (real income minus real expenses,
-// excluding carryover rows whose actual is always 0) and offers to fill it in
-// as a carryover planning row for the current budget month.
+// The balance a month carries IN — the carryover planning rows the user (or a
+// previous import) put on that month. Signed: surplus positive, deficit negative.
+// These rows have actual=0 by design, so they never show up in incActual /
+// expActual and have to be read straight off the budget records.
+function budgetCarryIn(monthKey) {
+  const rows = getBudgetsForMonth(monthKey)
+  const inc = rows.find(b => b.categoryId === CARRYOVER_INCOME_ID)?.amount || 0
+  const exp = rows.find(b => b.categoryId === CARRYOVER_EXPENSE_ID)?.amount || 0
+  return inc - exp
+}
+
+// The balance a month hands OVER to the next one: what it carried in, plus what
+// it actually earned, minus what it actually spent.
+//
+// The carry-in term is the whole point. Without it a surplus stops one month
+// short: July hands ₪6,000 to August, August spends ₪1,000, and the closing
+// balance computed from actuals alone is −₪1,000 — a deficit — instead of the
+// ₪5,000 that is really left. The sign flipped, which is exactly what "it
+// didn't pull the previous month's balance" looks like on screen.
+function budgetClosingBalance(monthKey) {
+  const { incActual, expActual } = computeBudgetTotals(monthKey)
+  return budgetCarryIn(monthKey) + incActual - expActual
+}
+
+// Computes the previous month's closing balance and offers to fill it in as a
+// carryover planning row for the current budget month. Manual on purpose —
+// nothing writes a carryover row on its own, because the row is a plan, and
+// a month that is still running has no final balance to hand over yet.
 async function importCarryoverFromPrevMonth() {
   const monthKey = getBudgetScreenMonth()
   const prev = _prevMonthKey(monthKey)
   const { incActual, expActual } = computeBudgetTotals(prev)
-  // incActual / expActual from computeBudgetTotals exclude carryover rows (their actual=0).
-  const net = incActual - expActual
+  const carryIn = budgetCarryIn(prev)
+  const net = carryIn + incActual - expActual
   if (Math.abs(net) < 1) { toast(`אין יתרה מהותית ב-${_budgetFormatMonth(prev)}`, { type: 'info' }); return }
-  const sign = net > 0 ? 'חיובית' : 'שלילית'
+  const parts = [
+    carryIn ? `יתרה מועברת ${formatCurrencyPlain(carryIn)}` : '',
+    `הכנסות ${formatCurrencyPlain(incActual)}`,
+    `הוצאות ${formatCurrencyPlain(expActual)}`,
+  ].filter(Boolean).join(' · ')
   const desc = net > 0
     ? `יתרה חיובית של ${formatCurrencyPlain(net)} — תועבר כהכנסה מועברת.`
     : `גירעון של ${formatCurrencyPlain(Math.abs(net))} — יועבר כגירעון מחודש קודם בהוצאות.`
-  if (!await confirmDialog(`${_budgetFormatMonth(prev)}: ${desc}`, { confirmText: 'העבר' })) return
+  // confirmDialog renders via textContent — first line is the title, the rest
+  // is the body. No markup here.
+  if (!await confirmDialog(`${_budgetFormatMonth(prev)}: ${desc}\n${parts}`, { confirmText: 'העבר' })) return
   if (net > 0) {
     setBudget(CARRYOVER_INCOME_ID,  monthKey, net,          'income')
     deleteBudget(CARRYOVER_EXPENSE_ID, monthKey)
