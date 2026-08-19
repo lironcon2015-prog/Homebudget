@@ -468,7 +468,7 @@ function renderBudgetScreen() {
         <div class="budget-label">נטו</div>
         <div class="budget-val ${netActual>=0?'income-color':'expense-color'}">${formatCurrency(netActual)}</div>
         <div class="budget-sub">מתוכנן: <span class="${netBudget>=0?'income-color':'expense-color'}">${formatCurrency(netBudget)}</span></div>
-        ${carryIn ? `<div class="budget-sub" title="נטו החודש בתוספת היתרה שנגררה מהחודש הקודם — זו היתרה שתועבר לחודש הבא">כולל מועבר (${formatCurrency(carryIn)}): <span class="${closing>=0?'income-color':'expense-color'}">${formatCurrency(closing)}</span></div>` : ''}
+        ${carryIn ? `<div class="budget-sub" title="היתרה שנגררה מהחודש הקודם בתוספת הנטו של החודש. הערכה — הנטו נמדד בהיקף התקציב, לא בתנועת החשבון">כולל מועבר (${formatCurrency(carryIn)}): <span class="${closing>=0?'income-color':'expense-color'}">${formatCurrency(closing)}</span></div>` : ''}
       </div>
     </div>`
 
@@ -476,7 +476,7 @@ function renderBudgetScreen() {
     <div class="budget-actions">
       <button class="btn-primary" onclick="openBudgetGenModalForMonth('${monthKey}')">הצע תקציב ל${_budgetFormatMonth(monthKey)}</button>
       <button class="btn-ghost" onclick="copyBudgetFromPrevMonth()">העתק מחודש קודם</button>
-      <button class="btn-ghost" onclick="importCarryoverFromPrevMonth()">ייבא יתרת חודש קודם</button>
+      <button class="btn-ghost" onclick="importCarryoverFromPrevMonth()" title="קורא את היתרה שהייתה בפועל בחשבונות העו״ש והמזומן בסוף החודש הקודם, ומכניס אותה כשורת יתרה מועברת">ייבא יתרת חודש קודם</button>
       <button class="btn-ghost" onclick="clearBudgetForMonth()">נקה חודש זה</button>
     </div>`
 
@@ -617,8 +617,8 @@ function _renderBudgetScreenTable(monthKey, readOnly) {
   // the row reads as a broken auto-row instead of a planning line the user fills
   // in (by hand, or via the 'ייבא יתרת חודש קודם' action).
   const coTag = 'ידני'
-  const coIncTitle = 'יתרה שנשארה מהחודש הקודם. שורת תכנון בלבד — אין לה "בפועל", כי הכסף זז בחודש הקודם. מלא ידנית או לחץ "ייבא יתרת חודש קודם"'
-  const coExpTitle = 'גירעון שנגרר מהחודש הקודם. שורת תכנון בלבד — אין לה "בפועל", כי הכסף זז בחודש הקודם. מלא ידנית או לחץ "ייבא יתרת חודש קודם"'
+  const coIncTitle = 'הכסף שהיה בפועל בחשבונות העו״ש והמזומן בסוף החודש הקודם. שורת תכנון בלבד — אין לה &quot;בפועל&quot;, כי הכסף לא זז החודש. מלא ידנית או לחץ &quot;ייבא יתרת חודש קודם&quot;'
+  const coExpTitle = 'יתרה שלילית (מינוס) בחשבונות בסוף החודש הקודם. שורת תכנון בלבד — אין לה &quot;בפועל&quot;, כי הכסף לא זז החודש. מלא ידנית או לחץ &quot;ייבא יתרת חודש קודם&quot;'
   const coIncRow = row(
     _budgetCategoryProxy(CARRYOVER_INCOME_ID),
     'income',
@@ -744,38 +744,56 @@ function budgetCarryIn(monthKey) {
   return inc - exp
 }
 
-// The balance a month hands OVER to the next one: what it carried in, plus what
-// it actually earned, minus what it actually spent.
+// Last calendar day of a month, ISO. The carryover is measured on the 30th/31st
+// because that is the line the bank statement itself draws.
+function _monthEndISO(monthKey) {
+  const [y, m] = monthKey.split('-').map(Number)
+  return _iso(new Date(y, m, 0))
+}
+
+// What a month really hands over: the MONEY IN THE ACCOUNTS on its last day —
+// the closing balance of the checking + cash accounts, the number the bank
+// statement prints.
 //
-// The carry-in term is the whole point. Without it a surplus stops one month
-// short: July hands ₪6,000 to August, August spends ₪1,000, and the closing
-// balance computed from actuals alone is −₪1,000 — a deficit — instead of the
-// ₪5,000 that is really left. The sign flipped, which is exactly what "it
-// didn't pull the previous month's balance" looks like on screen.
+// Deliberately NOT the budget screen's own surplus/deficit. That figure only
+// describes the flow inside one month; it knows nothing about opening balances,
+// about anything that happened before the budget was ever set up, or about
+// money that P&L doesn't model. The balance in the account is the source of
+// everything that can be spent next month, so it is the thing to carry.
+function budgetPhysicalBalance(monthKey) {
+  return getCheckingCashBalance(_monthEndISO(monthKey))
+}
+
+// The balance this month is heading toward: what it carried in plus its own net.
+// An estimate, not a bank figure — the net comes from budget scope (CC detail
+// instead of the lump), which is not the same series the account balance moves on.
 function budgetClosingBalance(monthKey) {
   const { incActual, expActual } = computeBudgetTotals(monthKey)
   return budgetCarryIn(monthKey) + incActual - expActual
 }
 
-// Computes the previous month's closing balance and offers to fill it in as a
-// carryover planning row for the current budget month. Manual on purpose —
-// nothing writes a carryover row on its own, because the row is a plan, and
-// a month that is still running has no final balance to hand over yet.
+// Reads the previous month's closing bank balance and offers to fill it in as
+// the carryover planning row for the current budget month. Manual on purpose —
+// nothing writes a carryover row on its own, because the row is a plan, and a
+// month that is still running has no final balance to hand over yet.
 async function importCarryoverFromPrevMonth() {
   const monthKey = getBudgetScreenMonth()
   const prev = _prevMonthKey(monthKey)
-  const { incActual, expActual } = computeBudgetTotals(prev)
-  const carryIn = budgetCarryIn(prev)
-  const net = carryIn + incActual - expActual
-  if (Math.abs(net) < 1) { toast(`אין יתרה מהותית ב-${_budgetFormatMonth(prev)}`, { type: 'info' }); return }
-  const parts = [
-    carryIn ? `יתרה מועברת ${formatCurrencyPlain(carryIn)}` : '',
-    `הכנסות ${formatCurrencyPlain(incActual)}`,
-    `הוצאות ${formatCurrencyPlain(expActual)}`,
-  ].filter(Boolean).join(' · ')
+  const accts = getAccounts().filter(a => PL_ACCOUNT_TYPES.has(a.type))
+  if (accts.length === 0) {
+    toast('אין חשבונות עו״ש/מזומן שמהם אפשר לקרוא יתרה', { type: 'error' })
+    return
+  }
+  const asOf = _monthEndISO(prev)
+  const net = budgetPhysicalBalance(prev)
+  if (Math.abs(net) < 1) { toast(`יתרת החשבונות ב-${_isoToDmy(asOf)} היא אפס`, { type: 'info' }); return }
+  // Per-account breakdown, so the number is traceable to the statements it came from.
+  const parts = accts
+    .map(a => `${a.name}: ${formatCurrencyPlain(getAccountBalance(a.id, asOf))}`)
+    .join(' · ')
   const desc = net > 0
-    ? `יתרה חיובית של ${formatCurrencyPlain(net)} — תועבר כהכנסה מועברת.`
-    : `גירעון של ${formatCurrencyPlain(Math.abs(net))} — יועבר כגירעון מחודש קודם בהוצאות.`
+    ? `יתרה של ${formatCurrencyPlain(net)} בחשבונות ב-${_isoToDmy(asOf)} — תועבר כהכנסה מועברת.`
+    : `יתרה שלילית של ${formatCurrencyPlain(Math.abs(net))} בחשבונות ב-${_isoToDmy(asOf)} — תועבר כגירעון מחודש קודם.`
   // confirmDialog renders via textContent — first line is the title, the rest
   // is the body. No markup here.
   if (!await confirmDialog(`${_budgetFormatMonth(prev)}: ${desc}\n${parts}`, { confirmText: 'העבר' })) return
