@@ -290,23 +290,30 @@ async function _pdExtractText(meta, blob) {
 async function propDocIndexContent() {
   const apiKey = typeof getApiKey === 'function' ? getApiKey() : ''
   if (!apiKey) { toast('נדרש מפתח Gemini בהגדרות כדי לקרוא את תוכן המסמכים', { type: 'error' }); return }
-  const pending = getPropertyDocs().filter(d => !d.text)
+  // `textAt`, not `text`: a document the model read and found no legible text
+  // in is done — keying off the text itself put it back in the queue on every
+  // run, and the counter never reached zero.
+  const pending = getPropertyDocs().filter(d => !d.textAt)
   if (!pending.length) { toast('כל המסמכים כבר מאונדקסים לחיפוש', { type: 'info' }); return }
   if (!await confirmDialog(`לקרוא את הטקסט מתוך ${pending.length} מסמכים? החיפוש יכלול אחר כך גם את תוכנם.`, { confirmText: 'קרא' })) return
 
-  let ok = 0, fail = 0
+  let ok = 0, empty = 0, fail = 0
   _pdBusy += pending.length
   _pdRerender()
   for (const d of pending) {
     try {
       const blob = await _pdGetFileAnywhere(d)
-      if (blob) { await _pdExtractText(d, blob); ok++ }
-      else fail++
+      if (!blob) { fail++ }
+      else if (await _pdExtractText(d, blob)) ok++
+      else empty++
     } catch (e) { console.warn('doc text index failed:', e); fail++ }
     _pdBusy--
     _pdRerender()
   }
-  toast(`נקראו ${ok} מסמכים${fail ? ` · ${fail} ללא טקסט זמין` : ''}`, { type: fail && !ok ? 'error' : 'success' })
+  const bits = [`נקראו ${ok} מסמכים`]
+  if (empty) bits.push(`${empty} ללא טקסט קריא`)
+  if (fail) bits.push(`${fail} לא זמינים במכשיר הזה`)
+  toast(bits.join(' · '), { type: ok ? 'success' : 'error' })
   propDocSyncDrive()
 }
 
@@ -684,7 +691,7 @@ function _propDocsCard() {
     </div>`
 
   const items = _pdListHtml(shown, toks)
-  const unindexed = docs.filter(d => !d.text).length
+  const unindexed = docs.filter(d => !d.textAt).length
   const search = `
     <div class="propdoc-searchbar">
       <label class="propdoc-search">
@@ -777,6 +784,7 @@ function _pdItemHtml(d, toks = []) {
     d.amount > 0 ? formatCurrency(d.amount) : '',
     linkedRow ? `${uiIcon('paperclip', 12)} ${linkedRow.paymentNumber ? 'תשלום #' + linkedRow.paymentNumber : _pdPaymentLabel(linkedRow)}` : '',
     d.source === 'gmail' ? 'ממייל' : '',
+    d.text ? `${uiIcon('search', 12)} ניתן לחיפוש בתוכן` : '',
     _pdFmtSize(d.size || 0),
   ].filter(Boolean).join(' · ')
   return `
