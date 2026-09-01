@@ -139,3 +139,87 @@ test('a receipt creates a paid row, a voucher only a due one', () => {
   assert.equal(voucher.paidAmount, 0, 'a voucher has not paid anything yet')
   assert.equal(voucher.paidDate, '')
 })
+
+
+// ---------- order and search inside the card ----------
+
+// The card is a filing cabinet: category first, then the date on the document
+// itself. Docs here deliberately carry an upload order that contradicts their
+// document dates — that is the case the old createdAt sort got wrong.
+function loadCard(docs = [], payments = []) {
+  const db = makeDbStub({ finPropertyDocs: docs, finPropertyPayments: payments })
+  return loadApp(['propertyDocs.js'], {
+    DB: db,
+    getPropertyPayments: () => db.get('finPropertyPayments', []),
+    genId: () => 'id' + Math.random().toString(36).slice(2),
+    formatDate: iso => (iso ? iso.split('-').reverse().join('/') : ''),
+    formatCurrency: n => String(n),
+    uiIcon: () => '',
+    escHtml: v => String(v),
+    escAttr: v => String(v),
+    PROPERTY_TYPES: { payment: { label: 'תשלום' }, other: { label: 'אחר' } },
+    indexedDB: undefined,
+    window: { addEventListener: () => {} },
+  })
+}
+
+const cdoc = (o) => ({ id: o.id, name: o.id, docType: 'voucher', title: '', summary: '', notes: '',
+  amount: 0, docDate: '', linkedPaymentId: '', createdAt: '2026-01-01T00:00:00.000Z', ...o })
+
+test('inside a category the document date orders the list, not the upload time', () => {
+  const ctx = loadCard([
+    cdoc({ id: 'c', docDate: '2026-03-10', createdAt: '2026-05-01T09:00:00.000Z' }),
+    cdoc({ id: 'a', docDate: '2026-01-10', createdAt: '2026-05-01T12:00:00.000Z' }),
+    cdoc({ id: 'b', docDate: '2026-02-10', createdAt: '2026-05-01T07:00:00.000Z' }),
+  ])
+  assert.deepEqual(ctx._pdVisibleDocs().map(d => d.id), ['c', 'b', 'a'])
+  ctx.propDocToggleSort()
+  assert.deepEqual(ctx._pdVisibleDocs().map(d => d.id), ['a', 'b', 'c'])
+})
+
+test('a document with no date read off it falls back to its upload time', () => {
+  const ctx = loadCard([
+    cdoc({ id: 'dated', docDate: '2026-02-10', createdAt: '2026-01-01T00:00:00.000Z' }),
+    cdoc({ id: 'undated', docDate: '', createdAt: '2026-03-01T00:00:00.000Z' }),
+  ])
+  assert.deepEqual(ctx._pdVisibleDocs().map(d => d.id), ['undated', 'dated'])
+})
+
+test('categories stay grouped, and each group is ordered on its own', () => {
+  const ctx = loadCard([
+    cdoc({ id: 'r1', docType: 'receipt', docDate: '2026-01-01' }),
+    cdoc({ id: 'v1', docType: 'voucher', docDate: '2026-01-01' }),
+    cdoc({ id: 'r2', docType: 'receipt', docDate: '2026-04-01' }),
+    cdoc({ id: 'v2', docType: 'voucher', docDate: '2026-04-01' }),
+  ])
+  // voucher precedes receipt in PROP_DOC_BUILTIN_CATS.
+  assert.deepEqual(ctx._pdVisibleDocs().map(d => d.id), ['v2', 'v1', 'r2', 'r1'])
+})
+
+test('search is AND over tokens and reaches the indexed text of the scan', () => {
+  const ctx = loadCard([
+    cdoc({ id: 'a', title: 'שובר תשלום 4', text: 'בנק לאומי סניף 800 שובר לתשלום' }),
+    cdoc({ id: 'b', title: 'שובר תשלום 5', text: 'בנק הפועלים סניף 12' }),
+  ])
+  ctx._eval("_pdSearch = 'לאומי'")
+  assert.deepEqual(ctx._pdVisibleDocs().map(d => d.id), ['a'])
+  ctx._eval("_pdSearch = 'שובר לאומי'")
+  assert.deepEqual(ctx._pdVisibleDocs().map(d => d.id), ['a'])
+  ctx._eval("_pdSearch = 'שובר הפועלים לאומי'")
+  assert.deepEqual(ctx._pdVisibleDocs().map(d => d.id), [])
+})
+
+test('search also matches the formatted date, the amount and the category label', () => {
+  const ctx = loadCard([cdoc({ id: 'a', docDate: '2026-03-09', amount: 103500 })])
+  for (const q of ['09/03/2026', '2026-03', '103500', 'שובר']) {
+    ctx._eval(`_pdSearch = ${JSON.stringify(q)}`)
+    assert.deepEqual(ctx._pdVisibleDocs().map(d => d.id), ['a'], q)
+  }
+})
+
+test('a hit inside the scanned text gets a snippet, a metadata-only hit does not', () => {
+  const ctx = loadCard([cdoc({ id: 'a', title: 'שובר', text: 'שולם בבנק לאומי ביום שלישי' })])
+  const withText = ctx._pdTextSnippet(ctx._pdVisibleDocs()[0], ['לאומי'])
+  assert.ok(withText.includes('<mark>לאומי</mark>'))
+  assert.equal(ctx._pdTextSnippet(ctx._pdVisibleDocs()[0], ['שובר']), '')
+})

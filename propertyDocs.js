@@ -134,6 +134,7 @@ let _pdPresetPaymentId = ''   // set when uploading from a specific payment row
 let _pdFilter = 'all'         // doc-type chip filter
 let _pdPayFilter = ''         // show only docs of one payment (row clip click)
 let _pdBusy = 0               // uploads in flight (spinner in card header)
+let _pdSearch = ''            // free-text query over metadata + extracted text
 // The list grows without bound (years of vouchers) and sits at the bottom of a
 // screen whose real subject is the payments table, so it starts folded. The
 // flag is module-level, not persisted: it resets on reload but survives the
@@ -211,7 +212,10 @@ async function propDocHandleFiles(fileList, extra = {}) {
   // AI classification — async, sequential (rate limits), best-effort.
   const apiKey = typeof getApiKey === 'function' ? getApiKey() : ''
   for (const { meta, blob } of added) {
-    if (apiKey) { try { await _pdClassify(meta, blob) } catch (e) { console.warn('doc classify failed:', e) } }
+    if (apiKey) {
+      try { await _pdClassify(meta, blob) } catch (e) { console.warn('doc classify failed:', e) }
+      try { await _pdExtractText(meta, blob) } catch (e) { console.warn('doc text extract failed:', e) }
+    }
     _pdBusy--
     _pdRerender()
   }
@@ -242,6 +246,70 @@ async function _pdMaybeCompress(file) {
 }
 
 // ===== AI CLASSIFICATION =====
+// Content search needs the words that are inside the scan, and a scan is an
+// image — so the text has to be read once and stored next to the metadata.
+// Capped hard: finPropertyDocs lives in localStorage and rides every backup
+// payload, so a document contributes a search index, not a copy of itself.
+const PD_TEXT_MAX = 1200
+
+function _pdBlobBase64(blob) {
+  return new Promise((res, rej) => {
+    const r = new FileReader()
+    r.onload = () => res(r.result.split(',')[1])
+    r.onerror = rej
+    r.readAsDataURL(blob)
+  })
+}
+
+// Deliberately a second Gemini call and not another field on the classify
+// JSON: a transcription is long and newline-heavy, and folding it in there
+// turned every malformed quote into a failed classification. Best-effort —
+// a doc without text is searchable by its metadata like before.
+async function _pdExtractText(meta, blob) {
+  const prompt = `תמלל את הטקסט שמופיע במסמך המצורף, כפי שהוא, בשורות רגילות.
+ללא markdown, ללא הסברים וללא סיכום. עד ${PD_TEXT_MAX} תווים.
+אם אין במסמך טקסט קריא — החזר מחרוזת ריקה.`
+  const base64 = await _pdBlobBase64(blob)
+  const data = await callGemini(getApiKey(), {
+    contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: meta.mime, data: base64 } }] }],
+    generationConfig: { temperature: 0, maxOutputTokens: 2048 },
+  })
+  const raw = (data.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('')
+  const list = getPropertyDocs()
+  const doc = list.find(x => x.id === meta.id)
+  if (!doc) return ''
+  doc.text = raw.replace(/\s+/g, ' ').trim().slice(0, PD_TEXT_MAX)
+  doc.textAt = new Date().toISOString()
+  savePropertyDocs(list)
+  return doc.text
+}
+
+// Reads the text out of documents uploaded before indexing existed (or while
+// no key was set). Needs the blob, so a doc that lives only on another device
+// is skipped rather than half-indexed.
+async function propDocIndexContent() {
+  const apiKey = typeof getApiKey === 'function' ? getApiKey() : ''
+  if (!apiKey) { toast('נדרש מפתח Gemini בהגדרות כדי לקרוא את תוכן המסמכים', { type: 'error' }); return }
+  const pending = getPropertyDocs().filter(d => !d.text)
+  if (!pending.length) { toast('כל המסמכים כבר מאונדקסים לחיפוש', { type: 'info' }); return }
+  if (!await confirmDialog(`לקרוא את הטקסט מתוך ${pending.length} מסמכים? החיפוש יכלול אחר כך גם את תוכנם.`, { confirmText: 'קרא' })) return
+
+  let ok = 0, fail = 0
+  _pdBusy += pending.length
+  _pdRerender()
+  for (const d of pending) {
+    try {
+      const blob = await _pdGetFileAnywhere(d)
+      if (blob) { await _pdExtractText(d, blob); ok++ }
+      else fail++
+    } catch (e) { console.warn('doc text index failed:', e); fail++ }
+    _pdBusy--
+    _pdRerender()
+  }
+  toast(`נקראו ${ok} מסמכים${fail ? ` · ${fail} ללא טקסט זמין` : ''}`, { type: fail && !ok ? 'error' : 'success' })
+  propDocSyncDrive()
+}
+
 async function _pdClassify(meta, blob) {
   // Category list is dynamic — custom categories participate in classification.
   const typeDesc = getPropDocCats()
@@ -258,12 +326,7 @@ async function _pdClassify(meta, blob) {
 - paymentNumber: מספר התשלום לפי לוח התשלומים אם מופיע במסמך, אחרת null
 - summary: משפט אחד בעברית שמסכם את המסמך`
 
-  const base64 = await new Promise((res, rej) => {
-    const r = new FileReader()
-    r.onload = () => res(r.result.split(',')[1])
-    r.onerror = rej
-    r.readAsDataURL(blob)
-  })
+  const base64 = await _pdBlobBase64(blob)
   const body = {
     contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: meta.mime, data: base64 } }] }],
     generationConfig: { temperature: 0.1, maxOutputTokens: 4096 },
@@ -512,21 +575,102 @@ function _pdPaymentLabel(row) {
 
 function _pdRerender() { if (typeof renderProperty === 'function') renderProperty() }
 
+// ===== ORDER / SEARCH =====
+// Chronology inside a category is the date printed ON the document, with the
+// upload timestamp only as a fallback (nothing read a date off it) and as the
+// tiebreaker. Upload time used to win here; a batch of vouchers scanned in one
+// evening then read 4,1,3,2 — the sequence the user is checking is the one the
+// documents themselves carry, not the order the scanner happened to produce.
+const PD_SORT_KEY = 'finPropDocSortDir'
+function _pdSortDir() { return localStorage.getItem(PD_SORT_KEY) === 'asc' ? 'asc' : 'desc' }
+function propDocToggleSort() {
+  localStorage.setItem(PD_SORT_KEY, _pdSortDir() === 'asc' ? 'desc' : 'asc')
+  _pdRerender()
+}
+function _pdChronoKey(d) {
+  return (d.docDate || (d.createdAt || '').slice(0, 10) || '') + '|' + (d.createdAt || '')
+}
+
+// Everything the card shows about a doc, plus its indexed text, flattened into
+// one lowercase string. The query is AND over whitespace tokens, so "שובר 4"
+// narrows by two independent facts and a word that appears only inside the
+// scan still finds it.
+function _pdHaystack(d) {
+  const row = d.linkedPaymentId ? getPropertyPayments().find(x => x.id === d.linkedPaymentId) : null
+  return [
+    d.title, d.name, d.summary, d.notes, d.text,
+    _pdCat(d.docType).label,
+    d.docDate, d.docDate ? formatDate(d.docDate) : '',
+    d.amount > 0 ? String(d.amount) : '',
+    row ? _pdPaymentLabel(row) : '',
+    row && row.paymentNumber ? 'תשלום ' + row.paymentNumber : '',
+    d.source === 'gmail' ? 'ממייל' : '',
+  ].filter(Boolean).join(' \n ').toLowerCase()
+}
+function _pdSearchTokens() { return _pdSearch.trim().toLowerCase().split(/\s+/).filter(Boolean) }
+
+// Category order first (the card is a filing cabinet), chronology inside it.
+function _pdVisibleDocs() {
+  let shown = getPropertyDocs()
+  if (_pdPayFilter) shown = shown.filter(d => d.linkedPaymentId === _pdPayFilter)
+  else if (_pdFilter !== 'all') shown = shown.filter(d => _pdCat(d.docType).id === _pdFilter)
+  const toks = _pdSearchTokens()
+  if (toks.length) shown = shown.filter(d => { const h = _pdHaystack(d); return toks.every(t => h.includes(t)) })
+
+  const catOrder = new Map(getPropDocCats().map((c, i) => [c.id, i]))
+  const catIdx = d => catOrder.has(_pdCat(d.docType).id) ? catOrder.get(_pdCat(d.docType).id) : 999
+  const dir = _pdSortDir() === 'asc' ? 1 : -1
+  return shown.slice().sort((a, b) =>
+    catIdx(a) - catIdx(b) ||
+    dir * _pdChronoKey(a).localeCompare(_pdChronoKey(b)))
+}
+
+function propDocSearchInput(el) {
+  _pdSearch = el.value
+  const clear = document.getElementById('propDocSearchClear')
+  if (clear) clear.hidden = !el.value
+  _pdRenderList()
+}
+function propDocClearSearch() {
+  _pdSearch = ''
+  const el = document.getElementById('propDocSearch')
+  if (el) { el.value = ''; el.focus() }
+  const clear = document.getElementById('propDocSearchClear')
+  if (clear) clear.hidden = true
+  _pdRenderList()
+}
+
+// Typing must not go through renderProperty(): a full screen redraw replaces
+// the input mid-keystroke and the caret lands back at the start. Only the list
+// and its counter depend on the query, so only they are rewritten.
+function _pdRenderList() {
+  const box = document.getElementById('propDocsList')
+  if (!box) { _pdRerender(); return }
+  const shown = _pdVisibleDocs()
+  const toks = _pdSearchTokens()
+  box.innerHTML = _pdListHtml(shown, toks)
+  const count = document.getElementById('propDocsCount')
+  if (count) count.textContent = _pdCountLabel(shown, toks)
+}
+
+function _pdCountLabel(shown, toks) {
+  if (!toks.length) return ''
+  return shown.length === 1 ? 'תוצאה אחת' : `${shown.length} תוצאות`
+}
+
+function _pdListHtml(shown, toks) {
+  if (shown.length) return shown.map(d => _pdItemHtml(d, toks)).join('')
+  const msg = toks.length ? 'לא נמצאו מסמכים לחיפוש הזה'
+    : (getPropertyDocs().length === 0 ? 'אין עדיין מסמכים — העלה שובר, ערבות בנקאית או כל מסמך אחר' : 'אין מסמכים בסינון הנוכחי')
+  return `<p style="text-align:center;color:var(--text-muted);font-size:.85rem;padding:1rem 0;margin:0">${msg}</p>`
+}
+
 // ===== CARD (shared desktop + mobile) =====
 function _propDocsCard() {
   const docs = getPropertyDocs()
   const payFilterRow = _pdPayFilter ? getPropertyPayments().find(x => x.id === _pdPayFilter) : null
-  let shown = docs
-  if (payFilterRow) shown = shown.filter(d => d.linkedPaymentId === _pdPayFilter)
-  else if (_pdFilter !== 'all') shown = shown.filter(d => _pdCat(d.docType).id === _pdFilter)
-  // Grouped by category, and inside each category newest upload first. Upload
-  // time — not docDate — is the order the user remembers: a voucher scanned
-  // today can carry a document date from months back.
-  const catOrder = new Map(getPropDocCats().map((c, i) => [c.id, i]))
-  const catIdx = d => catOrder.has(_pdCat(d.docType).id) ? catOrder.get(_pdCat(d.docType).id) : 999
-  shown = shown.slice().sort((a, b) =>
-    catIdx(a) - catIdx(b) ||
-    (b.createdAt || '').localeCompare(a.createdAt || ''))
+  const toks = _pdSearchTokens()
+  const shown = _pdVisibleDocs()
 
   const counts = {}
   docs.forEach(d => { const k = _pdCat(d.docType).id; counts[k] = (counts[k] || 0) + 1 })
@@ -539,9 +683,24 @@ function _propDocsCard() {
       <button class="propdoc-chip" onclick="propDocManageCats()" title="ניהול קטגוריות מסמכים">${uiIcon('gear', 13)} קטגוריות</button>
     </div>`
 
-  const items = shown.length === 0
-    ? `<p style="text-align:center;color:var(--text-muted);font-size:.85rem;padding:1rem 0;margin:0">${docs.length === 0 ? 'אין עדיין מסמכים — העלה שובר, ערבות בנקאית או כל מסמך אחר' : 'אין מסמכים בסינון הנוכחי'}</p>`
-    : shown.map(_pdItemHtml).join('')
+  const items = _pdListHtml(shown, toks)
+  const unindexed = docs.filter(d => !d.text).length
+  const search = `
+    <div class="propdoc-searchbar">
+      <label class="propdoc-search">
+        ${uiIcon('search', 15, 'var(--text-muted)')}
+        <input id="propDocSearch" type="text" autocomplete="off" value="${escAttr(_pdSearch)}"
+               placeholder="חיפוש מסמך — שם, קטגוריה, סכום, תאריך או טקסט מתוך המסמך"
+               oninput="propDocSearchInput(this)">
+        <button id="propDocSearchClear" class="btn-ghost" ${_pdSearch ? '' : 'hidden'}
+                onclick="propDocClearSearch()" title="נקה חיפוש" aria-label="נקה חיפוש">✕</button>
+      </label>
+      <span id="propDocsCount" class="propdoc-count">${_pdCountLabel(shown, toks)}</span>
+      <button class="propdoc-chip" onclick="propDocToggleSort()"
+              title="סדר כרונולוגי בתוך כל קטגוריה">${_pdSortDir() === 'desc' ? '▼ חדש → ישן' : '▲ ישן → חדש'}</button>
+      ${unindexed ? `<button class="propdoc-chip" onclick="propDocIndexContent()"
+              title="קריאת הטקסט מתוך המסמכים כדי לאפשר חיפוש לפי תוכן">${uiIcon('sparkles', 13)} אינדוקס תוכן (${unindexed})</button>` : ''}
+    </div>`
 
   const totalBytes = docs.reduce((s, d) => s + (d.size || 0), 0)
   const busy = _pdBusy > 0 ? `<span class="propdoc-busy">${uiIcon('clock', 13)} מעבד ${_pdBusy} מסמכים…</span>` : ''
@@ -558,8 +717,9 @@ function _propDocsCard() {
         <div>לחץ לבחירת קובץ, גרור לכאן, או הדבק (Ctrl+V)</div>
         <div style="font-size:.75rem;color:var(--text-muted)">תמונות ו-PDF · שוברים, ערבויות, לוחות תשלומים, מסמכי משכנתא</div>
       </div>
+      ${search}
       ${chips}
-      <div class="propdoc-list">${items}</div>
+      <div class="propdoc-list" id="propDocsList">${items}</div>
       <div style="font-size:.72rem;color:var(--text-muted);margin-top:.6rem;display:flex;gap:.35rem;flex-wrap:wrap">
         ${docs.length ? `<span>סה"כ ${_pdFmtSize(totalBytes)} · מסתנכרן ל-Drive (תיקיית "${PROPDOC_DRIVE_FOLDER}")</span> ·` : ''}
         <span>תווית מייל: "${escHtml(localStorage.getItem('finGmailDocLabel') || 'HomeBudget')}"</span>
@@ -585,7 +745,25 @@ function _propDocsCard() {
     </div>`
 }
 
-function _pdItemHtml(d) {
+// A hit inside the scanned text is invisible in the row above it, so the row
+// has to show which words matched and where — otherwise a search result looks
+// like an unrelated document.
+function _pdTextSnippet(d, toks) {
+  if (!d.text || !toks.length) return ''
+  const low = d.text.toLowerCase()
+  let at = -1, tok = ''
+  for (const t of toks) {
+    const p = low.indexOf(t)
+    if (p >= 0 && (at < 0 || p < at)) { at = p; tok = t }
+  }
+  if (at < 0) return ''
+  const from = Math.max(0, at - 45), to = Math.min(d.text.length, at + tok.length + 65)
+  const pre = (from > 0 ? '…' : '') + d.text.slice(from, at)
+  const post = d.text.slice(at + tok.length, to) + (to < d.text.length ? '…' : '')
+  return `<div class="propdoc-meta propdoc-snippet">${uiIcon('search', 11)} <span>${escHtml(pre)}<mark>${escHtml(d.text.slice(at, at + tok.length))}</mark>${escHtml(post)}</span></div>`
+}
+
+function _pdItemHtml(d, toks = []) {
   const t = _pdCat(d.docType)
   const linkedRow = d.linkedPaymentId ? getPropertyPayments().find(x => x.id === d.linkedPaymentId) : null
   const local = _pdHasLocal(d.id)
@@ -608,6 +786,7 @@ function _pdItemHtml(d) {
         <div class="propdoc-name">${escHtml(_pdDisplayName(d))} ${d.ai ? `<span class="propdoc-ai" title="סווג אוטומטית ע&quot;י AI">${uiIcon('sparkles', 12)}</span>` : ''}</div>
         <div class="propdoc-meta"><span class="prop-status prop-st-tba">${escHtml(t.label)}</span> ${metaBits} ${cloud}</div>
         ${d.summary ? `<div class="propdoc-meta" style="opacity:.8">${escHtml(d.summary)}</div>` : ''}
+        ${_pdTextSnippet(d, toks)}
       </div>
       <div class="propdoc-actions" onclick="event.stopPropagation()">
         <button class="btn-ghost" onclick="propDocEdit('${d.id}')" title="עריכה" aria-label="עריכה">${uiIcon('pencil', 15)}</button>

@@ -1894,6 +1894,24 @@ select option { background-color: #141417; color: var(--text-primary); }
 .propdoc-chev { display: inline-block; font-size: 1.25rem; line-height: 1; color: var(--text-muted); transition: transform .2s; }
 .propdoc-chev.open { transform: rotate(90deg); }
 
+/* Search + order bar. The query box grows, the order and index chips keep
+   their size and wrap under it on a narrow screen. */
+.propdoc-searchbar { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; margin-bottom: .6rem; }
+.propdoc-search {
+  flex: 1 1 240px; display: flex; align-items: center; gap: .4rem; min-width: 0;
+  padding: .3rem .6rem; background: var(--bg-surface);
+  border: 1px solid var(--border-bright); border-radius: 12px;
+}
+.propdoc-search:focus-within { border-color: rgba(59,130,246,.55); }
+.propdoc-search input {
+  flex: 1; min-width: 0; background: none; border: 0; outline: none;
+  color: var(--text-primary); font: inherit; font-size: .85rem; padding: .25rem 0;
+}
+.propdoc-search .btn-ghost { padding: .1rem .35rem; min-height: unset; border: 0; background: none; font-size: .8rem; }
+.propdoc-count { font-size: .74rem; color: var(--text-muted); white-space: nowrap; }
+.propdoc-snippet { display: block; font-size: .72rem; line-height: 1.4; opacity: .9; }
+.propdoc-snippet mark { background: rgba(59,130,246,.28); color: inherit; border-radius: 3px; padding: 0 .15rem; }
+
 .prop-totals-row { background: var(--bg-elev); font-weight: 600; }
 .prop-totals-row td { border-top: 2px solid var(--border); }
 
