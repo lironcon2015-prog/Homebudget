@@ -1,4 +1,4 @@
-const APP_VERSION = '1.51.0'
+const APP_VERSION = '1.52.0'
 
 // ===== STORAGE =====
 // Hot keys are cached as parsed objects: getTransactions() etc. used to
@@ -633,6 +633,8 @@ function _onEditTypeChange() {
   if (rr) rr.style.display = tp === 'refund' ? 'block' : 'none'
   const cc = document.getElementById('editCcLinkRow')
   if (cc) cc.style.display = tp === 'expense' ? 'block' : 'none'
+  // Marking the row as a refund is the moment the suggestion is worth having.
+  if (tp === 'refund') _refreshRefundLinkRow()
 }
 
 // ===== REFUND → EXPENSE LINK =====
@@ -650,7 +652,33 @@ function _refundLinkRowHTML() {
       </div>`
     }
   }
-  return `<button type="button" class="btn-ghost" style="font-size:.85rem;padding:.45rem .8rem" onclick="openRefundPicker()">בחר הוצאה לקיזוז</button>`
+  // Nothing linked yet: lead with the most likely expense instead of sending the
+  // user into a list to find it. One suggestion, not three — the rest of the
+  // ranking lives in the picker, where there is room to compare them.
+  const top = _topRefundSuggestion()
+  const suggest = top ? `<div style="margin-bottom:.5rem">
+      <div style="font-size:.72rem;color:var(--text-muted);margin-bottom:.25rem">ההתאמה הסבירה ביותר</div>
+      <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+        <span style="background:var(--bg-elevated);padding:.35rem .6rem;border-radius:8px;font-size:.85rem;border:1px solid var(--accent)">${escHtml(resolveVendor(top.tx.vendor, top.tx.amount, getTxAliasDay(top.tx)) || top.tx.vendor || '—')} · ${formatCurrency(top.tx.amount)} · ${formatDate(top.tx.date)}</span>
+        <button type="button" class="btn-ghost" style="font-size:.8rem;padding:.3rem .6rem" onclick="selectRefundExpense('${top.tx.id}')">קשר</button>
+      </div>
+      <div style="font-size:.72rem;color:var(--accent);margin-top:.25rem">${escHtml(top.reasons.join(' · '))}</div>
+    </div>` : ''
+  return suggest + `<button type="button" class="btn-ghost" style="font-size:.85rem;padding:.45rem .8rem" onclick="openRefundPicker()">${top ? 'בחר הוצאה אחרת' : 'בחר הוצאה לקיזוז'}</button>`
+}
+
+function _topRefundSuggestion() {
+  if (typeof suggestRefundExpenses !== 'function') return null
+  // Only a refund row asks this question, and asking it scans every
+  // transaction — so an ordinary expense edit must not pay for it. The form's
+  // type wins while the modal is open; before it exists, the stored row does.
+  const formType = document.getElementById('editType')?.value
+  const storedType = getTransactions().find(t => t.id === _editId)?.type
+  if ((formType || storedType) !== 'refund') return null
+  const draft = _refundDraftTx()
+  if (!draft.amount) return null
+  const hits = suggestRefundExpenses(draft, refundCandidateExpenses(getTransactions(), _editId), 1)
+  return hits[0] || null
 }
 
 function _refreshRefundLinkRow() {
@@ -660,6 +688,29 @@ function _refreshRefundLinkRow() {
 
 function unlinkRefund() { _editRefundForTxId = null; _refreshRefundLinkRow() }
 
+// The refund being edited, read from the FORM and not from storage: the user is
+// usually typing the amount and the payee at the moment they ask for a match,
+// and a suggestion built from the stale stored row would rank on the wrong
+// number. Falls back to the stored row for fields the form doesn't carry.
+function _refundDraftTx() {
+  const stored = getTransactions().find(t => t.id === _editId) || {}
+  const amtRaw = parseFloat(document.getElementById('editAmount')?.value)
+  const vendor = document.getElementById('editVendor')?.value
+  const dateRaw = document.getElementById('editDate')?.value
+  return {
+    id: _editId,
+    amount: isNaN(amtRaw) ? (stored.amount || 0) : amtRaw,
+    vendor: vendor !== undefined && vendor !== null ? vendor : (stored.vendor || ''),
+    date: (dateRaw ? _dmyToIso(dateRaw) : '') || stored.date || '',
+    categoryId: document.getElementById('editCategory')?.value || stored.categoryId || '',
+  }
+}
+
+// Suggestions are computed ONCE per opening, not per keystroke: they answer
+// "what is this refund for", which the search box does not change. Filtering
+// the recommendation by the same term would collapse it into the list below it.
+let _refundSuggestions = []
+
 function openRefundPicker() {
   const catSel = document.getElementById('refundPickCat')
   if (catSel) {
@@ -667,40 +718,81 @@ function openRefundPicker() {
       getCategoriesSorted().filter(c => c.type === 'expense').map(c => `<option value="${c.id}">${catIconText(c)} ${escHtml(c.name)}</option>`).join('')
   }
   const s = document.getElementById('refundPickSearch'); if (s) s.value = ''
+  const draft = _refundDraftTx()
+  _refundSuggestions = (typeof suggestRefundExpenses === 'function')
+    ? suggestRefundExpenses(draft, refundCandidateExpenses(getTransactions(), _editId))
+    : []
+  _renderRefundSuggestions()
   renderRefundPickerList()
   document.getElementById('refundPickerModal').classList.add('open')
 }
 function closeRefundPicker() { document.getElementById('refundPickerModal').classList.remove('open') }
 
+function _refundRowHTML(t, { suggested = false, reasons = null } = {}) {
+  const cat = getCategoryById(t.categoryId)
+  const v = resolveVendor(t.vendor, t.amount, getTxAliasDay(t)) || t.vendor || '—'
+  const why = reasons && reasons.length
+    ? `<div style="font-size:.72rem;color:var(--accent);margin-top:.15rem">${escHtml(reasons.join(' · '))}</div>` : ''
+  return `<div class="refund-pick-row${suggested ? ' refund-pick-suggested' : ''}" onclick="selectRefundExpense('${t.id}')" style="display:flex;justify-content:space-between;align-items:center;gap:.6rem;padding:.55rem .7rem;border:1px solid ${suggested ? 'var(--accent)' : 'var(--border)'};border-radius:8px;margin-bottom:.4rem;cursor:pointer">
+      <div style="min-width:0"><div style="font-weight:500">${escHtml(v)}</div><div style="font-size:.75rem;color:var(--text-muted)">${formatDate(t.date)}${cat ? ' · ' + escHtml(cat.name) : ''}</div>${why}</div>
+      <span class="amount-exp" style="font-weight:600;white-space:nowrap">${formatCurrency(t.amount)}</span>
+    </div>`
+}
+
+function _renderRefundSuggestions() {
+  const el = document.getElementById('refundPickSuggest')
+  if (!el) return
+  if (_refundSuggestions.length === 0) { el.innerHTML = ''; return }
+  // Only the top row is "the" recommendation — outlining the runners-up the
+  // same way would make three answers where the user asked for one.
+  const [best, ...rest] = _refundSuggestions
+  el.innerHTML = `
+    <div style="font-size:.78rem;color:var(--text-muted);margin-bottom:.35rem">ההתאמה הסבירה ביותר</div>
+    ${_refundRowHTML(best.tx, { suggested: true, reasons: best.reasons })}
+    ${rest.length ? `<div style="font-size:.78rem;color:var(--text-muted);margin:.6rem 0 .35rem">התאמות אפשריות נוספות</div>
+    ${rest.map(s => _refundRowHTML(s.tx, { reasons: s.reasons })).join('')}` : ''}
+    <div style="height:1px;background:var(--border);margin:.7rem 0 .6rem"></div>
+    <div style="font-size:.78rem;color:var(--text-muted);margin-bottom:.35rem">כל ההוצאות</div>`
+}
+
+// Search matches on NAME and AMOUNT together: tokens split on whitespace, each
+// token must hit somewhere (AND), so "שופרסל 250" narrows by two independent
+// facts instead of failing as one literal substring. The amount is offered in
+// several shapes because the user reads it formatted and types it plain.
+function _refundHaystack(t) {
+  const v = resolveVendor(t.vendor, t.amount, getTxAliasDay(t)) || t.vendor || ''
+  const abs = Math.abs(t.amount || 0)
+  const cat = getCategoryById(t.categoryId)
+  return [
+    v, t.vendor || '', t.description || '', cat ? cat.name : '',
+    String(abs), abs.toFixed(2), String(Math.round(abs)), abs.toLocaleString('he-IL'),
+    t.date || '', formatDate(t.date) || '',
+  ].join(' ').toLowerCase()
+}
+
 function renderRefundPickerList() {
   const term = (document.getElementById('refundPickSearch')?.value || '').trim().toLowerCase()
+  const tokens = term ? term.split(/\s+/).filter(Boolean) : []
   const catFilter = document.getElementById('refundPickCat')?.value || ''
   const days = parseInt(document.getElementById('refundPickPeriod')?.value || '90', 10)
   const cutoff = days > 0 ? _iso(new Date(Date.now() - days * 86400000)) : ''
-  // Candidate expenses: real outflows (not the refund itself / transfers / other refunds).
-  let cands = getTransactions().filter(t =>
-    t.id !== _editId && t.amount < 0 && t.type !== 'transfer' && t.type !== 'refund'
-  )
+  let cands = refundCandidateExpenses(getTransactions(), _editId)
   if (cutoff) cands = cands.filter(t => (t.date || '') >= cutoff)
   if (catFilter) cands = cands.filter(t => t.categoryId === catFilter)
-  if (term) cands = cands.filter(t => {
-    const v = (resolveVendor(t.vendor, t.amount, getTxAliasDay(t)) || t.vendor || '').toLowerCase()
-    return v.includes(term) || String(Math.abs(t.amount)).includes(term)
+  if (tokens.length) cands = cands.filter(t => {
+    const hay = _refundHaystack(t)
+    return tokens.every(tok => hay.includes(tok))
   })
   cands.sort((a, b) => (b.date || '').localeCompare(a.date || ''))
   cands = cands.slice(0, 200)
 
   const el = document.getElementById('refundPickList')
   if (!el) return
-  if (cands.length === 0) { el.innerHTML = '<p style="color:var(--text-muted);font-size:.85rem;text-align:center;padding:1.5rem">לא נמצאו הוצאות מתאימות</p>'; return }
-  el.innerHTML = cands.map(t => {
-    const cat = getCategoryById(t.categoryId)
-    const v = resolveVendor(t.vendor, t.amount, getTxAliasDay(t)) || t.vendor || '—'
-    return `<div class="refund-pick-row" onclick="selectRefundExpense('${t.id}')" style="display:flex;justify-content:space-between;align-items:center;gap:.6rem;padding:.55rem .7rem;border:1px solid var(--border);border-radius:8px;margin-bottom:.4rem;cursor:pointer">
-      <div style="min-width:0"><div style="font-weight:500">${escHtml(v)}</div><div style="font-size:.75rem;color:var(--text-muted)">${formatDate(t.date)}${cat ? ' · ' + escHtml(cat.name) : ''}</div></div>
-      <span class="amount-exp" style="font-weight:600;white-space:nowrap">${formatCurrency(t.amount)}</span>
-    </div>`
-  }).join('')
+  if (cands.length === 0) {
+    el.innerHTML = '<p style="color:var(--text-muted);font-size:.85rem;text-align:center;padding:1.5rem">לא נמצאו הוצאות מתאימות</p>'
+    return
+  }
+  el.innerHTML = cands.map(t => _refundRowHTML(t)).join('')
 }
 
 function selectRefundExpense(txId) {

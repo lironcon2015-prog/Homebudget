@@ -760,6 +760,100 @@ function renderPeriodSelector(containerId, onChange) {
   })
 }
 
+// ===== REFUND -> EXPENSE SUGGESTION =====
+// Which expense is this refund most likely refunding? The order mirrors
+// `_pdMatchPayment` for the same reason: the AMOUNT is the one fact both sides
+// always agree on, the payee is usually — but not always — reprinted
+// identically by the refunding merchant, and the date only narrows.
+//
+// This SUGGESTS, it never writes. `refundForTxId` stays documentation (see
+// CLAUDE.md: no automatic netting of a refund against an expense), so the user
+// confirms every link — which is also why every suggestion carries the reasons
+// it was made. A recommendation the user cannot check is worse than none.
+const REFUND_AMOUNT_EPSILON = 1       // ₪1 is rounding; ₪20 is a different purchase
+const REFUND_SUGGEST_MIN_SCORE = 7    // below this we show nothing rather than a guess
+const REFUND_SUGGEST_MAX = 3
+
+function _refundVendorKey(t) {
+  const v = resolveVendor(t.vendor, t.amount, getTxAliasDay(t)) || t.vendor || ''
+  return String(v).toLowerCase().replace(/\s+/g, ' ').trim()
+}
+
+function _refundDayGap(expenseDate, refundDate) {
+  const a = Date.parse(expenseDate), b = Date.parse(refundDate)
+  if (isNaN(a) || isNaN(b)) return null
+  return Math.round((b - a) / 86400000)
+}
+
+// One (refund, expense) pair. Returns { score, reasons }.
+function scoreRefundCandidate(refund, expense) {
+  const reasons = []
+  let score = 0
+  const refAbs = Math.abs(refund.amount || 0)
+  const expAbs = Math.abs(expense.amount || 0)
+
+  if (refAbs > 0 && Math.abs(refAbs - expAbs) <= REFUND_AMOUNT_EPSILON) {
+    score += 6
+    reasons.push('סכום זהה')
+  } else if (refAbs > 0 && refAbs < expAbs) {
+    score += 2
+    reasons.push('החזר חלקי')
+  } else {
+    // Refunded more than was ever paid — not a refund OF this expense.
+    score -= 4
+  }
+
+  const rk = _refundVendorKey(refund), ek = _refundVendorKey(expense)
+  if (rk && ek && rk === ek) { score += 4; reasons.push('אותו ספק') }
+  else if (rk && ek && (rk.includes(ek) || ek.includes(rk))) { score += 2; reasons.push('ספק דומה') }
+
+  const gap = _refundDayGap(expense.date, refund.date)
+  if (gap === null) {
+    // no usable date on one side — judged on amount and vendor alone
+  } else if (gap < 0) {
+    score -= 5                        // the expense happened AFTER the refund
+  } else if (gap <= 45) {
+    score += 3
+    reasons.push(gap === 0 ? 'אותו יום' : `${gap} ימים אחרי ההוצאה`)
+  } else if (gap <= 120) {
+    score += 2
+    reasons.push(`${gap} ימים אחרי ההוצאה`)
+  } else if (gap <= 400) {
+    score += 1
+    reasons.push(`${gap} ימים אחרי ההוצאה`)
+  } else {
+    score -= 2
+  }
+
+  if (refund.categoryId && refund.categoryId === expense.categoryId) {
+    score += 1
+    reasons.push('אותה קטגוריה')
+  }
+
+  return { score, reasons }
+}
+
+// The pool a refund is matched against: real outflows only — never the refund
+// row itself, a transfer (money that never left), or another refund.
+function refundCandidateExpenses(txs, refundId) {
+  return (txs || []).filter(t =>
+    t.id !== refundId && t.amount < 0 && t.type !== 'transfer' && t.type !== 'refund')
+}
+
+// Ranked suggestions, best first. Ties break on the later expense: of two
+// equally plausible rows the recent one is the one the user still remembers.
+function suggestRefundExpenses(refund, pool, limit = REFUND_SUGGEST_MAX) {
+  const out = []
+  for (const e of pool || []) {
+    if (!e || e.id === refund.id) continue
+    const { score, reasons } = scoreRefundCandidate(refund, e)
+    if (score < REFUND_SUGGEST_MIN_SCORE) continue
+    out.push({ tx: e, score, reasons })
+  }
+  out.sort((a, b) => b.score - a.score || (b.tx.date || '').localeCompare(a.tx.date || ''))
+  return out.slice(0, limit)
+}
+
 // ===== TRANSFER AUTO-MATCHING =====
 // Matches a bank transaction against accounts that define paymentVendorPatterns
 // (credit_card, savings, or investment). Returns the matched account or null.

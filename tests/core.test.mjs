@@ -132,6 +132,53 @@ test('getAccountFlow flips mirror-side sign', () => {
   assert.equal(flow.net, 300)
 })
 
+// ===== refund -> expense suggestion =====
+const REF_POOL = [
+  { id: 'e_exact', accountId: 'chk', amount: -250, type: 'expense', vendor: 'שופרסל', date: '2026-08-01', categoryId: 'cat_food' },
+  { id: 'e_other', accountId: 'chk', amount: -250, type: 'expense', vendor: 'חנות אחרת', date: '2026-05-02' },
+  { id: 'e_big',   accountId: 'chk', amount: -900, type: 'expense', vendor: 'שופרסל', date: '2026-08-03', categoryId: 'cat_food' },
+  { id: 'e_after', accountId: 'chk', amount: -250, type: 'expense', vendor: 'שופרסל', date: '2026-09-20', categoryId: 'cat_food' },
+  { id: 'e_small', accountId: 'chk', amount: -30, type: 'expense', vendor: 'שופרסל', date: '2026-08-02' },
+]
+const REFUND = { id: 'r1', accountId: 'chk', amount: 250, type: 'refund', vendor: 'שופרסל', date: '2026-08-14', categoryId: 'cat_food' }
+
+test('the refund suggestion leads with same amount + same vendor + right direction in time', () => {
+  const c = core()
+  const hits = c.suggestRefundExpenses(REFUND, REF_POOL)
+  assert.equal(hits[0].tx.id, 'e_exact')
+  assert.ok(hits[0].reasons.includes('סכום זהה'))
+  assert.ok(hits[0].reasons.includes('אותו ספק'))
+  // An expense dated AFTER the refund cannot be what it refunds.
+  assert.equal(hits.some(h => h.tx.id === 'e_after'), false)
+  // Refunded more than was ever paid is not a refund of that row.
+  assert.equal(hits.some(h => h.tx.id === 'e_small'), false)
+})
+
+test('a partial refund still proposes the larger expense of the same vendor', () => {
+  const c = core()
+  const partial = { ...REFUND, id: 'r2', amount: 100 }
+  const hits = c.suggestRefundExpenses(partial, REF_POOL)
+  assert.equal(hits[0].tx.id, 'e_big')
+  assert.ok(hits[0].reasons.includes('החזר חלקי'))
+})
+
+test('no plausible match yields no recommendation rather than a guess', () => {
+  const c = core()
+  const stray = { id: 'r3', accountId: 'chk', amount: 4321, type: 'refund', vendor: 'ספק לא מוכר', date: '2026-08-14' }
+  deepEq(c.suggestRefundExpenses(stray, REF_POOL), [])
+})
+
+test('refundCandidateExpenses excludes transfers, other refunds and the row itself', () => {
+  const c = core()
+  const pool = c.refundCandidateExpenses([
+    ...REF_POOL,
+    { id: 'r1', amount: 250, type: 'refund' },
+    { id: 'tr', amount: -700, type: 'transfer' },
+    { id: 'inc', amount: 5000, type: 'income' },
+  ], 'r1')
+  deepEq(pool.map(t => t.id).sort(), ['e_after', 'e_big', 'e_exact', 'e_other', 'e_small'])
+})
+
 // ===== CC lump detection / analysis scope =====
 test('shouldDropCcLump drops specific-pattern lump only when CC has detail', () => {
   const lump = { accountId: 'chk', amount: -1500, type: 'expense', vendor: 'ויזה 1234', description: '' }

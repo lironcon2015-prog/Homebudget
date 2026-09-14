@@ -25,9 +25,9 @@
     } catch (e) {}
   })();
   </script>
-  <link rel="stylesheet" href="style.css?v=1.51.0">
-  <link rel="stylesheet" href="mobile.css?v=1.51.0">
-  <script src="mobile/mobile-detect.js?v=1.51.0"></script>
+  <link rel="stylesheet" href="style.css?v=1.52.0">
+  <link rel="stylesheet" href="mobile.css?v=1.52.0">
+  <script src="mobile/mobile-detect.js?v=1.52.0"></script>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
@@ -839,7 +839,7 @@
       <button class="modal-close" aria-label="סגור" onclick="closeRefundPicker()">✕</button>
     </div>
     <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.7rem">
-      <input id="refundPickSearch" placeholder="חיפוש לפי ספק או סכום…" oninput="renderRefundPickerList()" style="flex:1;min-width:11rem">
+      <input id="refundPickSearch" placeholder="חיפוש לפי שם וסכום — למשל: שופרסל 250" oninput="renderRefundPickerList()" style="flex:1;min-width:11rem">
       <select id="refundPickCat" onchange="renderRefundPickerList()" style="width:auto"><option value="">כל הקטגוריות</option></select>
       <select id="refundPickPeriod" onchange="renderRefundPickerList()" style="width:auto">
         <option value="90">90 יום</option>
@@ -848,6 +848,7 @@
         <option value="0">הכל</option>
       </select>
     </div>
+    <div id="refundPickSuggest"></div>
     <div id="refundPickList" style="max-height:52vh;overflow-y:auto"></div>
   </div>
 </div>
@@ -1010,45 +1011,45 @@
   <button onclick="applyUpdate()">עדכן עכשיו</button>
 </div>
 
-<script>const _v = '1.51.0';</script>
-<script src="app.js?v=1.51.0"></script>
-<script src="core.js?v=1.51.0"></script>
-<script src="txmatch.js?v=1.51.0"></script>
-<script src="source.js?v=1.51.0"></script>
-<script src="ui.js?v=1.51.0"></script>
-<script src="uikit.js?v=1.51.0"></script>
-<script src="icons.js?v=1.51.0"></script>
-<script src="templates.js?v=1.51.0"></script>
-<script src="autocat.js?v=1.51.0"></script>
-<script src="detect.js?v=1.51.0"></script>
-<script src="budget.js?v=1.51.0"></script>
-<script src="budgetGen.js?v=1.51.0"></script>
-<script src="recurring.js?v=1.51.0"></script>
-<script src="dashboard.js?v=1.51.0"></script>
-<script src="transactions.js?v=1.51.0"></script>
-<script src="wizard.js?v=1.51.0"></script>
-<script src="import.js?v=1.51.0"></script>
-<script src="analysis.js?v=1.51.0"></script>
-<script src="settings.js?v=1.51.0"></script>
-<script src="drive.js?v=1.51.0"></script>
-<script src="backupLocal.js?v=1.51.0"></script>
-<script src="property.js?v=1.51.0"></script>
-<script src="propertyDocs.js?v=1.51.0"></script>
-<script src="invest.js?v=1.51.0"></script>
-<script src="reports.js?v=1.51.0"></script>
-<script src="feedback.js?v=1.51.0"></script>
-<script src="scrollMirror.js?v=1.51.0"></script>
-<script src="palette.js?v=1.51.0"></script>
-<script src="insights.js?v=1.51.0"></script>
-<script src="anomalies.js?v=1.51.0"></script>
+<script>const _v = '1.52.0';</script>
+<script src="app.js?v=1.52.0"></script>
+<script src="core.js?v=1.52.0"></script>
+<script src="txmatch.js?v=1.52.0"></script>
+<script src="source.js?v=1.52.0"></script>
+<script src="ui.js?v=1.52.0"></script>
+<script src="uikit.js?v=1.52.0"></script>
+<script src="icons.js?v=1.52.0"></script>
+<script src="templates.js?v=1.52.0"></script>
+<script src="autocat.js?v=1.52.0"></script>
+<script src="detect.js?v=1.52.0"></script>
+<script src="budget.js?v=1.52.0"></script>
+<script src="budgetGen.js?v=1.52.0"></script>
+<script src="recurring.js?v=1.52.0"></script>
+<script src="dashboard.js?v=1.52.0"></script>
+<script src="transactions.js?v=1.52.0"></script>
+<script src="wizard.js?v=1.52.0"></script>
+<script src="import.js?v=1.52.0"></script>
+<script src="analysis.js?v=1.52.0"></script>
+<script src="settings.js?v=1.52.0"></script>
+<script src="drive.js?v=1.52.0"></script>
+<script src="backupLocal.js?v=1.52.0"></script>
+<script src="property.js?v=1.52.0"></script>
+<script src="propertyDocs.js?v=1.52.0"></script>
+<script src="invest.js?v=1.52.0"></script>
+<script src="reports.js?v=1.52.0"></script>
+<script src="feedback.js?v=1.52.0"></script>
+<script src="scrollMirror.js?v=1.52.0"></script>
+<script src="palette.js?v=1.52.0"></script>
+<script src="insights.js?v=1.52.0"></script>
+<script src="anomalies.js?v=1.52.0"></script>
 
 <!-- MOBILE LAYER (Dark Glass) — activates only on mobile via IS_MOBILE_UI / html.m-ui -->
-<script src="mobile/shell.js?v=1.51.0"></script>
-<script src="mobile/dashboard.js?v=1.51.0"></script>
-<script src="mobile/transactions.js?v=1.51.0"></script>
-<script src="mobile/analysis.js?v=1.51.0"></script>
-<script src="mobile/recurring.js?v=1.51.0"></script>
-<script src="mobile/property.js?v=1.51.0"></script>
+<script src="mobile/shell.js?v=1.52.0"></script>
+<script src="mobile/dashboard.js?v=1.52.0"></script>
+<script src="mobile/transactions.js?v=1.52.0"></script>
+<script src="mobile/analysis.js?v=1.52.0"></script>
+<script src="mobile/recurring.js?v=1.52.0"></script>
+<script src="mobile/property.js?v=1.52.0"></script>
 
 <!-- SERVICE WORKER REGISTRATION & UPDATE LOGIC -->
 <script>
