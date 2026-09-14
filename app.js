@@ -1,4 +1,4 @@
-const APP_VERSION = '1.50.1'
+const APP_VERSION = '1.51.0'
 
 // ===== STORAGE =====
 // Hot keys are cached as parsed objects: getTransactions() etc. used to
@@ -547,6 +547,13 @@ function openEditModal(id) {
     `<option value="${a.id}" ${tx.transferAccountId === a.id ? 'selected' : ''}>${escHtml(a.name)}</option>`).join('')
 
   const showDest = tx.type === 'transfer' ? 'block' : 'none'
+  // Aggregate CC payment picker. The lump is type='expense' BY DESIGN (a real
+  // transfer wouldn't count in P&L), so it cannot be expressed through the
+  // transfer destination — it needs a field of its own, on the expense form.
+  const ccAccs = accs.filter(a => a.type === 'credit_card' && a.id !== tx.accountId)
+  const ccOptions = ccAccs.map(a =>
+    `<option value="${a.id}" ${tx.ccPaymentForAccountId === a.id ? 'selected' : ''}>${escHtml(a.name)}</option>`).join('')
+  const showCcLink = (ccAccs.length > 0 && tx.type === 'expense') ? 'block' : 'none'
   // V2 hero header: category tile · vendor + meta · big colored amount.
   const heroEl = document.getElementById('editModalHero')
   if (heroEl) {
@@ -576,6 +583,11 @@ function openEditModal(id) {
     <div class="modal-row"><label class="form-label">סכום (חיובי=הכנסה)</label><input id="editAmount" type="number" step="0.01" value="${tx.amount}"></div>
     <div class="modal-row"><label class="form-label">סוג</label><select id="editType" onchange="_onEditTypeChange()">${typeOptions}</select></div>
     <div class="modal-row" id="editDestRow" style="display:${showDest}"><label class="form-label">חשבון יעד (להעברה)</label><select id="editDestAccount"><option value="">—</option>${destAccOptions}</select></div>
+    ${ccAccs.length === 0 ? '' : `<div class="modal-row" id="editCcLinkRow" style="display:${showCcLink}">
+      <label class="form-label">תשלום מרוכז לכרטיס</label>
+      <select id="editCcLink"><option value="">— לא מקושר —</option>${ccOptions}</select>
+      <div style="font-size:.72rem;color:var(--text-muted);margin-top:.3rem">השורה נשארת הוצאה שנספרת, ונשמטת מרשימת העסקאות ומפירוט הקטגוריות כשלכרטיס יש פירוט עסקאות משלו — כדי שאותו כסף לא ייספר פעמיים.</div>
+    </div>`}
     <div class="modal-row"><label class="form-label">קטגוריה</label><select id="editCategory"><option value="">ללא קטגוריה</option>${catOptions}</select>${
       tx.categoryId && tx.categorySource ? `<div style="font-size:.72rem;color:var(--text-muted);margin-top:.3rem">מקור הסיווג: ${categorySourceLabel(tx.categorySource) || escHtml(tx.categorySource)}</div>` : ''
     }</div>
@@ -619,6 +631,8 @@ function _onEditTypeChange() {
   document.getElementById('editDestRow').style.display = tp === 'transfer' ? 'block' : 'none'
   const rr = document.getElementById('editRefundRow')
   if (rr) rr.style.display = tp === 'refund' ? 'block' : 'none'
+  const cc = document.getElementById('editCcLinkRow')
+  if (cc) cc.style.display = tp === 'expense' ? 'block' : 'none'
 }
 
 // ===== REFUND → EXPENSE LINK =====
@@ -699,6 +713,15 @@ function selectRefundExpense(txId) {
   _refreshRefundLinkRow()
   closeRefundPicker()
 }
+// The aggregate-CC link survives an edit: only an expense can carry it, and
+// only the picker changes it. `fallback` keeps the stored link when the form
+// didn't render the picker at all (no CC accounts defined).
+function _editCcLinkValue(newType, fallback) {
+  if (newType !== 'expense') return undefined
+  const el = document.getElementById('editCcLink')
+  if (!el) return fallback || undefined
+  return el.value || undefined
+}
 function closeEditModal() { document.getElementById('editModal').classList.remove('open'); _editId = null; _editIsNew = false }
 function saveEditModal() {
   if (!_editId) return
@@ -725,7 +748,7 @@ function saveEditModal() {
       categoryId: document.getElementById('editCategory').value,
       notes: document.getElementById('editNotes').value,
       transferAccountId: newType === 'transfer' ? destId : undefined,
-      ccPaymentForAccountId: undefined,
+      ccPaymentForAccountId: _editCcLinkValue(newType),
       createdAt: Date.now(),
     }
     if (fresh.categoryId) fresh.categorySource = 'manual'
@@ -759,7 +782,16 @@ function saveEditModal() {
       }
     } else {
       txs[idx].transferAccountId = undefined
-      txs[idx].ccPaymentForAccountId = undefined
+      // NOT cleared blindly any more. The CC lump is an expense by design, so
+      // the old unconditional reset here unlinked the row on any unrelated
+      // edit (a category change, a renamed payee) and the aggregate charge
+      // reappeared in the tx list. The picker owns the field for expenses.
+      const _ccPrev = txs[idx].ccPaymentForAccountId
+      const _ccNext = _editCcLinkValue(newType, _ccPrev)
+      // An explicit change through the picker is the user's decision: mark it
+      // so the auto-linker never silently overwrites it later.
+      if (_ccNext !== _ccPrev && document.getElementById('editCcLink')) txs[idx].ccLinkManual = true
+      txs[idx].ccPaymentForAccountId = _ccNext
     }
   }
   // Auto-propagate: if a category was set on a non-transfer transaction, apply
@@ -1393,6 +1425,25 @@ function migrateBillingMonthCycle_v2() {
   if (changed > 0) console.log(`Migration billing_month_cycle_v2: ${changed} cycles corrected`)
 }
 
+// Heals the rows this bug already left behind. Until now `autoLinkTransfersByPattern`
+// ran only inside `migrateTransferLinking_v2`, whose flag is set on first boot —
+// so every statement imported afterwards arrived unlinked and its card's
+// aggregate charge stayed in the tx list. This re-runs the linker once, with the
+// widened resolution ladder (patterns → learned identifiers → the card's own
+// name), so existing months are fixed without a re-import. New imports link
+// themselves (import.js), so this is genuinely one-off.
+//
+// Rows the user linked or unlinked by hand carry `ccLinkManual` and are skipped
+// by the linker — an explicit decision is never overwritten.
+function migrateRelinkCcLumps_v1() {
+  if (localStorage.getItem('migration_relink_cc_lumps_v1') === '1') return
+  if (typeof autoLinkTransfersByPattern !== 'function') return
+  if (typeof invalidateCcLumpDetectCache === 'function') invalidateCcLumpDetectCache()
+  const n = autoLinkTransfersByPattern()
+  localStorage.setItem('migration_relink_cc_lumps_v1', '1')
+  if (n > 0) console.log(`Migration relink_cc_lumps_v1: ${n} rows linked to their destination account`)
+}
+
 // ===== INIT =====
 document.addEventListener('DOMContentLoaded', () => {
   initDefaultData()
@@ -1415,6 +1466,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (typeof migrateManualGroupVendorKeys_v1 === 'function') migrateManualGroupVendorKeys_v1()
   if (typeof migrateCategoryIconsToSvg_v1 === 'function') migrateCategoryIconsToSvg_v1()
   if (typeof migrateRenamedCatIcons_v1 === 'function') migrateRenamedCatIcons_v1()
+  if (typeof migrateRelinkCcLumps_v1 === 'function') migrateRelinkCcLumps_v1()
   cleanupOrphanedStateKeys()
   window.addEventListener('hashchange', _onHashChange)
   const _initialScreen = location.hash.slice(1)

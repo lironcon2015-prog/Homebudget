@@ -102,8 +102,13 @@ function M_syncTypeChips() {
 }
 
 // Mobile redraw — replaces desktop _drawTxTable via the mobile guard.
+// Recomputed per draw, not per row: ccLumpNeedsLink needs the same detail set
+// the desktop chip uses.
+let _mCcDetailAccs = null
+
 function M_drawTxList() {
   const filtered = _getFiltered()
+  _mCcDetailAccs = (typeof ccAccountsWithDetail === 'function') ? ccAccountsWithDetail(getTransactions()) : null
   // Mirror-side rows flip sign when a single account is filtered — same
   // perspective as the desktop summary (_txViewAmount).
   const accountId = document.getElementById('txAccountFilter')?.value || ''
@@ -151,6 +156,9 @@ function M_txListRow(tx) {
   let badges = ''
   if (tx.installmentCurrent && tx.installmentTotal) badges += `<span class="m-badge">${uiIcon('card', 11)} ${tx.installmentCurrent}/${tx.installmentTotal}</span>`
   if (tx.standingOrder) badges += `<span class="m-badge" title="הוראת קבע">${uiIcon('pin', 11)}</span>`
+  if (typeof ccLumpNeedsLink === 'function' && ccLumpNeedsLink(tx, _mCcDetailAccs)) {
+    badges += `<span class="m-badge" title="נראית כתשלום מרוכז לכרטיס אשראי, אבל לא זוהה לאיזה כרטיס — ולכן היא מוצגת. פתח את העסקה כדי לקשר אותה.">${uiIcon('link', 11)} לא מקושר</span>`
+  }
   const cat = getCategoryById(tx.categoryId)
   const isNonCounted = tx.type === 'transfer'
   const cls = isNonCounted ? 'm-muted' : (tx.type === 'refund' && tx.amount > 0) ? 'ref' : (tx.amount > 0 ? 'pos' : 'neg')

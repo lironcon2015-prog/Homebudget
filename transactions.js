@@ -238,6 +238,9 @@ function _drawTxTable() {
   // When viewing a single account, flip sign for mirror-side rows so a
   // CC payment (bank -5,000) shows as +5,000 credit against the CC.
   const viewAmt = t => _txViewAmount(t, accountId)
+  // Same set the filter used — rows that look like a CC payment but couldn't be
+  // tied to a card are flagged rather than silently listed.
+  const _ccDetailAccs = ccAccountsWithDetail(getTransactions())
   const nonTransfer = filtered.filter(t => t.type !== 'transfer')
   const totalInc = nonTransfer.filter(t => viewAmt(t) > 0).reduce((s,t) => s + viewAmt(t), 0)
   const totalExp = nonTransfer.filter(t => viewAmt(t) < 0).reduce((s,t) => s + Math.abs(viewAmt(t)), 0)
@@ -377,6 +380,9 @@ function _drawTxTable() {
                 return `<span class="type-badge type-transfer" title="${title}" style="margin-inline-start:.3rem">${uiIcon('card', 12)} ${tx.installmentCurrent}/${tx.installmentTotal}</span>`
               })()
             : ''
+          const ccLinkBadge = (typeof ccLumpNeedsLink === 'function' && ccLumpNeedsLink(tx, _ccDetailAccs))
+            ? `<span class="type-badge type-expense" title="נראית כתשלום מרוכז לכרטיס אשראי, אבל לא זוהה לאיזה כרטיס — ולכן היא מוצגת. לחץ כדי לקשר אותה לכרטיס." style="margin-inline-start:.3rem;cursor:pointer" onclick="event.stopPropagation();openEditModal('${tx.id}')">${uiIcon('link', 11)} לא מקושר לכרטיס</span>`
+            : ''
           const standingOrderBadge = tx.standingOrder
             ? `<span class="type-badge type-income" title="הוראת קבע" style="margin-inline-start:.3rem">${uiIcon('pin', 12)} ה.ק.</span>`
             : ''
@@ -413,7 +419,7 @@ function _drawTxTable() {
               <div class="tx-vendor-cell" data-id="${tx.id}">
                 <div class="tx-avatar" style="background:${avatarBg}">${avatarIcon}</div>
                 <div>
-                  <div class="tx-vendor-name">${vendorName}${recurringFlagBadge}${installmentBadge}${standingOrderBadge}${groupBadge}</div>
+                  <div class="tx-vendor-name">${vendorName}${recurringFlagBadge}${installmentBadge}${standingOrderBadge}${groupBadge}${ccLinkBadge}</div>
                   ${catLabel}${descLine}${refundLine}
                   <div class="tx-meta-mobile">${formatDate(tx.date)} · ${typeBadge}</div>
                 </div>

@@ -145,6 +145,73 @@ test('shouldDropCcLump drops specific-pattern lump only when CC has detail', () 
   assert.equal(c.shouldDropCcLump(generic, new Set(['cc'])), false)
 })
 
+// The bug this suite exists for: a card that IS an account kept showing its
+// aggregate bank charge in the tx list, because the only route to a SPECIFIC
+// card was `paymentVendorPatterns` — a field nothing ever fills in by itself.
+test('a card is resolved by its learned identifiers, with no patterns set', () => {
+  const accs = [
+    { id: 'chk', name: 'עו"ש', type: 'checking' },
+    { id: 'cc', name: 'כרטיס', type: 'credit_card', identifiers: ['7519'] },
+  ]
+  const c = loadCore({ accounts: accs, categories: CATEGORIES })
+  const lump = { accountId: 'chk', amount: -2400, type: 'expense', vendor: 'מקס איט פיננסים 7519', description: '' }
+  assert.equal(c.ccLumpTargetForTx(lump), 'cc')
+  assert.equal(c.shouldDropCcLump(lump, new Set(['cc'])), true)
+  // A full PAN in the line still finds a card that only knows its last four.
+  const pan = { accountId: 'chk', amount: -2400, type: 'expense', vendor: 'חיוב כרטיס 4580123412347519', description: '' }
+  assert.equal(c.ccLumpTargetForTx(pan), 'cc')
+})
+
+test("a card is resolved by its own name when the line names the same brand", () => {
+  const accs = [
+    { id: 'chk', name: 'עו"ש', type: 'checking' },
+    { id: 'cc', name: 'ויזה כאל', type: 'credit_card' },
+  ]
+  const c = loadCore({ accounts: accs, categories: CATEGORIES })
+  const lump = { accountId: 'chk', amount: -3100, type: 'expense', vendor: 'כאל', description: '' }
+  assert.equal(c.ccLumpTargetForTx(lump), 'cc')
+  assert.equal(c.shouldDropCcLump(lump, new Set(['cc'])), true)
+})
+
+test('two candidate cards are never guessed between — the lump stays visible', () => {
+  const accs = [
+    { id: 'chk', name: 'עו"ש', type: 'checking' },
+    { id: 'cc1', name: 'ויזה כחולה', type: 'credit_card' },
+    { id: 'cc2', name: 'ויזה זהב', type: 'credit_card' },
+  ]
+  const c = loadCore({ accounts: accs, categories: CATEGORIES })
+  const lump = { accountId: 'chk', amount: -3100, type: 'expense', vendor: 'ויזה', description: '' }
+  assert.equal(c.ccLumpTargetForTx(lump), c._eval('_CC_LUMP_ANY'))
+  assert.equal(c.shouldDropCcLump(lump, new Set(['cc1', 'cc2'])), false)
+  // ...and the UI is told to say so instead of listing it with no explanation.
+  assert.equal(c.ccLumpNeedsLink(lump, new Set(['cc1'])), true)
+})
+
+test('ccLumpNeedsLink is silent once the row carries a link', () => {
+  const c = core()
+  const linked = { accountId: 'chk', amount: -3100, type: 'expense', vendor: 'ישראכרט', ccPaymentForAccountId: 'cc' }
+  assert.equal(c.ccLumpNeedsLink(linked, new Set(['cc'])), false)
+  // No card has itemized detail → nothing to double-count, nothing to flag.
+  const loose = { accountId: 'chk', amount: -3100, type: 'expense', vendor: 'ישראכרט' }
+  assert.equal(c.ccLumpNeedsLink(loose, new Set()), false)
+})
+
+test('autoLinkTransfersByPattern stores the link, and never overrides a manual one', () => {
+  const accs = [
+    { id: 'chk', name: 'עו"ש', type: 'checking' },
+    { id: 'cc', name: 'כרטיס', type: 'credit_card', identifiers: ['7519'] },
+  ]
+  const txs = [
+    { id: 't1', accountId: 'chk', amount: -2400, type: 'expense', vendor: 'מקס 7519', date: '2026-08-11' },
+    { id: 't2', accountId: 'chk', amount: -900, type: 'expense', vendor: 'מקס 7519', date: '2026-09-11', ccLinkManual: true },
+  ]
+  const c = loadCore({ accounts: accs, categories: CATEGORIES, transactions: txs })
+  assert.equal(c.autoLinkTransfersByPattern(), 1)
+  const [a, b] = c.getTransactions()
+  assert.equal(a.ccPaymentForAccountId, 'cc')
+  assert.equal(b.ccPaymentForAccountId, undefined)   // user said no
+})
+
 test('analysisExpenseAmount: transfers/savings rows excluded, refunds split off, CC detail included', () => {
   const c = core()
   const savIds = c.analysisExpenseSavingsInvestIds()

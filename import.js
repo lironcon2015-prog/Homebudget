@@ -969,6 +969,16 @@ function saveImport() {
 
   DB.set('finTransactions', [...existing, ...newTx])
 
+  // Link the rows we just wrote to their destination account (CC / savings /
+  // investment) NOW. The link is STORED on the row, not re-derived from the
+  // payee text on every render, so a month where the bank worded the line
+  // differently can't silently un-hide a card's aggregate charge. The cache is
+  // dropped first because this import may have just learned the card's
+  // identifiers (learnAccountIdentifier) — the detector must see them.
+  if (typeof invalidateCcLumpDetectCache === 'function') invalidateCcLumpDetectCache()
+  if (typeof invalidateAccountCache === 'function') invalidateAccountCache()
+  if (typeof autoLinkTransfersByPattern === 'function') autoLinkTransfersByPattern()
+
   if (typeof recordSourceDoc === 'function' && _importDoc?.contentHash) {
     const doc = recordSourceDoc({
       id: docId,

@@ -147,25 +147,79 @@ function sumCapitalIncome(txs) {
 //      (we know it's a CC payment but not which card).
 const _CC_LUMP_ANY = '__any_cc__'
 
+// A card's learned identifiers (source.js attaches them on every confirmed
+// import) as the forms that can appear in a bank payment line: the whole run
+// of digits, and its last four.
+function _ccIdentifierVariants(identifiers) {
+  const out = new Set()
+  for (const raw of identifiers || []) {
+    const d = String(raw || '').replace(/\D/g, '')
+    if (d.length < 4) continue
+    out.add(d)
+    out.add(d.slice(-4))
+  }
+  return out
+}
+
+// Digit runs printed on the bank line, in the same two forms.
+function _ccLineDigitRuns(text) {
+  const out = new Set()
+  for (const m of String(text || '').matchAll(/\d{4,}/g)) {
+    out.add(m[0])
+    out.add(m[0].slice(-4))
+  }
+  return out
+}
+
 let _ccLumpDetectCache = null
 let _ccLumpDetectCacheTs = 0
 function _getCcLumpDetect() {
   const now = Date.now()
   if (_ccLumpDetectCache && now - _ccLumpDetectCacheTs < 500) return _ccLumpDetectCache
   const ccAccs = getAccounts().filter(a => a.type === 'credit_card')
+  const hasCc = ccAccs.length > 0
+  const keywords = (hasCc && typeof CC_KEYWORDS !== 'undefined') ? CC_KEYWORDS.map(k => k.toLowerCase()) : []
   const ccAccPatterns = ccAccs.map(a => ({
     id: a.id,
     needles: (a.paymentVendorPatterns || [])
       .map(p => String(p || '').toLowerCase().trim())
       .filter(Boolean),
+    // Learned automatically on import — no user configuration involved.
+    idents: _ccIdentifierVariants(a.identifiers),
+    // Brand words the card's OWN name/institution already carries ("ויזה כאל").
+    brands: keywords.filter(k => ((a.name || '') + ' ' + (a.institution || '')).toLowerCase().includes(k)),
   }))
-  const hasCc = ccAccs.length > 0
-  const keywords = (hasCc && typeof CC_KEYWORDS !== 'undefined') ? CC_KEYWORDS.map(k => k.toLowerCase()) : []
   _ccLumpDetectCache = { hasCc, ccAccPatterns, keywords }
   _ccLumpDetectCacheTs = now
   return _ccLumpDetectCache
 }
 function invalidateCcLumpDetectCache() { _ccLumpDetectCache = null }
+
+// Resolve a bank payment line to a SPECIFIC card. Ladder, most explicit first:
+//   1. paymentVendorPatterns — the user said so.
+//   2. identifiers[] — the card's digits, learned on every import.
+//   3. the card's own name/institution brand word.
+// Tiers 2-3 require a UNIQUE candidate: two cards that both fit mean we don't
+// know which, and dropping the wrong lump hides real spending. Ambiguity falls
+// through to _CC_LUMP_ANY, which is kept. Returns an account id, _CC_LUMP_ANY,
+// or null.
+function ccResolveCardFromText(text, det) {
+  for (const acc of det.ccAccPatterns) {
+    if (acc.needles.some(n => text.includes(n))) return acc.id
+  }
+  const runs = _ccLineDigitRuns(text)
+  if (runs.size) {
+    const hits = det.ccAccPatterns.filter(a => {
+      for (const d of a.idents) if (runs.has(d)) return true
+      return false
+    })
+    if (hits.length === 1) return hits[0].id
+  }
+  const brandHits = det.ccAccPatterns.filter(a => a.brands.some(b => text.includes(b)))
+  if (brandHits.length === 1) return brandHits[0].id
+  if (det.keywords.some(k => text.includes(k))) return _CC_LUMP_ANY
+  return null
+}
 
 function ccLumpTargetForTx(t) {
   if (t.ccPaymentForAccountId) return t.ccPaymentForAccountId
@@ -177,11 +231,7 @@ function ccLumpTargetForTx(t) {
   if (info && info.type !== 'checking' && info.type !== 'cash') return null
   const text = ((t.vendor || '') + ' ' + (t.description || '')).toLowerCase()
   if (!text.trim()) return null
-  for (const acc of det.ccAccPatterns) {
-    if (acc.needles.some(n => text.includes(n))) return acc.id
-  }
-  if (det.keywords.some(k => text.includes(k))) return _CC_LUMP_ANY
-  return null
+  return ccResolveCardFromText(text, det)
 }
 
 // Set of CC account ids that have at least one of their own (itemized)
@@ -208,6 +258,18 @@ function shouldDropCcLump(t, ccAccsWithDetail) {
   // paymentVendorPatterns (e.g. its 4-digit number) so it matches specifically.
   if (target === _CC_LUMP_ANY) return false
   return ccAccsWithDetail.has(target)
+}
+
+// A row we can SEE is a credit-card payment but cannot tie to a specific card,
+// while at least one card in the set does carry itemized detail. Such a row is
+// deliberately KEPT (dropping a lump we can't attribute would hide real
+// spending) — but it is exactly the row that used to reappear with no
+// explanation, so the UI flags it and offers the one-click link instead of the
+// user having to guess why the same charge is listed twice.
+function ccLumpNeedsLink(t, ccAccsWithDetail) {
+  if (!ccAccsWithDetail || ccAccsWithDetail.size === 0) return false
+  if (t.ccPaymentForAccountId) return false
+  return ccLumpTargetForTx(t) === _CC_LUMP_ANY
 }
 
 // ===== ANALYSIS EXPENSE SCOPE =====
@@ -722,20 +784,40 @@ function findMatchingAccountByPattern(vendor, description) {
 // only adds a cross-reference for balance mirroring and for excluding the
 // row from the expense-by-category pie (where the details live on the other
 // side). Returns count of updates.
+//
+// This runs at the END OF EVERY IMPORT (import.js), not only inside the
+// one-shot migration that used to be its only caller. That was the bug: rows
+// imported after the migration had already run reached the tx list unlinked,
+// so a card's aggregate charge sat next to its own itemized rows — for exactly
+// the months that were imported later, which is how it looked intermittent.
 function autoLinkTransfersByPattern() {
   const txs = getTransactions()
   const accs = getAccounts()
   const srcAccIds = new Set(accs.filter(a => !PATTERN_MATCHABLE_TYPES.has(a.type)).map(a => a.id))
+  const det = _getCcLumpDetect()
   let changed = 0
   txs.forEach(t => {
     if (!srcAccIds.has(t.accountId)) return
     if (t.amount >= 0) return
     if (t.ccPaymentForAccountId || t.transferAccountId) return
+    if (t.ccLinkManual) return   // the user decided this row's link by hand
+    // Cards first, through the same ladder the lump detector uses — so a card
+    // identified by its learned digits or its own name links without the user
+    // ever typing a pattern. _CC_LUMP_ANY is not a card and is never stored.
+    const text = ((t.vendor || '') + ' ' + (t.description || '')).toLowerCase()
+    if (det.hasCc && text.trim()) {
+      const ccId = ccResolveCardFromText(text, det)
+      if (ccId && ccId !== _CC_LUMP_ANY) {
+        // Bank-level CC payment: keep as expense so it counts. Tag it so the
+        // category pie can exclude it (details live in the CC account).
+        t.ccPaymentForAccountId = ccId
+        changed++
+        return
+      }
+    }
     const match = findMatchingAccountByPattern(t.vendor, t.description)
     if (!match) return
     if (match.type === 'credit_card') {
-      // Bank-level CC payment: keep as expense so it counts. Tag it so the
-      // category pie can exclude it (details live in the CC account).
       t.ccPaymentForAccountId = match.id
     } else {
       // Savings / investment deposit: keep as expense on bank (shows up in

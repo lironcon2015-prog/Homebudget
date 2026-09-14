@@ -496,6 +496,7 @@ function saveAccount() {
   DB.set('finAccounts', accounts)
   invalidatePLCache()
   invalidateAccountCache()
+  if (typeof invalidateCcLumpDetectCache === 'function') invalidateCcLumpDetectCache()
   document.getElementById('accName').value = ''
   document.getElementById('accInstitution').value = ''
   document.getElementById('accBalance').value = '0'
@@ -540,6 +541,9 @@ async function editAccountIdentifiers(id) {
   acc.identifiers = cleaned
   DB.set('finAccounts', accs)
   if (typeof invalidateAccountCache === 'function') invalidateAccountCache()
+  // Identifiers are a tier of the CC-lump resolution ladder now, not just an
+  // import hint — the detector must be re-read.
+  if (typeof invalidateCcLumpDetectCache === 'function') invalidateCcLumpDetectCache()
   renderSettings()
   toast(cleaned.length ? `${cleaned.length} מזהים נשמרו` : 'המזהים נוקו', { type: 'success' })
 }
@@ -581,6 +585,8 @@ async function editAccountBasics(id) {
   DB.set('finAccounts', accs)
   invalidatePLCache()
   invalidateAccountCache()
+  // name/institution are a tier of the CC-lump resolution ladder.
+  if (typeof invalidateCcLumpDetectCache === 'function') invalidateCcLumpDetectCache()
   toast('החשבון עודכן', { type: 'success' })
   renderSettings()
 }

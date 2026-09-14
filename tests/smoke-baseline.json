@@ -4,7 +4,7 @@
   "hiddenSavings": 500,
   "balChk": 7480,
   "balSav": 500,
-  "balCc": -75,
+  "balCc": 825,
   "balChkUpto": 380,
   "flowSav": {
     "deposited": 500,
@@ -19,11 +19,11 @@
   "liquidTrend": [
     {
       "month": "2026-06",
-      "balance": -595
+      "balance": 305
     },
     {
       "month": "2026-07",
-      "balance": 7405
+      "balance": 8305
     }
   ]
 }
