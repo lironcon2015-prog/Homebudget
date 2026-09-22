@@ -17,3 +17,19 @@ jobs:
           node-version: 22
       - name: Run unit tests (node:test, zero deps)
         run: node --test tests/*.test.mjs
+
+  worker-bundle:
+    # invest/worker/quote-proxy.js is generated from worker/src + the shared
+    # quoteSources module, and is committed so it can be copied straight out of
+    # GitHub and pasted into Cloudflare. A committed build is a build that can
+    # go stale, and a stale one deploys yesterday's parsing while the app runs
+    # today's — silently, since nobody reads a bundle diff.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check the deployable worker matches its source
+        working-directory: invest
+        run: node tools/build-worker.js --check
