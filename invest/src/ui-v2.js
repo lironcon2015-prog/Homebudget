@@ -873,7 +873,7 @@ export class UIv2 {
           <div class="glass-card rounded-2xl">
             ${field('שער דולר/שקל', `<input id="set-fx" type="number" step="0.001" min="0" dir="ltr" value="${state.settings.lastFxRate}" class="${inputCls} font-data tnum" />`)}
             <div class="border-t border-white/5"></div>
-            ${field('כתובת Worker לשערים', `<input id="set-worker" type="url" dir="ltr" placeholder="https://…workers.dev" value="${escapeHtml(getWorkerUrl())}" class="${inputCls}" />`)}
+            ${field('כתובת Worker לשערים', `<input id="set-worker" type="url" dir="ltr" placeholder="ברירת מחדל: quotes.lironcon.com" value="${escapeHtml(getWorkerUrl())}" class="${inputCls}" />`)}
             <div class="border-t border-white/5"></div>
             ${field('בדיקת טיקר', `
               <div class="flex gap-2">
@@ -1167,14 +1167,19 @@ export class UIv2 {
     }
   }
 
-  // Without a Worker URL, proxyFetch silently falls back to public CORS
-  // proxies that are slow and frequently down — so a refresh that fetched
-  // nothing reads as "the app is broken" when the actual cause is a setting
-  // nobody was told about. Only shown when nothing came back at all; with even
-  // one success the proxy is plainly working and this would be noise.
+  // A refresh that fetched nothing reads as "the app is broken", and the cause
+  // is never visible from here — it is a worker that did not answer, a source
+  // that changed its markup, or a network blocking the request. The one place
+  // that can tell them apart is the ticker diagnostic, so point at it rather
+  // than guess. Only shown when nothing came back at all; with even one
+  // success the transport is plainly working and this would be noise.
+  //
+  // It used to blame an unset Worker URL. That stopped being the answer once
+  // the app carried built-in worker addresses: the field is empty on a healthy
+  // install too.
   _quoteFailureHint(okCount) {
-    if (okCount || getWorkerUrl()) return '';
-    return ' — לא מוגדרת כתובת Worker (הגדרות ← שערים), והפרוקסים הציבוריים לא ענו';
+    if (okCount) return '';
+    return ' — אף מקור לא ענה. הגדרות ← שערים ← "בדיקת טיקר" מראה איפה זה נתקע';
   }
 
   // ---- Transaction sheet --------------------------------------------------

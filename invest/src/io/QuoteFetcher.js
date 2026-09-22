@@ -1,3 +1,10 @@
+import {
+  RESOLVE_BUDGET_MS,
+  israeliCandidateUrls, extractIsraeliPrice, priceContextSnippet,
+  yahooChartUrl, parseYahooChart, yahooSearchUrl, parseYahooSearch,
+  resolveQuote,
+} from './quoteSources.js';
+
 const TIMEOUT_MS = 6000;
 // The user's own worker fetches the upstream page server-side, and the Israeli
 // scrape targets are slow to render. Six seconds was cutting off responses that
@@ -11,26 +18,61 @@ const MAX_PARALLEL = 5;
 const WORKER_URL_KEY = 'juniorinvest:quoteProxy';
 const SYMBOL_MAP_KEY = 'juniorinvest:symbolMap';
 
-// Exchange suffix worth guessing when a bare symbol isn't on Yahoo as-is.
-// This app's users hold TASE + US securities; Yahoo's own search covers the
-// rest, so guessing more suffixes only costs round-trips.
-const SUFFIX_GUESSES = ['.TA'];
+// Built-in worker addresses, tried in order when the user has not set one.
+// The custom domain comes first on purpose: `*.workers.dev` is blocked by some
+// mobile carriers, DNS filters and ad blockers — it is a heavily abused
+// hostname — and that failure is indistinguishable from a broken worker. The
+// workers.dev address stays as a second candidate so an install that predates
+// the domain keeps working without anyone touching a setting.
+const DEFAULT_WORKER_URLS = [
+  'https://quotes.lironcon.com',
+  'https://juniorinvest-quotes.lironcon.workers.dev',
+];
 
-// Discovering an unknown symbol costs several round-trips. Cap the whole
-// resolution chain for one ticker so a batch refresh can't outrun the UI's
-// 45s hard timeout. Once resolved, the symbol is cached and the next refresh
-// is a single call.
-const RESOLVE_BUDGET_MS = 20000;
-
-// Yahoo reports Tel Aviv prices in agorot under the ISO code "ILA".
-// Only codes we can represent exactly are mapped; anything else (GBp pence,
-// plain ILS, JPY…) is left undefined so the UI keeps its own inference rather
-// than silently introducing a 100x error.
-const CURRENCY_MAP = { ILA: 'ILS-Agorot', USD: 'USD', EUR: 'EUR', GBP: 'GBP' };
+// The batch endpoint's own budget. It prices every holding server-side in one
+// request, so it is allowed longer than a single proxied page — but it must
+// still land well inside the UI's hard timeout.
+const BATCH_TIMEOUT_MS = 25000;
 
 export function getWorkerUrl() {
   try { return (localStorage.getItem(WORKER_URL_KEY) || '').trim(); }
   catch { return ''; }
+}
+
+// Every worker address worth trying, best first. An explicit setting always
+// wins; the built-ins follow it rather than replacing it, so a user who
+// configured their own worker keeps it and a user who never configured one
+// does not have to.
+function workerCandidates() {
+  const set = getWorkerUrl();
+  return set ? [set, ...DEFAULT_WORKER_URLS.filter((u) => u !== set)] : [...DEFAULT_WORKER_URLS];
+}
+
+let workerPick = null;   // Promise<string> — resolved once per page load
+
+/**
+ * Which worker address actually answers.
+ *
+ * Trying the candidates in order costs the full worker timeout on EVERY lookup
+ * whenever the first one is the dead one, which is the exact failure this is
+ * here to end: one unreachable address ahead of a working one turned every
+ * refresh into a minute of waiting. So they race a liveness ping instead — a
+ * GET with no ?url=, which every deployed version refuses with an immediate
+ * 400 without touching any upstream. First to answer wins and is used for the
+ * rest of the session; if none answers we keep the first candidate, so the
+ * behaviour with no worker at all is unchanged.
+ */
+function activeWorker() {
+  if (!workerPick) {
+    const cands = workerCandidates();
+    workerPick = cands.length <= 1
+      ? Promise.resolve(cands[0] || '')
+      : Promise.any(cands.map(async (u) => {
+          await fetchWithTimeout(`${u}/?_=${Date.now()}`, PUBLIC_TIMEOUT_MS);
+          return u;
+        })).catch(() => cands[0]);
+  }
+  return workerPick;
 }
 
 export function setWorkerUrl(url) {
@@ -41,6 +83,7 @@ export function setWorkerUrl(url) {
     cleaned = cleaned.replace(/^[<"'\s]+/, '').replace(/[>"'\s]+$/, '').replace(/\/+$/, '');
     if (cleaned) localStorage.setItem(WORKER_URL_KEY, cleaned);
     else localStorage.removeItem(WORKER_URL_KEY);
+    workerPick = null;   // a new address deserves a fresh race
   } catch {}
 }
 
@@ -76,7 +119,7 @@ const strike = (id, weight = 1) => {
 };
 const absolve = (id) => proxyStrikes.delete(id);
 
-export function resetProxyHealth() { proxyStrikes.clear(); }
+export function resetProxyHealth() { proxyStrikes.clear(); workerPick = null; }
 
 /**
  * @param {string} targetUrl
@@ -91,7 +134,7 @@ export function resetProxyHealth() { proxyStrikes.clear(); }
  *        body) and the report was naming none of them.
  */
 export async function proxyFetch(targetUrl, { deadline, trace } = {}) {
-  const workerUrl = getWorkerUrl();
+  const workerUrl = await activeWorker();
   const attempts = [];
   if (workerUrl) {
     // Cache-bust so a stale Cloudflare edge response doesn't poison future calls.
@@ -230,8 +273,13 @@ export async function testWorker(testTicker = 'AAPL') {
     // Print the worker host, not just "configured". A typo in it fails exactly
     // like a blocked request, and the settings field truncates the URL — so the
     // one string that explains the failure was the one nowhere on screen.
-    const wUrl = getWorkerUrl();
-    lines.push(`  ${where()}, ${wUrl ? `Worker: ${wUrl}` : 'ללא Worker'}`);
+    // The worker actually in use, which is not always the configured one: an
+    // empty setting falls back to the built-in addresses, and a configured one
+    // that never answers loses the race to a built-in that does. Printing the
+    // setting instead of the winner made the report disagree with the request.
+    const wUrl = await activeWorker();
+    const setUrl = getWorkerUrl();
+    lines.push(`  ${where()}, ${wUrl ? `Worker: ${wUrl}${setUrl && setUrl !== wUrl ? ` (מוגדר: ${setUrl})` : ''}` : 'ללא Worker'}`);
     for (const a of trace) lines.push(`    · ${a.id}: ${a.outcome}${a.ms != null ? ` (${a.ms}ms)` : ''}`);
 
     const workerAttempt = trace.find((a) => a.id === 'worker');
@@ -270,7 +318,7 @@ export async function testWorker(testTicker = 'AAPL') {
       lines.push('  חיפוש Yahoo: אין התאמה לסימול הזה');
     }
 
-    const resolved = direct || await getForeignQuote(testTicker);
+    const resolved = direct || await getQuoteDetail(testTicker);
     const ms = Date.now() - t0;
     if (resolved) {
       const via = resolved.symbol !== testTicker.toUpperCase() ? ` (סימול בפועל: ${resolved.symbol})` : '';
@@ -323,88 +371,24 @@ function findExpectedContexts(html, expected) {
   return matches.length ? matches.slice(0, 3).join('\n') : `  (לא נמצא "${expected}" בשום וריאציה)`;
 }
 
-function extractIsraeliPrice(html) {
-  if (!html) return null;
-  // Only match keys/labels that explicitly mean "last/current" price.
-  // Excludes BasePrice/PaperValue/Open/etc. — those are previous-day or
-  // opening values and are a common false positive.
-  const patterns = [
-    // Bizportal (most reliable for tradedfund / ETF). Markup:
-    //   <div class="top-rate-line" ...><div class="num">5,844</div>...
-    /class="top-rate-line"[\s\S]{0,200}?class="num"[^>]*>\s*([\d.,]+)/i,
-    // Funder mutual-fund JSON (buyPrice == sellPrice == daily NAV).
-    /"buyPrice"\s*:\s*([\d.]+)/i,
-    /"sellPrice"\s*:\s*([\d.]+)/i,
-    // Funder explicit IDs (when present)
-    /id="fundLastRate"[^>]*>\s*([\d.,]+)/i,
-    /id="etfLastRate"[^>]*>\s*([\d.,]+)/i,
-    /class="[^"]*(?:fund|etf)[-_]?last[-_]?rate[^"]*"[^>]*>\s*([\d.,]+)/i,
-    /class="[^"]*last[-_]?(?:rate|price)[^"]*"[^>]*>\s*([\d.,]+)/i,
-    /data-last-(?:rate|price)\s*=\s*"([\d.,]+)"/i,
-    // Bizportal / Next.js JSON — last/current only
-    /"(?:lastRate|last_rate|LastRate|lastPrice|last_price|LastPrice|LastTradeRate|LastTradePrice|currentPrice|CurrentPrice)"\s*:\s*"?([\d.]+)"?/i,
-    // Hebrew "שער אחרון" / "שער נוכחי" near a number (and optional inner tag)
-    /שער\s+אחרון[^0-9-]{0,80}<[^>]+>\s*([\d.,]+)/i,
-    /שער\s+אחרון[^0-9-]{0,40}([0-9]{2,7}(?:[.,][0-9]{1,4})?)/i,
-    /שער\s+נוכחי[^0-9-]{0,80}<[^>]+>\s*([\d.,]+)/i,
-    /שער\s+נוכחי[^0-9-]{0,40}([0-9]{2,7}(?:[.,][0-9]{1,4})?)/i,
-  ];
-  for (const re of patterns) {
-    const m = html.match(re);
-    if (!m) continue;
-    const raw = parseFloat(m[1].replace(/,/g, ''));
-    // Numeric Israeli tickers are stored with currency ILS-Agorot, so
-    // the price is kept in agorot (e.g. 5844 = 58.44 NIS). Don't divide.
-    if (!isNaN(raw) && raw > 0) return raw;
-  }
-  return null;
-}
-
-// For diagnostics: surface the first plausible price-looking number with
-// ~60 chars of context on each side, so we can see what markup wraps it.
-function priceContextSnippet(html) {
-  if (!html) return '';
-  const re = /[\s>"=]([0-9]{2,6}\.[0-9]{1,4})[\s<",]/;
-  const m = html.match(re);
-  if (!m) return '';
-  const idx = html.indexOf(m[0]);
-  const start = Math.max(0, idx - 60);
-  const end = Math.min(html.length, idx + m[0].length + 60);
-  const snippet = html.slice(start, end).replace(/\s+/g, ' ').trim();
-  return ` | near "${snippet}"`;
-}
-
 // Fetch all Israeli candidate URLs in parallel and return per-URL results
-// (url, htmlLength, price). Order preserved.
+// (url, htmlLength, price). Order preserved. Used only by the diagnostic —
+// a real lookup goes through resolveQuote, which walks the same sources and
+// stops at the first price instead of collecting all five.
 async function fetchIsraeliCandidates(rawId) {
-  const padded = rawId.padStart(8, '0');
-  // Order matters: getQuote returns the first source whose HTML yields a
-  // price. Bizportal tradedfund is reliable for ETFs (top-rate-line
-  // markup); Funder /fund is reliable for mutual funds (buyPrice JSON).
-  // Trying Bizportal first prevents a Funder ETF's bid/ask spread (if
-  // it ever appears as buyPrice) from beating Bizportal's last price.
-  // These are all fund-and-ETF pages; an ordinary TASE share is on none of
-  // them (Bizportal files shares under a per-sector path we can't guess).
-  // Shares are covered by the Yahoo "<id>.TA" fallback in getIsraeliQuote.
-  const urls = [
-    'https://www.bizportal.co.il/tradedfund/quote/generalview/' + rawId,
-    'https://www.bizportal.co.il/mutualfund/quote/generalview/' + rawId,
-    'https://www.funder.co.il/fund/' + rawId,
-    'https://www.funder.co.il/etf/' + rawId,
-    'https://market.tase.co.il/he/market_data/security/' + padded + '/major_data',
-  ];
-  const tasks = urls.map(async (url) => {
+  return Promise.all(israeliCandidateUrls(rawId).map(async (url) => {
     try {
       const html = await proxyFetch(url);
       const price = extractIsraeliPrice(html);
-      const context = price == null ? priceContextSnippet(html) : '';
-      return { url, html: html || '', htmlLength: html?.length ?? 0, price, context };
+      return {
+        url, html: html || '', htmlLength: html?.length ?? 0, price,
+        context: price == null ? priceContextSnippet(html) : '',
+      };
     } catch (e) {
       console.warn('[fetchIsraeliCandidates] failed', url, e.message);
       return { url, html: '', htmlLength: 0, price: null, context: '' };
     }
-  });
-  return Promise.all(tasks);
+  }));
 }
 
 // ---------------------------------------------------------------------------
@@ -441,164 +425,42 @@ export function clearSymbolCache() {
   try { localStorage.removeItem(SYMBOL_MAP_KEY); } catch {}
 }
 
-// One Yahoo chart lookup. Returns { price, currency, symbol } or null.
-// Speculative candidates pass hosts=['query1'] — mirroring a guess across both
-// Yahoo hosts doubles the round-trips without improving the odds.
+// One Yahoo chart lookup, for the diagnostic's "direct" line.
 async function yahooChart(symbol, hosts = ['query1', 'query2'], deadline) {
   for (const host of hosts) {
     if (deadline && Date.now() > deadline) return null;
-    const url = `https://${host}.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}`;
     try {
-      const text = await proxyFetch(url, { deadline });
-      if (!text) continue;
-      const meta = JSON.parse(text)?.chart?.result?.[0]?.meta;
-      const price = meta?.regularMarketPrice;
-      if (typeof price === 'number' && price > 0) {
-        return { price, currency: CURRENCY_MAP[meta.currency], symbol: meta.symbol || symbol };
-      }
+      const hit = parseYahooChart(await proxyFetch(yahooChartUrl(host, symbol), { deadline }), symbol);
+      if (hit) return hit;
     } catch (e) { console.warn(`[QuoteFetcher] Yahoo chart failed ${symbol}:`, e.message); }
   }
   return null;
 }
 
-// Ask Yahoo's symbol lookup what "DLAS" actually is. Only candidates whose
-// base symbol (the part before the exchange suffix) equals the typed ticker
-// are accepted — a fuzzy *name* match must never end up pricing a different
-// security than the one the user holds.
+// Ask Yahoo's symbol lookup what "DLAS" actually is, for the diagnostic.
 async function yahooSearch(ticker, deadline) {
-  // Compare base symbol to base symbol. Taking the typed ticker whole meant a
-  // user who entered an already-qualified symbol could never match: searching
-  // "DLEKG.TA" returns the symbol DLEKG.TA, whose base is DLEKG, which is not
-  // equal to the string "DLEKG.TA" — so every candidate was filtered out and
-  // the security reported as missing from every source.
-  const base = ticker.toUpperCase().split('.')[0];
-  const url = 'https://query1.finance.yahoo.com/v1/finance/search'
-    + `?q=${encodeURIComponent(ticker)}&quotesCount=10&newsCount=0&listsCount=0`;
-  try {
-    const text = await proxyFetch(url, { deadline });
-    if (!text) return [];
-    const quotes = JSON.parse(text)?.quotes || [];
-    return quotes
-      .filter((q) => q?.symbol && String(q.symbol).toUpperCase().split('.')[0] === base)
-      .map((q) => ({
-        symbol: q.symbol,
-        name: q.shortname || q.longname || '',
-        exchange: q.exchDisp || q.exchange || '',
-      }));
-  } catch (e) {
-    console.warn(`[QuoteFetcher] Yahoo search failed ${ticker}:`, e.message);
-    return [];
-  }
+  try { return parseYahooSearch(await proxyFetch(yahooSearchUrl(ticker), { deadline }), ticker); }
+  catch (e) { console.warn(`[QuoteFetcher] Yahoo search failed ${ticker}:`, e.message); return []; }
 }
 
-// Stooq CSV — an independent free source that covers a number of listings
-// Yahoo is missing. Format: Symbol,Date,Time,Open,High,Low,Close,Volume
-async function stooqQuote(ticker, deadline) {
-  const base = ticker.toLowerCase();
-  for (const s of [`${base}.us`, base]) {
-    if (deadline && Date.now() > deadline) return null;
-    try {
-      const text = await proxyFetch(`https://stooq.com/q/l/?s=${encodeURIComponent(s)}&f=sd2t2ohlcv&h&e=csv`, { deadline });
-      if (!text) continue;
-      const row = text.trim().split('\n')[1];
-      if (!row) continue;
-      const close = parseFloat(row.split(',')[6]);
-      if (!isNaN(close) && close > 0) return { price: close, currency: undefined, symbol: s.toUpperCase() };
-    } catch (e) { console.warn(`[QuoteFetcher] Stooq failed ${s}:`, e.message); }
-  }
-  return null;
-}
-
-// Resolve + price a non-numeric ticker. Returns { price, currency, symbol,
-// source } or null.
-async function getForeignQuote(ticker) {
-  const seen = new Set([ticker.toUpperCase()]);
-  const known = [ticker];
-  const push = (s) => { const u = (s || '').toUpperCase(); if (u && !seen.has(u)) seen.add(u); };
-  const deadline = Date.now() + RESOLVE_BUDGET_MS;
-  const outOfTime = () => Date.now() > deadline;
-
-  // The literal spelling (and any symbol resolved on a previous run) is the
-  // common path, so it goes first. It still carries the deadline: exempting it
-  // was what let a single lookup run for over a minute — two hosts, each
-  // walking five proxies at six seconds apiece, with the budget only consulted
-  // once the phase was already over.
-  for (const sym of known) {
-    const hit = await yahooChart(sym, ['query1', 'query2'], deadline);
-    if (hit) return { ...hit, source: 'yahoo' };
-  }
-
-  // Nothing under the literal spelling — ask Yahoo which symbol this is.
-  if (!outOfTime()) {
-    const matches = await yahooSearch(ticker, deadline);
-    for (const m of matches) {
-      if (seen.has(m.symbol.toUpperCase()) || outOfTime()) continue;
-      push(m.symbol);
-      const hit = await yahooChart(m.symbol, ['query1'], deadline);
-      if (hit) {
-        console.log(`[QuoteFetcher] resolved ${ticker} -> ${hit.symbol} (${m.exchange} ${m.name})`);
-        return { ...hit, source: 'yahoo-search' };
-      }
-    }
-  }
-
-  // Search itself can come back empty behind a flaky proxy; guess the common
-  // exchange suffix directly before giving up on Yahoo. Skipped when the user
-  // already typed a qualified symbol — "DLEKG.TA" + ".TA" is not a ticker.
-  if (!ticker.includes('.')) {
-    for (const sfx of SUFFIX_GUESSES) {
-      const sym = ticker.toUpperCase() + sfx;
-      if (seen.has(sym) || outOfTime()) continue;
-      push(sym);
-      const hit = await yahooChart(sym, ['query1'], deadline);
-      if (hit) {
-        console.log(`[QuoteFetcher] resolved ${ticker} -> ${hit.symbol} by suffix guess`);
-        return { ...hit, source: 'yahoo-suffix' };
-      }
-    }
-  }
-
-  if (!outOfTime()) {
-    const stooq = await stooqQuote(ticker, deadline);
-    if (stooq) return { ...stooq, source: 'stooq' };
-  }
-
-  return null;
-}
-
-// Price a numeric TASE security id. Returns { price, currency, symbol,
-// source } or null.
-async function getIsraeliQuote(rawId) {
-  const results = await fetchIsraeliCandidates(rawId);
-  for (const { url, price } of results) {
-    if (price != null) return { price, currency: 'ILS-Agorot', symbol: rawId, source: url };
-  }
-  // Scraped pages can change markup or omit the security entirely; Yahoo
-  // carries many TASE listings under "<id>.TA" and answers with clean JSON.
-  const y = await yahooChart(`${rawId}.TA`, ['query1'], Date.now() + RESOLVE_BUDGET_MS);
-  if (y) return { price: y.price, currency: y.currency || 'ILS-Agorot', symbol: y.symbol, source: 'yahoo' };
-  return null;
-}
-
-// Full quote for one ticker: { price, currency, symbol, source } or null.
+// Full quote for one ticker, fetched through the proxy chain from this
+// device: { price, currency, symbol, source } or null. This is the fallback
+// path — a refresh asks the worker's batch endpoint first (see fetchQuotes)
+// and only lands here for tickers it did not answer for.
 export async function getQuoteDetail(ticker) {
-  // A previously discovered symbol stands in for the typed ticker, and may
-  // route it to a different source family than the raw ticker would (a bare
-  // ticker resolving to a numeric TASE id, say). Routing therefore happens on
-  // the resolved symbol, not on what the user typed.
   const cached = getResolvedSymbol(ticker);
-  const lookup = cached || ticker;
-  const rawId = lookup.replace(/\.TA$/i, '');
-  // Strip .TA before testing so "1150184.TA" routes to the Israeli sources too.
-  const isNumericIsraeli = /^\d{6,7}$/.test(rawId);
-
-  const hit = isNumericIsraeli ? await getIsraeliQuote(rawId) : await getForeignQuote(lookup);
+  const hit = await resolveQuote(ticker, {
+    fetchText: (url) => proxyFetch(url),
+    deadline: Date.now() + RESOLVE_BUDGET_MS,
+    resolvedSymbol: cached,
+    log: (m) => console.log('[QuoteFetcher]', m),
+  });
 
   if (hit) {
     if (!cached) rememberSymbol(ticker, hit.symbol);
     console.log(`[QuoteFetcher] OK: ${ticker} = ${hit.price} via ${hit.source} (${hit.symbol})`);
   } else {
-    console.warn(`[QuoteFetcher] no price found for ${ticker} (lookup: ${lookup})`);
+    console.warn(`[QuoteFetcher] no price found for ${ticker} (lookup: ${cached || ticker})`);
   }
   return hit;
 }
@@ -622,18 +484,72 @@ async function runWithConcurrency(items, limit, worker) {
   return results;
 }
 
-// Batch wrapper used by the UI. Runs in parallel with a concurrency cap so the
-// spinner can never hang for the sequential sum of all per-ticker timeouts.
-// Returns { [ticker]: { price, currency, symbol, source } } for the tickers
-// that resolved; missing keys mean no source had a price.
+// Whether this session's worker knows /quotes. A deployment older than that
+// endpoint does not, and asking it again on every refresh is a wasted
+// round-trip per refresh.
+let batchSupported = null;
+
+/**
+ * Ask the worker to price the whole list in one request.
+ *
+ * This is the path that makes a refresh reliable. The scraping, the fallbacks
+ * and the retries all happen inside Cloudflare — fast, predictable egress —
+ * instead of across a phone's cellular connection, and the worker's cache
+ * means one upstream fetch serves every device and every reload. What reaches
+ * the client is one request with one failure mode, in place of five candidate
+ * URLs per holding each walking up to five proxies.
+ *
+ * Returns the tickers it answered for; anything missing falls through to the
+ * per-ticker path. A worker that does not know the endpoint answers the old
+ * `missing ?url=` 400, which is how we detect it — and then stop asking.
+ */
+async function fetchQuotesBatch(tickers) {
+  const base = await activeWorker();
+  if (!base || batchSupported === false || !tickers.length) return null;
+  try {
+    const res = await fetchWithTimeout(
+      `${base}/quotes?ids=${encodeURIComponent(tickers.join(','))}&_=${Date.now()}`,
+      BATCH_TIMEOUT_MS,
+    );
+    if (res.status === 400 || res.status === 404) {
+      console.warn('[QuoteFetcher] worker has no /quotes endpoint — using the per-ticker path');
+      batchSupported = false;
+      return null;
+    }
+    if (!res.ok) return null;
+    const data = await res.json();
+    const quotes = data?.quotes;
+    if (!quotes || typeof quotes !== 'object') return null;
+    batchSupported = true;
+    return quotes;
+  } catch (e) {
+    console.warn('[QuoteFetcher] batch endpoint failed:', e.message);
+    return null;
+  }
+}
+
+// Batch wrapper used by the UI. The worker prices what it can in one request;
+// whatever it did not answer for is fetched from here, in parallel with a
+// concurrency cap so the spinner can never hang for the sequential sum of all
+// per-ticker timeouts. Returns { [ticker]: { price, currency, symbol, source } }
+// for the tickers that resolved; missing keys mean no source had a price.
 export async function fetchQuotes(tickers, { onProgress } = {}) {
   const results = {};
   let done = 0;
-  await runWithConcurrency(tickers, MAX_PARALLEL, async (ticker) => {
+  const report = (ticker, ok) => { done++; onProgress?.({ done, total: tickers.length, ticker, ok }); };
+
+  const batch = await fetchQuotesBatch(tickers);
+  const remaining = [];
+  for (const ticker of tickers) {
+    const hit = batch?.[ticker];
+    if (hit && typeof hit.price === 'number' && hit.price > 0) { results[ticker] = hit; report(ticker, true); }
+    else remaining.push(ticker);
+  }
+
+  await runWithConcurrency(remaining, MAX_PARALLEL, async (ticker) => {
     const hit = await getQuoteDetail(ticker);
     if (hit) results[ticker] = hit;
-    done++;
-    if (onProgress) onProgress({ done, total: tickers.length, ticker, ok: !!hit });
+    report(ticker, !!hit);
   });
   return results;
 }
