@@ -146,20 +146,31 @@ export async function proxyFetch(targetUrl, { deadline, trace } = {}) {
   return null;
 }
 
-// Did the worker answer at all? A no-cors request is exempt from the header
-// checks that reject the normal one, so it resolves — opaquely, unreadably —
-// whenever the server responded with anything. Used only by the diagnostic:
-// it costs an extra request and tells us nothing a successful lookup needs.
-async function workerReachable(workerUrl) {
+// Did the worker answer at all? Two different failures hide behind one
+// "timeout": a worker that is not deployed (or that this network cannot
+// reach) and a worker that IS running but is stuck waiting on a quote source
+// that accepted the connection and never answered. They have opposite fixes,
+// so the probe asks the worker something it can answer without touching any
+// upstream — a request with no ?url=, which every deployed version of
+// quote-proxy.js refuses with an immediate 400.
+//
+// The no-cors retry covers the third case: a cors fetch throws the same
+// TypeError whether nothing answered or something answered without the headers
+// that let us read it. An opaque response proves the server did answer — which
+// is what a Cloudflare error page looks like from here.
+//
+// Used only by the diagnostic: it costs an extra request and tells a
+// successful lookup nothing.
+async function workerLiveness(workerUrl) {
   if (!workerUrl) return 'unknown';
+  const ping = () => `${workerUrl}/?_=${Date.now()}`;
   try {
-    await fetchWithTimeout(`${workerUrl}/?url=${encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/AAPL')}&_=${Date.now()}`, PUBLIC_TIMEOUT_MS);
-    return 'unknown';   // a readable response means it was never really failing
-  } catch {
-    try {
-      await fetch(`${workerUrl}/?url=${encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/AAPL')}&_=${Date.now()}`, { mode: 'no-cors' });
-      return 'opaque';
-    } catch { return 'unreachable'; }
+    await fetchWithTimeout(ping(), PUBLIC_TIMEOUT_MS);
+    return 'alive';   // any readable status, 400 included, means it ran
+  } catch (e) {
+    if (e?.name === 'AbortError') return 'dead';
+    try { await fetch(ping(), { mode: 'no-cors' }); return 'opaque'; }
+    catch { return 'dead'; }
   }
 }
 
@@ -225,19 +236,19 @@ export async function testWorker(testTicker = 'AAPL') {
 
     const workerAttempt = trace.find((a) => a.id === 'worker');
     const reachedNetwork = trace.some((a) => /HTTP|timeout|ok,|גוף ריק/.test(a.outcome));
-    if (workerAttempt && /נחסם/.test(workerAttempt.outcome)) {
-      // A cors fetch reports the same TypeError whether nothing answered or
-      // something answered without the headers that let us read it — a wrong
-      // host, a blocked request and a worker returning an error page are
-      // indistinguishable from here. A no-cors retry separates them: an opaque
-      // response means the server DID answer, so the address and the network
-      // are fine and the problem is the response's CORS headers.
-      const reach = await workerReachable(wUrl);
+    // A timeout is diagnosed the same way as a blocked request, and for the
+    // same reason: on its own it names no cause. It is also the failure that
+    // costs the most — the worker holds the whole budget before anything else
+    // is tried — so leaving it unexplained was leaving the common case unexplained.
+    if (workerAttempt && /נחסם|timeout/.test(workerAttempt.outcome)) {
+      const reach = await workerLiveness(wUrl);
       lines.push(
-        reach === 'opaque'
+        reach === 'alive'
+          ? '    ⚠ ה-Worker עצמו עונה מיד לבקשת בדיקה — מה שנתקע הוא מקור השערים שהוא פונה אליו. גרסה עדכנית של worker/quote-proxy.js מחזירה 504 עם שם המקור במקום להיתקע; פרוס אותה מחדש כדי לראות במי מדובר.'
+        : reach === 'opaque'
           ? '    ⚠ ה-Worker כן עונה, אבל התשובה נדחית ע"י הדפדפן — כותרות CORS חסרות. סימן מובהק לשגיאה בתוך ה-Worker (דף שגיאה של Cloudflare לא נושא אותן).'
-        : reach === 'unreachable'
-          ? '    ⚠ ה-Worker לא עונה בכלל — הכתובת, ה-DNS או חסימה מקומית'
+        : reach === 'dead'
+          ? '    ⚠ ה-Worker לא עונה בכלל, גם לבקשת בדיקה ריקה שאינה נוגעת בשום מקור — כתובת שגויה, Worker שאינו פרוס, או חסימה של ‎*.workers.dev‎ ברשת הזו. בדוק את אותו מסך ברשת אחרת (סלולר מול Wi-Fi).'
           : reachedNetwork
             ? '    ⚠ רק ה-Worker נכשל, בעוד מקורות אחרים הגיעו לרשת'
             : '    ⚠ אף בקשה לא יצאה — חוסם פרסומות/הרחבה או הגנת מעקב',
