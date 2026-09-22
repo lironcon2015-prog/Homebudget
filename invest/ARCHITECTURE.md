@@ -25,6 +25,8 @@ A Vanilla JS Single Page Application that tracks a multi-kid stock portfolio hel
 | ledger | `FifoEngine.js` | `consumeFifo(lots, ticker, sharesSold)` — depletes per-kid shares from oldest lots, returns `consumedByKid`. |
 | ledger | `DividendEngine.js` | `distributeDividend(lots, ticker, netIlsTotal)` — per-share rate × kid shares; parent slice discarded. |
 | ledger | `GemelEngine.js` | `deriveGemel(state, todayKey)` — קופת גמל balances from a standing order + a statement anchor, revalued forward with published monthly returns. |
+| io | `quoteSources.js` | Where a price comes from and how to read it. Pure, transport-agnostic; the browser and the Cloudflare worker both run this file. |
+| io | `QuoteFetcher.js` | The browser side: worker selection, the CORS proxy chain, the symbol map, the ticker diagnostic. |
 | io | `GemelFetcher.js` | Pulls monthly track returns from the גמל-נט CKAN dataset on data.gov.il. Discovers the column names instead of hard-coding them. |
 | ledger | `LedgerEngine.js` | Pure reducer `deriveState(state, today)` → derived snapshot. |
 | state | `LocalStoragePersistence.js` | JSON round-trip into `localStorage`. |
@@ -193,6 +195,47 @@ changes, so amounts locked in under the previous split stay put.
 Funds fold into `deriveState` before the profit maths: deposits into
 `principalByKid`, balance into `portfolioValueByKid`, gain into the
 **unrealized** bucket (nothing is sold), and deposit flows into each kid's XIRR.
+
+---
+
+## Quotes
+
+Prices are fetched by the **worker**, not by the browser. `GET /quotes?ids=…`
+returns a normalised map for the whole portfolio in one request; the scraping,
+the fallbacks and the retries all happen inside Cloudflare. `QuoteFetcher.js`
+keeps the old per-ticker path and uses it only for what the batch did not
+answer.
+
+Why it is shaped this way — every line of it is a failure that happened:
+
+- **The client's network was the weakest link.** A refresh used to make five
+  candidate requests per Israeli holding, each free to walk up to five CORS
+  proxies. From a phone on cellular that is dozens of requests, and any one of
+  them stalling stalled the refresh. Now it is one request.
+- **Two workers are tried, and they race.** `DEFAULT_WORKER_URLS` holds the
+  custom domain first and the `*.workers.dev` address second, because
+  `workers.dev` is blocked by some carriers, DNS filters and ad blockers — and
+  that failure is indistinguishable from a broken worker. Trying them in order
+  would cost the full worker timeout on every lookup whenever the first one is
+  the dead one, so they race a liveness ping (`GET /` with no `?url=`, refused
+  with an immediate 400 that touches no upstream) and the winner is used for
+  the session.
+- **The cache serves stale on purpose.** Entries are written with a 24h max-age
+  and freshness is judged from their own `asOf` (15 min). When every source
+  refuses, the worker returns this morning's price flagged `stale:true`.
+  Letting the cache expire the entry would throw away exactly the copy that is
+  wanted when the upstream is down.
+- **The subrequest budget is counted.** A worker request may make 50
+  subrequests on the free plan and one uncached Israeli id costs up to six, so
+  ids that do not fit are left out of the answer rather than failing the batch.
+  The client fetches those itself and the next refresh finds them cached.
+- **The worker is generated, not written twice.** `worker/src/quote-proxy.js`
+  imports `quoteSources.js`; `tools/build-worker.js` bundles them into the
+  paste-ready `worker/quote-proxy.js`, which is committed so it can be copied
+  out of GitHub. CI fails if the committed bundle does not match its source.
+  Deploying is a manual paste into the Cloudflare dashboard — no workflow in
+  this repo touches Cloudflare, so a change here is not live until someone
+  pastes it.
 
 ---
 

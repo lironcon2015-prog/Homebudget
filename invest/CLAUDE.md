@@ -88,7 +88,28 @@ A multi-kid stock portfolio tracker: parent buys shares in one brokerage account
 - `proratePreservingTotal` (largest-remainder) is used everywhere money/shares are split across kids to avoid rounding leakage.
 - SELL is kids-only (parent shares are never sold via this app).
 - No WITHDRAW in v1.
-- Quote source: manual `quotes` map; optional API refresh later.
+- Quote source: manual `quotes` map, refreshed from the Cloudflare worker — see
+  "Quotes" in `ARCHITECTURE.md`.
+
+### The quote worker is generated, and deployed by hand
+
+`worker/quote-proxy.js` is a **build artifact** of `worker/src/quote-proxy.js` +
+`src/io/quoteSources.js`. Edit the sources and run `npm run build:worker`; CI
+(`tests.yml`) fails when the committed bundle does not match. The bundle is
+committed on purpose — it exists to be copied out of GitHub and pasted into the
+Cloudflare dashboard.
+
+**Nothing in this repo deploys it.** No workflow touches Cloudflare and there is
+no `wrangler.toml`. A change to the worker is not live until a human pastes it,
+which is why the client tolerates an old deployment: `/quotes` answering the
+legacy `missing ?url=` 400 is how it detects one and falls back to the
+per-ticker path.
+
+`quoteSources.js` is the one copy of the source-and-parsing logic and runs in
+both the browser and the worker. Do not add a second copy to either side — they
+drift in the way that makes a price *wrong* rather than missing, and no diff
+review catches that. Its tests are `tests/quoteSources.test.mjs` in the repo
+root, where CI runs them.
 - Persistence: `LocalStoragePersistence`, key `juniorinvest:v1`.
 
 ## Hosting — shared origin with the budget app
