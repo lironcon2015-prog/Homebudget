@@ -28,6 +28,17 @@ const ALLOWED_HOSTS = new Set([
   'gemel.funder.co.il',
 ]);
 
+// Cap the upstream fetch well inside the client's own budget. Without it a
+// quote source that accepts the connection and then never answers holds this
+// worker open until the browser gives up, and the client reports "the worker
+// timed out" — which reads as a broken worker and sends the search to the
+// wrong place entirely. A 504 that names the host says what actually happened.
+const UPSTREAM_TIMEOUT_MS = 8000;
+
+// Note for the client's diagnostic: a GET with no ?url= is answered below with
+// an immediate 400. That makes it a liveness probe that touches no upstream —
+// the one question that separates "this worker is not running" from "this
+// worker is waiting on a source that never answers".
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
@@ -63,6 +74,7 @@ export default {
     try {
       const upstream = await fetch(target, {
         cf: { cacheTtl: 60, cacheEverything: true },
+        signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
         headers: {
           'User-Agent': 'Mozilla/5.0 (compatible; KidsPortfolioBot/1.0)',
           'Accept': 'application/json, text/html, */*',
@@ -80,10 +92,12 @@ export default {
         },
       });
     } catch (e) {
-      return new Response('upstream error: ' + e.message, {
-        status: 502,
-        headers: { ...CORS_HEADERS, 'Cache-Control': 'no-store' },
-      });
+      const timedOut = e?.name === 'TimeoutError' || e?.name === 'AbortError';
+      return new Response(
+        `upstream ${timedOut ? 'timeout' : 'error'} (${parsed.hostname}): ${e.message}`, {
+          status: timedOut ? 504 : 502,
+          headers: { ...CORS_HEADERS, 'Cache-Control': 'no-store' },
+        });
     }
   },
 };
