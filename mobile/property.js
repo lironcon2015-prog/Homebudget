@@ -20,7 +20,7 @@ function M_renderProperty() {
   host.innerHTML = `
     ${M_topbar('משכנתא ונכס')}
     ${_propSummaryCards(t)}
-    ${M_sectionHead('תשלומים (מהקבלן/יזם)', `<button class="m-iconbtn" onclick="addPropertyPayment()" aria-label="הוסף תשלום">＋</button>`)}
+    ${M_sectionHead('תשלומים', `<button class="m-iconbtn" onclick="addPropertyPayment()" aria-label="הוסף תשלום">＋</button>`)}
     <div id="mPropPays">${
       t.pays.length === 0
         ? '<p class="m-empty-line">אין תשלומים. הוסף עם ＋</p>'

@@ -316,11 +316,31 @@ function _propSplitCell(eq, mo, track, mismatchGap) {
     ${mismatchGap ? `<div class="prop-warn-sub">${uiIcon('alert', 12)} הון+משכנתא ≠ שולם (${mismatchGap > 0 ? 'חסר' : 'עודף'} ${Math.abs(mismatchGap).toLocaleString('en-US')})</div>` : ''}`
 }
 
+// Folded by default: the payment schedule is long and mostly history. Folded
+// it still answers the two questions people open the screen with — what's due
+// next and where the totals stand — under the same column headers.
+let _propPaysOpen = false
+function propTogglePaysCard() { _propPaysOpen = !_propPaysOpen; renderProperty() }
+
+let _propExtraOpen = false
+function propToggleExtraCard() { _propExtraOpen = !_propExtraOpen; renderProperty() }
+
+function _propFoldTitle(open, label, onclick) {
+  return `<button class="propdoc-fold" onclick="${onclick}" aria-expanded="${open}" title="${open ? 'כווץ' : 'הרחב'}">
+          <span class="propdoc-chev${open ? ' open' : ''}">›</span>
+          <span>${label}</span>
+        </button>`
+}
+
 function _propPaymentsTable(t) {
   const sorted = t.pays.slice().sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''))
   const rows = sorted.length === 0
     ? `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:2rem">אין תשלומים. הוסף שורה ↑</td></tr>`
-    : sorted.map(_propRow).join('')
+    : !_propPaysOpen
+      ? (t.nextPayment
+          ? _propRow(t.nextPayment)
+          : `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:1rem">אין תשלום פתוח</td></tr>`)
+      : sorted.map(_propRow).join('')
 
   const totalsRow = `
     <tr class="prop-totals-row">
@@ -334,7 +354,7 @@ function _propPaymentsTable(t) {
   return `
     <div class="card">
       <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
-        <span>טבלת תשלומים (מהקבלן/יזם)</span>
+        ${_propFoldTitle(_propPaysOpen, 'טבלת תשלומים', 'propTogglePaysCard()')}
         <button class="btn-primary" onclick="addPropertyPayment()" style="padding:.4rem .9rem;font-size:.85rem">+ הוסף שורה</button>
       </div>
       <table class="data-table prop-rtable">
@@ -351,6 +371,7 @@ function _propPaymentsTable(t) {
           ${totalsRow}
         </tbody>
       </table>
+      ${!_propPaysOpen && sorted.length > 1 ? `<div style="font-size:.75rem;color:var(--text-muted);margin-top:.4rem">מוצג התשלום הבא בלבד — <a style="cursor:pointer;text-decoration:underline" onclick="propTogglePaysCard()">הצג את כל ${sorted.length} התשלומים</a></div>` : ''}
       <div style="font-size:.75rem;color:var(--text-muted);margin-top:.6rem">
         לחץ על שורה לעריכה. בהזנת "שולם בפועל" + "הון עצמי" — חלק המשכנתא מחושב אוטומטית.
       </div>
@@ -621,13 +642,13 @@ function _propExtraCostsCard(p, cats) {
   return `
     <div class="card">
       <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap">
-        <span>הוצאות נוספות לדירה</span>
-        <select class="form-input" style="width:auto;font-size:.85rem;padding:.35rem .6rem" onchange="propAddExtraCat(this.value)">${addOpts}</select>
+        ${_propFoldTitle(_propExtraOpen, 'הוצאות נוספות לדירה' + (rows.length && !_propExtraOpen ? ` <span class="prop-type-sub">· 12 חודשים ${formatCurrency(sumYear)}</span>` : ''), 'propToggleExtraCard()')}
+        ${!_propExtraOpen ? '' : `<select class="form-input" style="width:auto;font-size:.85rem;padding:.35rem .6rem" onchange="propAddExtraCat(this.value)">${addOpts}</select>`}
       </div>
-      ${body}
+      ${!_propExtraOpen ? '' : `${body}
       <div style="font-size:.75rem;color:var(--text-muted);margin-top:.6rem">
         מחושב מכל העסקאות בקטגוריות שנבחרו. לא כולל את המשכנתא ואת תשלומי הרכישה.
-      </div>
+      </div>`}
     </div>`
 }
 
@@ -723,22 +744,6 @@ function closeMortgagePaidModal() {
 function _renderMortgagePaidModal() {
   const p = getProperty()
   const mort = _mortgagePaid(p.mortgageCategoryId)
-  // Group by month for the by-month summary the user asked for.
-  const byMonth = {}
-  for (const x of mort.list) {
-    const ym = (x.date || '').slice(0, 7)
-    if (!ym) continue
-    byMonth[ym] = (byMonth[ym] || 0) + (Number(x.amount) || 0)
-  }
-  const monthsSorted = Object.entries(byMonth).sort((a, b) => b[0].localeCompare(a[0]))
-
-  const monthRows = monthsSorted.length === 0
-    ? `<tr><td colspan="2" style="text-align:center;color:var(--text-muted);padding:1.25rem">אין תשלומים</td></tr>`
-    : monthsSorted.map(([ym, sum]) => {
-        const [y, m] = ym.split('-')
-        return `<tr><td>${m}/${y}</td><td class="prop-mort-amt">${formatCurrency(sum)}</td></tr>`
-      }).join('')
-
   const detailRows = mort.list.length === 0
     ? `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:1.25rem">אין תשלומים</td></tr>`
     : mort.list.map(x => {
@@ -787,22 +792,11 @@ function _renderMortgagePaidModal() {
       </div>
     </div>
 
-    <div style="display:grid;grid-template-columns: 1fr 2fr;gap:1.25rem">
-      <div>
-        <h4 style="margin:0 0 .5rem">סיכום חודשי</h4>
-        <table class="data-table prop-mort-table">
-          <thead><tr><th>חודש</th><th class="prop-mort-amt">סכום</th></tr></thead>
-          <tbody>${monthRows}</tbody>
-        </table>
-      </div>
-      <div>
-        <h4 style="margin:0 0 .5rem">פירוט תשלומים</h4>
-        <table class="data-table prop-mort-table">
-          <thead><tr><th>תאריך</th><th>מקור</th><th>פירוט</th><th class="prop-mort-amt">סכום</th><th class="prop-mort-act"></th></tr></thead>
-          <tbody>${detailRows}</tbody>
-        </table>
-      </div>
-    </div>`
+    <h4 style="margin:0 0 .5rem">פירוט תשלומים</h4>
+    <table class="data-table prop-mort-table">
+      <thead><tr><th>תאריך</th><th>מקור</th><th>פירוט</th><th class="prop-mort-amt">סכום</th><th class="prop-mort-act"></th></tr></thead>
+      <tbody>${detailRows}</tbody>
+    </table>`
 }
 
 function addManualMortgage() {
