@@ -208,7 +208,7 @@ const _DRIVE_BACKUP_KEYS = new Set([
   'finTransactions','finAccounts','finCategories','finBudgets','finCategoryRules',
   'finImportTemplates','finVendorAliases','finManualRecurringGroups','finRecurringHidden',
   'finRecurringIgnoreOutliers','finRecurringAmountOverride','finRecurringCadenceOverride',
-  'finHiddenTopVendors','finProperty','finPropertyPayments','finPropertyManualMortgage','finPropertyDocs','finPropertyDocCats','finGmailDocSeen','finFeedback',
+  'finHiddenTopVendors','finProperty','finPropertyPayments','finPropertyManualMortgage','finPropertyDocs','finPropertyDocCats','finGmailDocSeen','finGmailDocDeleted','finFeedback',
   'finDismissedAnomalies',
 ])
 let _driveDebounceTimer = null

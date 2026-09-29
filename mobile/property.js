@@ -27,6 +27,7 @@ function M_renderProperty() {
         : t.pays.slice().sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || '')).map(M_propPayCard).join('')
     }</div>
     ${_propMortgageCard(t, mort, mortgageRemaining, monthsLeft, p)}
+    ${_propExtraCostsCard(p, cats)}
     ${_propSetupCard(p, cats)}
     ${_propDocsCard()}
   `

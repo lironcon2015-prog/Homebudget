@@ -143,6 +143,7 @@ function renderProperty() {
     ${_propSummaryCards(t)}
     ${_propPaymentsTable(t)}
     ${_propMortgageCard(t, mort, mortgageRemaining, monthsLeft, p)}
+    ${_propExtraCostsCard(p, cats)}
     ${_propSetupCard(p, cats)}
     ${_propDocsCard()}
   `
@@ -556,12 +557,107 @@ function _propMortgageCard(t, mort, mortgageRemaining, monthsLeft, p) {
     </div>`
 }
 
+// ===== OTHER PROPERTY EXPENSES =====
+// Running costs of the apartment beyond the mortgage (ועד בית, ארנונה, ביטוח
+// מבנה…). The user already classifies them as expense categories; this card
+// only chooses which ones belong to the property and totals them — same raw
+// category read as the mortgage card, so both cards count the same way.
+function _propExtraExpenses(catIds) {
+  const ids = new Set(catIds || [])
+  if (!ids.size) return []
+  const today = _iso(new Date())
+  const now = new Date()
+  const yearAgo = _iso(new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()))
+  const by = {}
+  ids.forEach(id => { by[id] = { catId: id, total: 0, year: 0, count: 0, last: '' } })
+  for (const t of getTransactions()) {
+    if (!ids.has(t.categoryId) || !t.date || t.date > today) continue
+    if (t.type === 'transfer' || t.type === 'refund') continue
+    const amt = Number(t.amount) || 0
+    if (amt >= 0) continue
+    const b = by[t.categoryId]
+    b.total += -amt
+    b.count++
+    if (t.date >= yearAgo) b.year += -amt
+    if (t.date > b.last) b.last = t.date
+  }
+  return Object.values(by)
+}
+
+function _propExtraCostsCard(p, cats) {
+  const selected = (p.extraCategoryIds || []).filter(id => getCategoryById(id))
+  const rows = _propExtraExpenses(selected)
+  const addOpts = ['<option value="">+ הוסף קטגוריה…</option>']
+    .concat(cats.filter(c => c.id !== p.mortgageCategoryId && !selected.includes(c.id))
+      .map(c => `<option value="${c.id}">${catIconText(c)} ${escHtml(c.name)}</option>`))
+    .join('')
+  const sumTotal = rows.reduce((s, r) => s + r.total, 0)
+  const sumYear = rows.reduce((s, r) => s + r.year, 0)
+  const body = rows.length === 0
+    ? `<div style="font-size:.85rem;color:var(--text-muted)">בחר את קטגוריות ההוצאה של הדירה (ועד בית, ארנונה, ביטוח מבנה, תיקונים…) — הסכומים יחושבו מהעסקאות.</div>`
+    : `<div style="overflow-x:auto"><table class="data-table prop-mort-table">
+        <thead><tr><th>קטגוריה</th><th class="prop-mort-amt">12 חודשים</th><th class="prop-mort-amt">ממוצע חודשי</th><th class="prop-mort-amt">סך הכל</th><th>אחרון</th><th class="prop-mort-act"></th></tr></thead>
+        <tbody>
+          ${rows.map(r => {
+            const c = getCategoryById(r.catId)
+            return `<tr>
+              <td>${catIconHTML(c)} ${escHtml(c.name)} <span class="prop-type-sub">${r.count} חיובים</span></td>
+              <td class="prop-mort-amt">${formatCurrency(r.year)}</td>
+              <td class="prop-mort-amt">${formatCurrency(r.year / 12)}</td>
+              <td class="prop-mort-amt">${formatCurrency(r.total)}</td>
+              <td>${r.last ? formatDate(r.last) : '—'}</td>
+              <td class="prop-mort-act"><button class="prop-mort-del" onclick="propRemoveExtraCat('${r.catId}')" title="הסר מהרשימה" aria-label="הסר מהרשימה">✕</button></td>
+            </tr>`
+          }).join('')}
+          ${rows.length > 1 ? `<tr class="prop-totals-row">
+            <td>סך הכל</td>
+            <td class="prop-mort-amt">${formatCurrency(sumYear)}</td>
+            <td class="prop-mort-amt">${formatCurrency(sumYear / 12)}</td>
+            <td class="prop-mort-amt">${formatCurrency(sumTotal)}</td>
+            <td></td><td></td>
+          </tr>` : ''}
+        </tbody>
+      </table></div>`
+  return `
+    <div class="card">
+      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap">
+        <span>הוצאות נוספות לדירה</span>
+        <select class="form-input" style="width:auto;font-size:.85rem;padding:.35rem .6rem" onchange="propAddExtraCat(this.value)">${addOpts}</select>
+      </div>
+      ${body}
+      <div style="font-size:.75rem;color:var(--text-muted);margin-top:.6rem">
+        מחושב מכל העסקאות בקטגוריות שנבחרו. לא כולל את המשכנתא ואת תשלומי הרכישה.
+      </div>
+    </div>`
+}
+
+function propAddExtraCat(catId) {
+  if (!catId) return
+  const p = getProperty()
+  const list = p.extraCategoryIds || []
+  if (!list.includes(catId)) list.push(catId)
+  p.extraCategoryIds = list
+  saveProperty(p)
+  renderProperty()
+}
+
+function propRemoveExtraCat(catId) {
+  const p = getProperty()
+  p.extraCategoryIds = (p.extraCategoryIds || []).filter(id => id !== catId)
+  saveProperty(p)
+  renderProperty()
+}
+
 // ===== EVENT HANDLERS =====
 function onPropertyMetaChange(field, value) {
   const p = getProperty()
   if (field === 'basePrice') p[field] = parseFloat(value) || 0
   else p[field] = value
   saveProperty(p)
+  // Free-text fields fire on every keystroke and feed no number on screen.
+  // A full re-render replaced the focused input — the page jumped to the
+  // top and the caret was lost after each letter.
+  if (field === 'name' || field === 'address' || field === 'notes') return
   renderProperty()
 }
 
@@ -640,7 +736,7 @@ function _renderMortgagePaidModal() {
     ? `<tr><td colspan="2" style="text-align:center;color:var(--text-muted);padding:1.25rem">אין תשלומים</td></tr>`
     : monthsSorted.map(([ym, sum]) => {
         const [y, m] = ym.split('-')
-        return `<tr><td>${m}/${y}</td><td style="text-align:end;font-weight:600">${formatCurrency(sum)}</td></tr>`
+        return `<tr><td>${m}/${y}</td><td class="prop-mort-amt">${formatCurrency(sum)}</td></tr>`
       }).join('')
 
   const detailRows = mort.list.length === 0
@@ -650,14 +746,14 @@ function _renderMortgagePaidModal() {
           ? '<span class="prop-status prop-st-tba">ידני</span>'
           : '<span class="prop-status prop-st-paid">אוטו׳</span>'
         const delBtn = x.source === 'manual'
-          ? `<button class="btn-ghost" style="font-size:.75rem;padding:.2rem .55rem;color:var(--expense)" onclick="deleteManualMortgage('${x.id}')" title="מחק" aria-label="מחק">${uiIcon('trash', 13)}</button>`
+          ? `<button class="prop-mort-del" onclick="deleteManualMortgage('${x.id}')" title="מחק" aria-label="מחק">${uiIcon('trash', 13)}</button>`
           : ''
         return `<tr>
           <td>${formatDate(x.date)}</td>
           <td>${srcBadge}</td>
           <td>${escHtml(x.vendor || x.notes || '')}</td>
-          <td style="text-align:end;font-weight:600">${formatCurrency(x.amount)}</td>
-          <td>${delBtn}</td>
+          <td class="prop-mort-amt">${formatCurrency(x.amount)}</td>
+          <td class="prop-mort-act">${delBtn}</td>
         </tr>`
       }).join('')
 
@@ -694,15 +790,15 @@ function _renderMortgagePaidModal() {
     <div style="display:grid;grid-template-columns: 1fr 2fr;gap:1.25rem">
       <div>
         <h4 style="margin:0 0 .5rem">סיכום חודשי</h4>
-        <table class="data-table">
-          <thead><tr><th>חודש</th><th style="text-align:end">סכום</th></tr></thead>
+        <table class="data-table prop-mort-table">
+          <thead><tr><th>חודש</th><th class="prop-mort-amt">סכום</th></tr></thead>
           <tbody>${monthRows}</tbody>
         </table>
       </div>
       <div>
         <h4 style="margin:0 0 .5rem">פירוט תשלומים</h4>
-        <table class="data-table">
-          <thead><tr><th>תאריך</th><th>מקור</th><th>פירוט</th><th style="text-align:end">סכום</th><th></th></tr></thead>
+        <table class="data-table prop-mort-table">
+          <thead><tr><th>תאריך</th><th>מקור</th><th>פירוט</th><th class="prop-mort-amt">סכום</th><th class="prop-mort-act"></th></tr></thead>
           <tbody>${detailRows}</tbody>
         </table>
       </div>

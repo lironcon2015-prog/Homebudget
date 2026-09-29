@@ -278,6 +278,15 @@ savingsPct  = realSavings / realIncome                 (0 כאשר realIncome �
 עוברים ל-'general'. ייבוא מ-Gmail: תווית (ברירת מחדל "HomeBudget", נשמרת
 ב-`finGmailDocLabel` מקומי), scope `gmail.readonly` נפרד, message ids שעובדו
 ב-`finGmailDocSeen` (מסונכרן).
+מסמך מ-Gmail שנמחק נרשם כ-tombstone ב-`finGmailDocDeleted` (מזהה הודעה + שם
+קובץ, מסונכרן), והסריקה מתייחסת גם לכל מסמך קיים כ"נראה". `finGmailDocSeen`
+לבד לא הספיק: הוא נדרס בשלמותו בכל משיכה מ-Drive, ומסמכים שנמחקו חזרו.
+
+**הוצאות נוספות לדירה** (`_propExtraCostsCard`, דסקטופ + מובייל): המשתמש בוחר
+קטגוריות הוצאה (`finProperty.extraCategoryIds`) והכרטיס מסכם אותן מהעסקאות —
+אותה קריאה גולמית לפי קטגוריה כמו כרטיס המשכנתא, בלי transfer/החזרים.
+שדות טקסט חופשי בפרטי הנכס (שם/כתובת/הערות) **לא** קוראים ל-`renderProperty()`
+— רינדור בכל הקשה החליף את ה-input והקפיץ את המסך למעלה.
 
 ### חיפוש מסמכים — מטא-דאטה תמיד, תוכן כשאונדקס
 `_pdHaystack` משטח לשורה אחת את כל מה שהכרטיס מציג על מסמך (שם/כותרת, תווית

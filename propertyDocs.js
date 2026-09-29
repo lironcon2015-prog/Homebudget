@@ -938,6 +938,7 @@ async function propDocDelete(id) {
   if (!d) return
   if (!await confirmDialog(`למחוק את "${_pdDisplayName(d)}"? הקובץ יימחק לצמיתות מהמכשיר${d.driveFileId ? ' ומ-Drive' : ''}.`, { danger: true, confirmText: 'מחק' })) return
   savePropertyDocs(getPropertyDocs().filter(x => x.id !== id))
+  if (d.gmailMsgId) _pdGmailTombstone(d)
   try { await _pdDeleteFile(id) } catch (e) { console.warn('blob delete failed:', e) }
   if (d.driveFileId && typeof _driveToken !== 'undefined' && _driveToken) {
     try { await _driveReq('DELETE', `https://www.googleapis.com/drive/v3/files/${d.driveFileId}`) }
@@ -1183,6 +1184,20 @@ function _b64urlToBytes(s) {
   return bytes
 }
 
+// A deleted Gmail attachment must not come back on the next scan. The
+// message-level "seen" list alone is not enough: it rides Drive sync as a
+// whole-key overwrite, so a pull from another device can drop ids and the
+// scan re-imports everything the user already threw away. Tombstones are
+// per attachment (message id + file name), and the scan also treats every
+// doc already on file as seen.
+function _pdGmailKey(msgId, filename) { return `${msgId}|${filename || ''}` }
+
+function _pdGmailTombstone(doc) {
+  const dead = new Set(DB.get('finGmailDocDeleted', []))
+  dead.add(_pdGmailKey(doc.gmailMsgId, doc.name))
+  DB.set('finGmailDocDeleted', [...dead])
+}
+
 async function propDocScanGmail() {
   let label = localStorage.getItem('finGmailDocLabel') || ''
   if (!label) {
@@ -1204,6 +1219,10 @@ async function propDocScanGmail() {
     if (!msgs.length) { toast(`לא נמצאו מיילים עם התווית "${label}" וקבצים מצורפים`, { type: 'info' }); return }
 
     const seen = new Set(DB.get('finGmailDocSeen', []))
+    const docs = getPropertyDocs()
+    docs.forEach(d => { if (d.gmailMsgId) seen.add(d.gmailMsgId) })
+    const skip = new Set(DB.get('finGmailDocDeleted', []))
+    docs.forEach(d => { if (d.gmailMsgId) skip.add(_pdGmailKey(d.gmailMsgId, d.name)) })
     const fresh = msgs.filter(m => !seen.has(m.id))
     if (!fresh.length) { toast('אין מיילים חדשים — הכל כבר יובא', { type: 'info' }); return }
 
@@ -1216,6 +1235,7 @@ async function propDocScanGmail() {
       const atts = _gmailWalkParts(msg.payload, [])
       const files = []
       for (const a of atts) {
+        if (skip.has(_pdGmailKey(m.id, a.filename))) continue
         const data = await _gmailReq(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}/attachments/${a.attachmentId}`)
         files.push(new File([_b64urlToBytes(data.data)], a.filename, { type: a.mime }))
       }

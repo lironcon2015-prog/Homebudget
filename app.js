@@ -1,4 +1,4 @@
-const APP_VERSION = '1.52.0'
+const APP_VERSION = '1.53.0'
 
 // ===== STORAGE =====
 // Hot keys are cached as parsed objects: getTransactions() etc. used to
@@ -413,6 +413,7 @@ function collectBackupData() {
     propertyDocs:        DB.get('finPropertyDocs', []),
     propertyDocCats:     DB.get('finPropertyDocCats', []),
     gmailDocSeen:        DB.get('finGmailDocSeen', []),
+    gmailDocDeleted:     DB.get('finGmailDocDeleted', []),
     feedback:            DB.get('finFeedback', []),
     reconciliation:      DB.getObj('finReconciliation', {}),
     dismissedAnomalies:  DB.get('finDismissedAnomalies', []),
@@ -476,6 +477,7 @@ function applyBackupData(data) {
   if (data.propertyDocs)       DB.set('finPropertyDocs',            data.propertyDocs)
   if (data.propertyDocCats)    DB.set('finPropertyDocCats',         data.propertyDocCats)
   if (data.gmailDocSeen)       DB.set('finGmailDocSeen',            data.gmailDocSeen)
+  if (data.gmailDocDeleted)    DB.set('finGmailDocDeleted',         data.gmailDocDeleted)
   if (data.feedback)           DB.set('finFeedback',                data.feedback)
   if (data.reconciliation)     DB.set('finReconciliation',          data.reconciliation)
   // Dismissed anomalies are monotonic (once marked OK, stays OK) — UNION with
