@@ -547,6 +547,10 @@ function getTxEffectiveMonth(tx) {
   const info = _getAccountInfo(tx.accountId)
   const [y, m, d] = tx.date.split('-').map(Number)
   if (!y || !m) return ''
+  // A manual month assignment beats every derivation, on any account type:
+  // a salary paid early on the 30th still belongs to next month's budget.
+  // `date` stays the day the money moved, so balances are untouched.
+  if (/^\d{4}-\d{2}$/.test(String(tx.monthOverride || ''))) return tx.monthOverride
   // Non-CC accounts (checking / cash / savings / investment / unknown) are
   // ALWAYS bucketed by the calendar month of `date`. We ignore any stray
   // chargeDate / billingDay these accounts might carry — those fields are

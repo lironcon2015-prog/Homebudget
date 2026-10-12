@@ -362,7 +362,7 @@ function _drawTxTable() {
           const effMonth = getTxEffectiveMonth(tx)
           const effMonthDisplay = effMonth ? effMonth.slice(5) + '/' + effMonth.slice(0,4) : '—'
           const effMonthMismatch = effMonth && tx.date && effMonth !== tx.date.slice(0,7)
-          const effCell = `<td class="tx-cell-sec" style="font-size:.8rem;color:${effMonthMismatch?'var(--accent)':'var(--text-muted)'}">${effMonthDisplay}</td>`
+          const effCell = `<td class="tx-cell-sec" style="font-size:.8rem;color:${effMonthMismatch?'var(--accent)':'var(--text-muted)'}"${tx.monthOverride ? ' title="שויך ידנית לחודש"' : ''}>${effMonthDisplay}${tx.monthOverride ? ' (ידני)' : ''}</td>`
           // An instalment is charged on the purchase's day-of-month, in whichever
           // month places that day inside this bill's cycle — so the date column
           // shows both: when it was bought, and when this instalment was charged.

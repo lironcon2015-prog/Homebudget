@@ -395,6 +395,13 @@ savingsPct  = realSavings / realIncome                 (0 כאשר realIncome �
 לעולם לא דורס את `date`, ולא נוגע בשורה שהמנפיק כבר נתן לה תאריך חיוב.
 מוצג בעמודת התאריך ב-`transactions.js` ובטבלת הסקירה.
 
+### שיוך ידני לחודש — `monthOverride` (מאז 1.54.0)
+שדה 'YYYY-MM' על עסקה ("שייך לחודש" בטופס העריכה), למשל משכורת שהוקדמה ל-30.
+`getTxEffectiveMonth` מחזיר אותו **לפני כל גזירה אחרת ובכל סוג חשבון**, ולכן כל
+מסך שמקבץ לפי חודש עוקב אחריו. `date` לא משתנה — היתרה בבנק זזה ביום שהכסף זז.
+`budgetPhysicalBalance` מתקן את היתרה המועברת ב-`_monthOverrideCarryShift`:
+אחרת המשכורת הייתה נספרת גם ביתרת ספטמבר וגם בהכנסות אוקטובר.
+
 ### date מול billingMonth
 `date` = **תאריך הרכישה, תמיד**. `billingMonth` ('YYYY-MM') = מחזור החיוב,
 מפורש. `getTxEffectiveMonth` נותן קדימות ל-`billingMonth` (CC בלבד), אחריו

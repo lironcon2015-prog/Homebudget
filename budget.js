@@ -769,8 +769,27 @@ function _monthEndISO(monthKey) {
 // about anything that happened before the budget was ever set up, or about
 // money that P&L doesn't model. The balance in the account is the source of
 // everything that can be spent next month, so it is the thing to carry.
+//
+// One exception: a row whose month was set by hand (`monthOverride`). A salary
+// that landed on 30/09 but was assigned to October sits in the September
+// balance AND in October's income — carried as-is it would be counted twice.
+// So the carry hands over the balance as if each such row had landed in the
+// month it was assigned to.
 function budgetPhysicalBalance(monthKey) {
-  return Math.round(getCheckingCashBalance(_monthEndISO(monthKey)) * 100) / 100
+  return Math.round((getCheckingCashBalance(_monthEndISO(monthKey)) + _monthOverrideCarryShift(monthKey)) * 100) / 100
+}
+
+function _monthOverrideCarryShift(monthKey) {
+  const end = _monthEndISO(monthKey)
+  const pl = new Set(getAccounts().filter(a => PL_ACCOUNT_TYPES.has(a.type)).map(a => a.id))
+  let shift = 0
+  for (const t of getTransactions()) {
+    if (!t.monthOverride || !t.date || !pl.has(t.accountId)) continue
+    const inBank = t.date <= end, inBudget = t.monthOverride <= monthKey
+    if (inBank && !inBudget) shift -= t.amount
+    else if (!inBank && inBudget) shift += t.amount
+  }
+  return shift
 }
 
 // The balance this month is heading toward. The carried row already sits inside
@@ -799,8 +818,10 @@ async function importCarryoverFromPrevMonth() {
   const net = budgetPhysicalBalance(prev)
   if (Math.abs(net) < 1) { toast(`יתרת החשבונות ב-${_isoToDmy(asOf)} היא אפס`, { type: 'info' }); return }
   // Per-account breakdown, so the number is traceable to the statements it came from.
+  const shift = _monthOverrideCarryShift(prev)
   const parts = accts
     .map(a => `${a.name}: ${formatCurrencyPlain(getAccountBalance(a.id, asOf))}`)
+    .concat(Math.abs(shift) >= 0.01 ? [`שויך ידנית לחודש אחר: ${formatCurrencyPlain(shift)}`] : [])
     .join(' · ')
   const desc = net > 0
     ? `יתרה של ${formatCurrencyPlain(net)} בחשבונות ב-${_isoToDmy(asOf)} — תועבר כהכנסה מועברת.`

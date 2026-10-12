@@ -155,3 +155,14 @@ test('with no checking/cash account the import refuses instead of writing zero',
   assert.strictEqual(ctx.getBudgets().length, 0)
   assert.match(ctx._lastToast, /עו/)
 })
+
+// A salary paid early (30/07) but assigned by hand to August: counted in
+// August's budget, and therefore NOT carried over inside July's balance.
+test('monthOverride moves a row to another month and out of the carryover', () => {
+  const txs = [...TXS, { id: 't4', accountId: 'a1', date: '2026-07-30', amount: 9000, type: 'income', categoryId: 'c2', monthOverride: '2026-08' }]
+  const ctx = loadBudget(txs)
+  assert.strictEqual(ctx.getTxEffectiveMonth(txs[3]), '2026-08')
+  assert.strictEqual(ctx.getAccountBalance('a1', '2026-07-31'), 17000, 'the bank balance itself is untouched')
+  assert.strictEqual(ctx.budgetPhysicalBalance('2026-07'), 8000, 'the early salary belongs to August')
+  assert.strictEqual(ctx.budgetPhysicalBalance('2026-08'), 16000, 'by end of August it is in both views')
+})

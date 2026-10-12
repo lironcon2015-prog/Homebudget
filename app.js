@@ -1,4 +1,4 @@
-const APP_VERSION = '1.53.1'
+const APP_VERSION = '1.54.0'
 
 // ===== STORAGE =====
 // Hot keys are cached as parsed objects: getTransactions() etc. used to
@@ -582,6 +582,9 @@ function openEditModal(id) {
     <div class="modal-row"><label class="form-label">חשבון</label><select id="editAccount">${accOptions}</select></div>
     <div class="modal-row"><label class="form-label">ספק</label><input id="editVendor" value="${escAttr(tx.vendor || '')}"></div>
     <div class="modal-row"><label class="form-label">תאריך</label><input id="editDate" type="text" inputmode="numeric" maxlength="10" placeholder="dd/mm/yyyy" value="${_isoToDmy(tx.date)}" oninput="_onDateMaskInput(this)"></div>
+    <div class="modal-row"><label class="form-label">שייך לחודש</label><input id="editMonthOverride" type="month" value="${escAttr(tx.monthOverride || '')}">
+      <div style="font-size:.72rem;color:var(--text-muted);margin-top:.3rem">ריק = לפי התאריך. למשל משכורת שהוקדמה ל-30 לחודש — בחר את החודש שאליו היא שייכת. התאריך והיתרה בחשבון לא משתנים.</div>
+    </div>
     <div class="modal-row"><label class="form-label">סכום (חיובי=הכנסה)</label><input id="editAmount" type="number" step="0.01" value="${tx.amount}"></div>
     <div class="modal-row"><label class="form-label">סוג</label><select id="editType" onchange="_onEditTypeChange()">${typeOptions}</select></div>
     <div class="modal-row" id="editDestRow" style="display:${showDest}"><label class="form-label">חשבון יעד (להעברה)</label><select id="editDestAccount"><option value="">—</option>${destAccOptions}</select></div>
@@ -898,6 +901,11 @@ function saveEditModal() {
   const editedIdx = txs.findIndex(t => t.id === _editId)
   const edited = editedIdx >= 0 ? txs[editedIdx] : null
   if (edited) { if (oneOff) edited.oneOff = true; else delete edited.oneOff }
+  if (edited) {
+    const mo = document.getElementById('editMonthOverride')?.value || ''
+    if (/^\d{4}-\d{2}$/.test(mo)) edited.monthOverride = mo
+    else delete edited.monthOverride
+  }
   if (edited) {
     if (edited.type === 'refund' && _editRefundForTxId) edited.refundForTxId = _editRefundForTxId
     else delete edited.refundForTxId
